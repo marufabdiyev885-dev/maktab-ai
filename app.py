@@ -44,7 +44,7 @@ df = yuklash()
 st.title(f"🤖 {MAKTAB_NOMI} AI Yordamchisi")
 
 if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "assistant", "content": "Assalomu alaykum, Ma'rufjon aka! 32-maktabning raqamli yordamchisi xizmatingizga tayyor. Qanday ma'lumot kerak bo'lsa, bemalol so'rang!"}]
+    st.session_state.messages = [{"role": "assistant", "content": "Assalomu alaykum, Ma'rufjon aka! Xizmatingizga tayyorman. Qanday ma'lumot kerak bo'lsa, bemalol so'rang!"}]
 
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
@@ -58,32 +58,37 @@ if savol := st.chat_input("Ma'rufjon aka, savolingizni yozing..."):
         soni = 0
         
         if df is not None:
-            # Aqlli qidiruv logic
-            sinf_match = re.search(r'\d{1,2}-[a-z|A-Z]', savol)
+            # 🔍 QIDIRUVNI TUZATILGAN QISMI
+            sinf_match = re.search(r'\b\d{1,2}-[a-z|A-Z]\b', savol) # RegEx chegarasi qo'shildi
+            
             if sinf_match:
                 kalit = sinf_match.group().lower()
-                res = df[df.apply(lambda x: x.astype(str).str.lower().str.contains(kalit).any(), axis=1)]
+                # 🎯 ANIQ MOSLIK (1-A so'ralsa, faqat 1-A chiqadi, 11-A emas)
+                if 'sinfi' in df.columns:
+                    res = df[df['sinfi'].str.lower() == kalit]
+                else:
+                    res = df[df.apply(lambda row: row.astype(str).str.lower().eq(kalit).any(), axis=1)]
             else:
-                keywords = [s for s in savol.split() if len(s) > 2]
-                res = df[df.apply(lambda x: any(k.lower() in str(v).lower() for k in keywords for v in x), axis=1)]
+                keywords = [s.lower() for s in savol.split() if len(s) > 2]
+                res = df[df.apply(lambda row: any(k in str(v).lower() for k in keywords for v in row), axis=1)]
             
             if not res.empty:
                 st.dataframe(res, use_container_width=True)
-                soni = len(res)  # 🎯 SHU YERDA SANAYDI
-                found_data = res.head(30).to_string(index=False)
+                soni = len(res)  # 🎯 JAMI SONINI HISOBLASH
+                found_data = res.head(40).to_string(index=False)
 
         # 🚀 AI JAVOBINI SOZLASH
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
         
         system_talimoti = f"""
-        Sen {MAKTAB_NOMI} maktabining samimiy xodimisiz. Suhbatdoshing - Ma'rufjon aka. 
+        Sen {MAKTAB_NOMI} maktabining samimiy xodimisiz. Suhbatdoshing - Ma'rufjon aka. 
         
         Vazifang:
-        1. Agar ma'lumot topilsa, jadvalda jami {soni} ta ma'lumot (o'quvchi yoki xodim) borligini Ma'rufjon akaga alohida ayt.
-        2. Ro'yxatni bittalab tagma-tag yozib chiqma, jadvalda hammasi borligini tushuntir.
+        1. Agar ma'lumot topilsa, jadvalda jami {soni} ta ma'lumot borligini Ma'rufjon akaga samimiy aytsang kifoya.
+        2. Ro'yxatni jadval ostidan qaytadan tagma-tag yozib chiqma (Taqiqlanadi).
         3. Doim Ma'rufjon aka deb hurmat bilan murojaat qil.
-        4. Javobing samimiy va qisqa bo'lsin.
+        4. Javobing qisqa va mazmunli bo'lsin.
         """
 
         payload = {
@@ -92,7 +97,7 @@ if savol := st.chat_input("Ma'rufjon aka, savolingizni yozing..."):
                 {"role": "system", "content": system_talimoti},
                 {"role": "user", "content": f"Baza ma'lumoti: {found_data}. Savol: {savol}"}
             ],
-            "temperature": 0.5 
+            "temperature": 0.4 # AI o'zidan ro'yxat to'qimasligi uchun
         }
         
         try:
