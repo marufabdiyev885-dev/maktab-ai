@@ -4,8 +4,8 @@ import pandas as pd
 import os
 import json
 
-# 1. SOZLAMALAR (To'liq va yangi API kalit)
-API_KEY = "AIzaSyD" + "v8R6_m" + "Hn9zW" + "K8nK4m" + "qKz_pL7X" + "9_X4S8" # Bloklarga bo'lindi
+# 1. SOZLAMALAR
+API_KEY = "AIzaSyD" + "v8R6_m" + "Hn9zW" + "K8nK4m" + "qKz_pL7X" + "9_X4S8"
 TO_GRI_PAROL = "informatika2024"
 
 st.set_page_config(page_title="Maktab AI", layout="centered")
@@ -42,7 +42,6 @@ def yuklash():
 st.title("🏫 Maktab AI Yordamchisi")
 df = yuklash()
 
-# --- CHAT TARIXI ---
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -57,7 +56,6 @@ if savol := st.chat_input("Salom deb yozing yoki ism so'rang..."):
         st.write(savol)
 
     with st.chat_message("assistant"):
-        # 1. Bazadan qidirish
         context = ""
         if df is not None:
             mask = df.apply(lambda row: row.astype(str).str.contains(savol, case=False, na=False).any(), axis=1)
@@ -65,13 +63,12 @@ if savol := st.chat_input("Salom deb yozing yoki ism so'rang..."):
             if not results.empty:
                 context = "Bazadagi ma'lumotlar:\n" + results.to_string(index=False)
 
-        # 2. Google API (v1beta orqali to'g'ridan-to'g'ri so'rov)
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
         
-        prompt = f"Sen maktab bazasi bo'yicha yordamchi AIsan. O'zbek tilida samimiy javob ber."
+        prompt = f"Sen maktab yordamchisisan. O'zbek tilida javob ber. "
         if context:
-            prompt += f"\n\nMana bu ma'lumotlar asosida javob ber: {context}"
-        prompt += f"\n\nSavol: {savol}"
+            prompt += f"Mana bu ma'lumotlar asosida javob ber: {context}. "
+        prompt += f"Savol: {savol}"
 
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
         
@@ -83,6 +80,8 @@ if savol := st.chat_input("Salom deb yozing yoki ism so'rang..."):
                 st.write(javob)
                 st.session_state.messages.append({"role": "assistant", "content": javob})
             else:
-                st.error(f"API Xatosi: {data.get('error', {}).get('message', 'Kalit faollashmagan bo'lishi mumkin')}")
+                # Tutuq belgisi xatosi tuzatildi
+                xato_matni = data.get('error', {}).get('message', 'Kalitda muammo bor')
+                st.error(f"API Xatosi: {xato_matni}")
         except Exception as e:
             st.error(f"Ulanishda xato: {str(e)}")
