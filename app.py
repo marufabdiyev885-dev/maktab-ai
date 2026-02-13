@@ -49,45 +49,39 @@ for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
 # --- ASOSIY JARAYON ---
-if savol := st.chat_input("Ma'rufjon aka, biror nima so'rang..."):
+if savol := st.chat_input("Ma'rufjon aka, buyuravering..."):
     st.session_state.messages.append({"role": "user", "content": savol})
     with st.chat_message("user"): st.markdown(savol)
 
     with st.chat_message("assistant"):
         context_text = ""
-        # 1. Bazadan qidirish (AIga ma'lumot berish uchun)
         if df is not None:
             mask = df.apply(lambda row: row.astype(str).str.contains(savol, case=False, na=False).any(), axis=1)
-            results = df[mask].head(15) # Topilgan 15 tagacha ma'lumotni AIga beramiz
+            results = df[mask].head(10)
             if not results.empty:
                 context_text = results.to_string(index=False)
-                st.dataframe(results) # Jadvalni baribir ko'rsatamiz
+                st.dataframe(results)
 
-        # 2. Gemini AI bilan suhbat
+        # Gemini API ulanish
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
         headers = {'Content-Type': 'application/json'}
         
-        system_instruction = (
-            "Sen Ma'rufjon ismli maktab administratorining shaxsiy yordamchisisan. Isming MaktabAI. "
-            "Sening vazifang maktab bazasidagi ma'lumotlarni tahlil qilish va Ma'rufjon aka bilan samimiy suhbatlashish. "
-            "Agar bazadan ma'lumot topilsa, uni shunchaki o'qib bermay, tahlil qilib ber. "
-            "Masalan: 'Ma'rufjon aka, men qidiringiz bo'yicha 2 ta o'quvchini topdim, biri 9-A dan ekan...' deb javob ber. "
-            "Har doim o'zbek tilida, do'stona va o'ta aqlli javob ber. "
-            "Bazadagi ma'lumotlar quyidagilar: " + context_text
-        )
-
-        payload = {
-            "contents": [{"parts": [{"text": f"{system_instruction}\n\nFoydalanuvchi savoli: {savol}"}]}]
-        }
+        prompt = f"Sen Ma'rufjon ismli maktab adminiga yordam beruvchi aqlli AIsan. Bazadagi ma'lumot: {context_text}. Savol: {savol}. O'zbekcha javob ber."
+        payload = {"contents": [{"parts": [{"text": prompt}]}]}
 
         try:
-            r = requests.post(url, headers=headers, data=json.dumps(payload))
+            r = requests.post(url, headers=headers, json=payload)
+            res_json = r.json()
+            
             if r.status_code == 200:
-                ai_text = r.json()['candidates'][0]['content']['parts'][0]['text']
+                ai_text = res_json['candidates'][0]['content']['parts'][0]['text']
             else:
-                ai_text = "Ma'rufjon aka, hozircha jadvalga qarab turing, AI tizimida kichik uzilish bo'ldi."
-        except:
-            ai_text = "Ulanishda muammo bor, lekin jadvaldan qidiruv ishlayapti."
+                # Xatoni aniq aniqlash
+                err_msg = res_json.get('error', {}).get('message', 'Noma\'lum xato')
+                ai_text = f"API Xatosi: {err_msg}" # Bu yerda xato matni chiqadi
+                
+        except Exception as e:
+            ai_text = f"Texnik ulanishda xato: {str(e)}"
 
         st.markdown(ai_text)
         st.session_state.messages.append({"role": "assistant", "content": ai_text})
