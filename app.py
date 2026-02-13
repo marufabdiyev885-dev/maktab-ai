@@ -5,8 +5,8 @@ import requests
 import re
 
 # --- 1. ASOSIY SOZLAMALAR ---
-MAKTAB_NOMI = "32-sonli umumta'lim maktabi"
-DIREKTOR_FIO = "Eshmatov Toshmat"
+MAKTAB_NOMI = "1-sonli umumta'lim maktabi"
+DIREKTOR_FIO = "Mahmudov Matyoqub "
 GROQ_API_KEY = "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"
 TO_GRI_PAROL = "informatika2024"
 
@@ -44,8 +44,7 @@ df = yuklash()
 st.title(f"🤖 {MAKTAB_NOMI} AI Yordamchisi")
 
 if "messages" not in st.session_state:
-    # Botning birinchi kutib olish so'zi (Ma'rufjon akaga xos)
-    st.session_state.messages = [{"role": "assistant", "content": "Assalomu alaykum, Ma'rufjon aka! 32-maktabning raqamli yordamchisi xizmatingizga tayyor. Qanday ma'lumot kerak bo'lsa, bemalol so'rang, qo'limdan kelgancha yordam beraman!"}]
+    st.session_state.messages = [{"role": "assistant", "content": "Assalomu alaykum, Ma'rufjon aka! 32-maktabning raqamli yordamchisi xizmatingizga tayyor. Qanday ma'lumot kerak bo'lsa, bemalol so'rang!"}]
 
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
@@ -55,10 +54,11 @@ if savol := st.chat_input("Ma'rufjon aka, savolingizni yozing..."):
     with st.chat_message("user"): st.markdown(savol)
     
     with st.chat_message("assistant"):
-        found_data = "Hozircha bazadan ma'lumot topilmadi."
+        found_data = ""
+        soni = 0
         
         if df is not None:
-            # Aqlli qidiruv
+            # Aqlli qidiruv logic
             sinf_match = re.search(r'\d{1,2}-[a-z|A-Z]', savol)
             if sinf_match:
                 kalit = sinf_match.group().lower()
@@ -69,39 +69,37 @@ if savol := st.chat_input("Ma'rufjon aka, savolingizni yozing..."):
             
             if not res.empty:
                 st.dataframe(res, use_container_width=True)
-                found_data = res.head(15).to_string(index=False)
+                soni = len(res)  # 🎯 SHU YERDA SANAYDI
+                found_data = res.head(30).to_string(index=False)
 
-        # 🚀 BU YERDA BOTNING "TILINI" O'ZGARTIRAMIZ
+        # 🚀 AI JAVOBINI SOZLASH
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
         
         system_talimoti = f"""
-        Sen {MAKTAB_NOMI} maktabining samimiy, zukko va xushmuomala xodimisiz. 
-        Sening suhbatdoshing - Ma'rufjon aka. Unga doim hurmat bilan murojaat qil.
-        
-        Senga taqdim etilgan baza ma'lumotlari: {found_data}
+        Sen {MAKTAB_NOMI} maktabining samimiy xodimisiz. Suhbatdoshing - Ma'rufjon aka. 
         
         Vazifang:
-        1. Ma'rufjon akaning savoliga bazadan kelib chiqib javob ber. 
-        2. Agar ma'lumot topilgan bo'lsa, uni chiroyli, tushunarli tilda tushuntirib ber. 
-        3. Agar ma'lumot topilmagan bo'lsa ham, quruq 'topilmadi' demasdan, vaziyatni yumshoq tilda tushuntir.
-        4. O'zbek tilida, imlo xatolarisiz, xuddi jonli suhbatdagidek javob ber.
+        1. Agar ma'lumot topilsa, jadvalda jami {soni} ta ma'lumot (o'quvchi yoki xodim) borligini Ma'rufjon akaga alohida ayt.
+        2. Ro'yxatni bittalab tagma-tag yozib chiqma, jadvalda hammasi borligini tushuntir.
+        3. Doim Ma'rufjon aka deb hurmat bilan murojaat qil.
+        4. Javobing samimiy va qisqa bo'lsin.
         """
 
         payload = {
             "model": "llama-3.3-70b-versatile",
             "messages": [
                 {"role": "system", "content": system_talimoti},
-                {"role": "user", "content": savol}
+                {"role": "user", "content": f"Baza ma'lumoti: {found_data}. Savol: {savol}"}
             ],
-            "temperature": 0.8  # Bot "robot" bo'lib qolmasligi uchun
+            "temperature": 0.5 
         }
         
         try:
             r = requests.post(url, json=payload, headers=headers, timeout=15)
             ai_text = r.json()['choices'][0]['message']['content']
         except:
-            ai_text = "Ma'rufjon aka, ulanishda biroz texnik nosozlik bo'ldi, lekin ma'lumotlar jadvalda keltirilgan."
+            ai_text = f"Ma'rufjon aka, jami {soni} ta ma'lumot topildi. Marhamat, jadvaldan ko'rishingiz mumkin."
 
         st.markdown(ai_text)
         st.session_state.messages.append({"role": "assistant", "content": ai_text})
