@@ -4,19 +4,18 @@ import os
 
 # 1. SOZLAMALAR
 TO_GRI_PAROL = "informatika2024"
+st.set_page_config(page_title="Maktab AI Analitika", layout="centered")
 
-st.set_page_config(page_title="Maktab Analitika AI", layout="wide")
-
-# --- PAROL TIZIMI ---
+# --- PAROL ---
 if "authenticated" not in st.session_state:
-    st.title("🔐 Tizimga kirish")
-    parol = st.text_input("Parolni kiriting:", type="password")
+    st.title("🔐 Kirish")
+    parol = st.text_input("Parol:", type="password")
     if st.button("Kirish"):
         if parol == TO_GRI_PAROL:
             st.session_state.authenticated = True
             st.rerun()
         else:
-            st.error("❌ Parol noto'g'ri!")
+            st.error("❌ Xato!")
     st.stop()
 
 # --- BAZANI O'QISH ---
@@ -27,27 +26,26 @@ def yuklash():
     for f in files:
         try:
             if f.endswith('.csv'):
-                df = pd.read_csv(f, dtype=str, encoding='utf-8')
+                df = pd.read_csv(f, dtype=str)
             else:
-                sheets = pd.read_excel(f, sheet_name=None, dtype=str)
-                df = pd.concat(sheets.values(), ignore_index=True)
+                df = pd.read_excel(f, dtype=str)
             all_data.append(df)
         except:
             continue
     return pd.concat(all_data, ignore_index=True) if all_data else None
 
-st.title("🏫 Maktab Yordamchisi (Analitika)")
+st.title("🏫 Maktab AI (Aqlli Hisobot)")
 df = yuklash()
 
 if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "assistant", "content": "Assalomu alaykum! Men maktab bazasi bo'yicha hisobotchi botman. Nimalarni hisoblab beray?"}]
+    st.session_state.messages = []
 
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
-        st.markdown(m["content"])
+        st.write(m["content"])
 
-# --- QIDIRUV VA TAHLIL ---
-if savol := st.chat_input("Savol yozing (Masalan: nechta o'quvchi bor? yoki sertifikatlar)"):
+# --- TAHLIL QISMI ---
+if savol := st.chat_input("Savol yozing (Masalan: nechta o'quvchi bor?)"):
     st.session_state.messages.append({"role": "user", "content": savol})
     with st.chat_message("user"):
         st.write(savol)
@@ -57,31 +55,43 @@ if savol := st.chat_input("Savol yozing (Masalan: nechta o'quvchi bor? yoki sert
         s = savol.lower()
 
         if df is not None:
-            # 1. Umumiy sonini hisoblash
-            if "nechta" in s and ("o'quvchi" in s or "odam" in s or "bor" in s):
-                soni = len(df)
-                javob = f"Hozirgi bazada jami **{soni} ta** ma'lumot (o'quvchi/pedagog) mavjud."
+            # 1. O'QUVCHILARNI SANASH (Sinf yoki O'quvchi so'zi bor qatorlar)
+            if "nechta o'quvchi" in s:
+                # 'Sinf' ustuni bor yoki 'O'quvchi' deb yozilgan qatorlarni topamiz
+                mask_oqv = df.apply(lambda r: r.astype(str).str.contains(r'^\d+-', case=False, na=False).any() or r.astype(str).str.contains('o\'quvchi', case=False, na=False).any(), axis=1)
+                soni = len(df[mask_oqv])
+                javob = f"Bazadagi ma'lumotlarga ko'ra, jami **{soni} ta o'quvchi** bor."
 
-            # 2. Sertifikatlarni hisoblash
+            # 2. O'QITUVCHILARNI SANASH
+            elif "nechta o'qituvchi" in s or "pedagog" in s:
+                mask_oqt = df.apply(lambda r: r.astype(str).str.contains('o\'qituvchi|pedagog|o’qituvchi|direktor', case=False, na=False).any(), axis=1)
+                soni = len(df[mask_oqt])
+                javob = f"Bazada jami **{soni} ta o'qituvchi** (pedagog xodim) mavjud."
+
+            # 3. UMUMIY SONI
+            elif "nechta" in s and "jami" in s:
+                javob = f"Bazada jami (o'qituvchi va o'quvchi birga) **{len(df)} ta** qator mavjud."
+
+            # 4. SERTIFIKATLAR (faqat o'quvchilarda borlarini chiqaradi)
             elif "sertifikat" in s:
-                # 'Sertifikat' yoki shunga o'xshash ustunni qidirish
-                ser_mask = df.apply(lambda row: row.astype(str).str.contains("bor|mavjud|ha|yes|sertifikat", case=False, na=False).any(), axis=1)
+                ser_mask = df.apply(lambda r: r.astype(str).str.contains('sertifikat|bor|mavjud|ha', case=False, na=False).any(), axis=1)
                 ser_df = df[ser_mask]
-                if not ser_df.empty:
-                    javob = f"Bazada sertifikatga ega o'quvchilar soni: **{len(ser_df)} ta**. \n\n"
-                    st.dataframe(ser_df)
-                else:
-                    javob = "Afsuski, bazada sertifikati bor o'quvchilar haqida ma'lumot topilmadi."
+                javob = f"Sertifikatga ega bo'lganlar soni: **{len(ser_df)} ta**.\n\nRo'yxat:\n"
+                for idx, row in ser_df.iterrows():
+                    # Ism va familiyani topish (taxminan 1 va 2-ustunlar)
+                    javob += f"✅ {row.iloc[0]} {row.iloc[1]}\n"
 
-            # 3. Oddiy ism qidirish
+            # 5. ODDIY QIDIRUV (Ism yozilganda)
             else:
                 mask = df.apply(lambda row: row.astype(str).str.contains(savol, case=False, na=False).any(), axis=1)
-                results = df[mask].head(15)
-                if not results.empty:
-                    javob = f"'{savol}' bo'yicha topilgan ma'lumotlar:"
-                    st.dataframe(results)
+                res = df[mask].head(10)
+                if not res.empty:
+                    javob = "Topilgan ma'lumotlar:\n\n"
+                    for _, r in res.iterrows():
+                        row_text = " | ".join([f"**{c}**: {v}" for c, v in r.items() if str(v) != 'nan'])
+                        javob += f"📌 {row_text}\n\n---\n"
                 else:
-                    javob = f"Kechirasiz, '{savol}' bo'yicha hech narsa topilmadi."
+                    javob = f"'{savol}' bo'yicha hech narsa topilmadi."
         else:
             javob = "Baza yuklanmagan!"
 
