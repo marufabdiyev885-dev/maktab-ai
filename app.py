@@ -1,14 +1,12 @@
 import streamlit as st
-import google.generativeai as genai
+import requests
 import pandas as pd
 import os
+import json
 
 # 1. API VA SOZLAMALAR
 API_KEY = "AIzaSyAp3ImXzlVyNF_UXjes2LsSVhG0Uusobdw"
 TO_GRI_PAROL = "informatika2024"
-
-# Google AI sozlash
-genai.configure(api_key=API_KEY)
 
 st.set_page_config(page_title="Maktab AI", layout="centered")
 
@@ -53,7 +51,7 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 # --- ASOSIY JARAYON ---
-if savol := st.chat_input("Salom deb yozing yoki ism so'rang..."):
+if savol := st.chat_input("Salom deb yozing yoki ma'lumot so'rang..."):
     st.session_state.messages.append({"role": "user", "content": savol})
     with st.chat_message("user"):
         st.markdown(savol)
@@ -65,30 +63,31 @@ if savol := st.chat_input("Salom deb yozing yoki ism so'rang..."):
             mask = df.apply(lambda row: row.astype(str).str.contains(savol, case=False, na=False).any(), axis=1)
             results = df[mask].head(10)
             if not results.empty:
-                context = results.to_string(index=False)
+                context = "Quyidagilar bazadan topilgan ma'lumotlar:\n" + results.to_string(index=False)
 
-        # 2. AI javobi
-        try:
-            # Eng ishonchli model nomini prefiks bilan yozamiz
-            model = genai.GenerativeModel('models/gemini-1.5-flash')
-            
-            if context:
-                full_prompt = f"Sen maktab yordamchisisan. Mana bu ma'lumotlar asosida javob ber: {context}\nSavol: {savol}"
-            else:
-                full_prompt = f"Sen samimiy maktab yordamchisisan. Foydalanuvchi bilan gaplash (salomlashsa alik ol). Savol: {savol}"
-            
-            with st.spinner("O'ylayapman..."):
-                response = model.generate_content(full_prompt)
-                full_res = response.text
-                st.markdown(full_res)
-                st.session_state.messages.append({"role": "assistant", "content": full_res})
+        # 2. Google API ga to'g'ridan-to'g'ri so'rov yuborish (v1beta)
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
+        headers = {'Content-Type': 'application/json'}
         
+        prompt = f"Sen samimiy maktab yordamchisisan. Foydalanuvchi savoliga o'zbek tilida javob ber. "
+        if context:
+            prompt += f"Mana bu bazadagi ma'lumotlardan foydalan:\n{context}\n\n"
+        prompt += f"Savol: {savol}"
+
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}]
+        }
+
+        try:
+            with st.spinner("AI javob bermoqda..."):
+                r = requests.post(url, headers=headers, data=json.dumps(payload))
+                res_json = r.json()
+                
+                if r.status_code == 200:
+                    full_res = res_json['candidates'][0]['content']['parts'][0]['text']
+                    st.markdown(full_res)
+                    st.session_state.messages.append({"role": "assistant", "content": full_res})
+                else:
+                    st.error(f"Xato yuz berdi: {res_json.get('error', {}).get('message', 'Nomaalum xato')}")
         except Exception as e:
-            # Agar 1.5-flash ishlamasa, zaxira modelni sinab ko'radi
-            try:
-                model_alt = genai.GenerativeModel('models/gemini-pro')
-                response = model_alt.generate_content(savol)
-                st.markdown(response.text)
-                st.session_state.messages.append({"role": "assistant", "content": response.text})
-            except Exception as e2:
-                st.error(f"Texnik xatolik: {str(e2)}")
+            st.error(f"Ulanishda xato: {str(e)}")
