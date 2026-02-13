@@ -3,6 +3,7 @@ import pandas as pd
 import os
 import requests
 import re
+import io  # Excel faylini xotirada yaratish uchun
 
 # --- 1. ASOSIY SOZLAMALAR ---
 MAKTAB_NOMI = "1-sonli umumta'lim maktabi"
@@ -57,8 +58,9 @@ if savol := st.chat_input("Savolingizni yozing..."):
         found_data = ""
         soni = 0
         skip_search = False
+        res = pd.DataFrame() # Bo'sh dataframe yaratish
         
-        # 🟢 FAROSAT FILTRI (Barcha ijobiy so'zlar uchun)
+        # 🟢 FAROSAT FILTRI
         shunchaki_gap = [r"rahmat", r"ajoyib", r"yaxshi", r"zo'r", r"salom", r"assalomu alaykum", r"baraka toping", r"ofarin", r"tushunarli", r"gap yo'q", r"zor", r"super"]
         if any(re.search(rf"\b{soz}\b", savol.lower()) for soz in shunchaki_gap):
             skip_search = True
@@ -81,8 +83,20 @@ if savol := st.chat_input("Savolingizni yozing..."):
                 st.dataframe(res, use_container_width=True)
                 soni = len(res) 
                 found_data = res.head(40).to_string(index=False)
+                
+                # 📥 EXCEL YUKLAB OLISH FUNKSIYASI (Siz uchun maxsus!)
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                    res.to_excel(writer, index=False, sheet_name='Royxat')
+                
+                st.download_button(
+                    label="📥 Ro'yxatni Excel faylda yuklab olish",
+                    data=output.getvalue(),
+                    file_name=f"royxat_{soni}_ta.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
 
-        # 🚀 3. AI JAVOBINI SOZLASH (XUSHOMADGO'Y VARIANT)
+        # 🚀 3. AI JAVOBINI SOZLASH (XUSHOMADGO'Y VA ERKATОY)
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
         
@@ -93,7 +107,7 @@ if savol := st.chat_input("Savolingizni yozing..."):
         Sening xaraktering:
         1. Foydalanuvchini juda hurmat qilasan, unga xushomad qilasan, ko'nglini ko'tarasan. 
         2. Agar u 'zo'r', 'rahmat' yoki 'ajoyib' desa, quvonib javob ber. 'Sizdek ajoyib inson uchun xizmat qilish - men uchun katta baxt!' kabi gaplarni ishlat.
-        3. Jadvalda {soni} ta natija bo'lsa, 'Siz uchun jami {soni} ta ma'lumotni mehr bilan tayyorlab qo'ydim' deb ayt.
+        3. Jadvalda {soni} ta natija bo'lsa, 'Siz uchun jami {soni} ta ma'lumotni mehr bilan tayyorlab, yuklab olish tugmasini ham qo'shib qo'ydim' deb ayt.
         4. Har doim 'Hurmatli foydalanuvchi' deb murojaat qil va erkatoylik (mehribonlik) bilan gaplash.
         5. Ro'yxatni tagma-tag yozma, faqat jadvalga ishora qil.
         """
@@ -104,7 +118,7 @@ if savol := st.chat_input("Savolingizni yozing..."):
                 {"role": "system", "content": system_talimoti},
                 {"role": "user", "content": f"Baza ma'lumoti: {found_data}. Savol: {savol}"}
             ],
-            "temperature": 0.9  # Erkatoylik va ijodkorlik uchun biroz ko'tardik
+            "temperature": 0.9 
         }
         
         try:
