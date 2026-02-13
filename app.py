@@ -7,7 +7,6 @@ import os
 API_KEY = "AIzaSyAp3ImXzlVyNF_UXjes2LsSVhG0Uusobdw"
 TO_GRI_PAROL = "informatika2024"
 
-# Google AI ni sozlash
 genai.configure(api_key=API_KEY)
 
 st.set_page_config(page_title="Maktab AI | Abdiyev Ma'rufjon", layout="centered")
@@ -24,37 +23,40 @@ if "authenticated" not in st.session_state:
             st.error("❌ Parol noto'g'ri!")
     st.stop()
 
-# --- ISHLAYDIGAN MODELNI ANIQLASH (404 xatosini oldini olish) ---
+# --- ISHLAYDIGAN MODELNI ANIQLASH ---
 @st.cache_resource
 def get_working_model():
     try:
-        # Mavjud modellarni tekshirish
         available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        
-        # Ustuvor modellar ro'yxati
-        priorities = ['models/gemini-1.5-flash', 'models/gemini-1.5-flash-8b', 'models/gemini-pro']
-        
+        priorities = ['models/gemini-1.5-flash', 'models/gemini-pro']
         for model_path in priorities:
             if model_path in available_models:
                 return model_path
-        return available_models[0] if available_models else "models/gemini-pro"
+        return "models/gemini-pro"
     except:
         return "models/gemini-pro"
 
-# --- BAZALARNI YUKLASH VA BIRLASHTIRISH ---
+# --- BAZALARNI YUKLASH (5-qatorni tashlab o'tish bilan) ---
 @st.cache_data
 def bazani_yukla():
-    fayllar = [f for f in os.listdir('.') if f.endswith('.xlsx')]
+    # Fayl nomlarini tekshirish (GitHub yuklaganda nomlar o'zgarishi mumkin)
+    fayllar = [f for f in os.listdir('.') if (f.endswith('.xlsx') or f.endswith('.csv')) and 'app.py' not in f]
     if not fayllar:
         return None
     
     dfs = []
     for f in fayllar:
         try:
-            # Ma'lumotlarni matn sifatida o'qish (qidiruv oson bo'lishi uchun)
-            temp_df = pd.read_excel(f, dtype=str)
+            # Fayl turiga qarab o'qiymiz va tepadagi 5 ta bo'sh qatorni tashlab ketamiz
+            if f.endswith('.csv'):
+                temp_df = pd.read_csv(f, dtype=str, skiprows=5)
+            else:
+                temp_df = pd.read_excel(f, dtype=str, skiprows=5)
+            
+            # Bo'sh qolgan ustunlarni o'chirish
+            temp_df = temp_df.loc[:, ~temp_df.columns.str.contains('^Unnamed')]
             dfs.append(temp_df)
-        except:
+        except Exception as e:
             continue
     
     if dfs:
@@ -67,7 +69,8 @@ working_model_name = get_working_model()
 df = bazani_yukla()
 
 if df is not None:
-    st.success(f"✅ Baza tayyor! ({len(df)} ta qator ma'lumot yuklandi)")
+    # Ma'lumotlar borligini tekshirish
+    st.success(f"✅ Baza tayyor! {len(df)} ta qator topildi.")
     
     savol = st.chat_input("Ism, familiya yoki sinf bo'yicha so'rang...")
 
@@ -76,49 +79,30 @@ if df is not None:
             st.write(savol)
         
         with st.chat_message("assistant"):
-            # --- AQLLI FILTR (Limit 429 xatosini oldini olish uchun) ---
-            qidiruv_sozlari = savol.split()
-            # Kamida bitta so'z qatnashgan qatorlarni qidirish
-            mask = df.apply(lambda row: row.astype(str).str.contains(qidiruv_sozlari[0], case=False).any(), axis=1)
-            for soz in qidiruv_sozlari[1:]:
-                mask &= df.apply(lambda row: row.astype(str).str.contains(soz, case=False).any(), axis=1)
-            
+            # Savolni qidirish
+            mask = df.apply(lambda row: row.astype(str).str.contains(savol, case=False, na=False).any(), axis=1)
             qidirilgan_data = df[mask]
             
             if qidirilgan_data.empty:
-                context_text = "Bazadan ushbu so'rov bo'yicha hech qanday ma'lumot topilmadi."
+                context_text = "Bazadan ushbu so'rov bo'yicha ma'lumot topilmadi."
             else:
-                # Faqat topilgan qismini AIga yuboramiz (max 40 qator)
-                context_text = qidirilgan_data.head(40).to_string(index=False)
+                context_text = qidirilgan_data.head(30).to_string(index=False)
             
-            # --- AI JAVOBI ---
             try:
                 model = genai.GenerativeModel(working_model_name)
                 prompt = f"""
-                Sen maktab yordamchi botisan. Faqat quyidagi ma'lumotlar bazasiga tayanib javob ber.
-                Ma'lumot topilmasa, o'zingdan to'qima, bazada yo'qligini ayt.
-                
-                Bazadagi ma'lumotlar:
+                Sen maktab yordamchi botisan. Quyidagi bazaga tayanib savolga javob ber.
+                Ma'lumotlar:
                 {context_text}
                 
-                Foydalanuvchi savoli: {savol}
-                Javobni o'zbek tilida, chiroyli va tushunarli qilib ber.
+                Savol: {savol}
+                Javobni o'zbek tilida, tushunarli qilib ber.
                 """
                 
                 with st.spinner("Qidiryapman..."):
                     response = model.generate_content(prompt)
                     st.write(response.text)
             except Exception as e:
-                if "429" in str(e):
-                    st.error("⏳ Google limitiga yetdi. 30 soniyadan so'ng qayta urinib ko'ring.")
-                else:
-                    st.error(f"⚠️ Xatolik: {e}")
+                st.error(f"Xatolik: {e}")
 else:
-    st.warning("⚠️ Excel (.xlsx) fayllar topilmadi. GitHub'ga fayllarni yuklang!")
-
-with st.sidebar:
-    st.info(f"Admin: Abdiyev Ma'rufjon")
-    st.write(f"Model: {working_model_name}")
-    if st.button("Chiqish"):
-        del st.session_state.authenticated
-        st.rerun()
+    st.warning("⚠️ Fayllar o'qilmadi. GitHub-da fayllar borligini tekshiring.")
