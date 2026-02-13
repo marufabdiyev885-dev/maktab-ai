@@ -59,7 +59,7 @@ if savol := st.chat_input("Savolingizni yozing..."):
         skip_search = False
         
         # 🟢 1. ODDY MULOQOT FILTRI
-        shunchaki_gap = ["rahmat", "ajoyib", "yaxshi", "salom", "assalomu alaykum", "baraka toping", "rahmat bot"]
+        shunchaki_gap = ["rahmat", "ajoyib", "yaxshi","zo'r", "salom", "assalomu alaykum", "baraka toping", "rahmat bot"]
         if any(soz in savol.lower() for soz in shunchaki_gap) and len(savol.split()) < 4:
             skip_search = True
 
@@ -115,3 +115,4 @@ if savol := st.chat_input("Savolingizni yozing..."):
 
         st.markdown(ai_text)
         st.session_state.messages.append({"role": "assistant", "content": ai_text})
+
