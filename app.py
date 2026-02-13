@@ -3,18 +3,17 @@ import google.generativeai as genai
 import pandas as pd
 import os
 
-# 1. API va Parol sozlamalari
+# 1. Sozlamalar
 API_KEY = "AIzaSyAp3ImXzlVyNF_UXjes2LsSVhG0Uusobdw"
 TO_GRI_PAROL = "informatika2024"
 
-# Google AI-ni sozlash
 genai.configure(api_key=API_KEY)
 
 st.set_page_config(page_title="Maktab AI | Abdiyev Ma'rufjon", layout="centered")
 
-# --- PAROL TEKSHIRISH ---
+# --- PAROL ---
 if "authenticated" not in st.session_state:
-    st.title("🔐 Tizimga kirish")
+    st.title("🔐 Kirish")
     parol = st.text_input("Parolni kiriting:", type="password")
     if st.button("Kirish"):
         if parol == TO_GRI_PAROL:
@@ -24,81 +23,71 @@ if "authenticated" not in st.session_state:
             st.error("❌ Parol noto'g'ri!")
     st.stop()
 
-# --- ISHLAYDIGAN MODELNI ANIQLASH ---
+# --- MODELLARNI TEKSHIRISH ---
 @st.cache_resource
 def get_working_model():
-    # 404 xatosini oldini olish uchun mavjud modellarni tekshiramiz
-    available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-    
-    # Eng yaxshi modellarni navbati bilan tanlaymiz
-    priorities = ['models/gemini-1.5-flash', 'models/gemini-1.5-flash-8b', 'models/gemini-pro']
-    
-    for model_path in priorities:
-        if model_path in available_models:
-            return model_path
-    
-    # Agar ro'yxatdagilar topilmasa, birinchi kelganini olamiz
-    return available_models[0] if available_models else None
+    try:
+        models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        priorities = ['models/gemini-1.5-flash', 'models/gemini-pro']
+        for m in priorities:
+            if m in models: return m
+        return models[0] if models else None
+    except:
+        return "models/gemini-1.5-flash"
 
-# --- BAZALARNI BIRLASHTIRISH ---
+# --- BAZALARNI O'QISH ---
 def bazani_yukla():
     fayllar = [f for f in os.listdir('.') if f.endswith('.xlsx')]
-    if not fayllar:
-        return None
+    if not fayllar: return None
     
-    list_of_dfs = []
+    dfs = []
     for f in fayllar:
         try:
             temp_df = pd.read_excel(f)
-            list_of_dfs.append(temp_df)
-        except:
-            continue
-    
-    return pd.concat(list_of_dfs, ignore_index=True) if list_of_dfs else None
+            # Har bir qatorni matnga aylantirib, qaysi fayldanligini belgilaymiz
+            temp_df['manba_fayl'] = f
+            dfs.append(temp_df)
+        except: continue
+    return pd.concat(dfs, ignore_index=True) if dfs else None
 
-# --- ASOSIY QISM ---
+# --- ASOSIY ---
 st.title("🏫 Maktab AI Yordamchisi")
-
-working_model_name = get_working_model()
+working_model = get_working_model()
 df = bazani_yukla()
 
-if df is not None and working_model_name:
-    st.success(f"✅ Baza tayyor. Model: {working_model_name}")
+if df is not None:
+    st.success(f"✅ {len(os.listdir('.')) - 2} ta fayl yuklangan.")
     
-    savol = st.chat_input("O'quvchi yoki ma'lumotlar haqida so'rang...")
+    savol = st.chat_input("Ism yoki sinfni yozing...")
 
     if savol:
         with st.chat_message("user"):
             st.write(savol)
         
         with st.chat_message("assistant"):
-            model = genai.GenerativeModel(working_model_name)
-            # Ma'lumotlar juda ko'p bo'lsa, AI-ga faqat matnli qismini beramiz
-            context = df.to_string(index=False)
+            # --- FILTRLASH (Limitdan oshmaslik uchun) ---
+            # Savoldagi so'zlar qaysi qatorda qatnashganini qidiramiz
+            mask = df.astype(str).apply(lambda x: x.str.contains(savol, case=False, na=False)).any(axis=1)
+            qidirilgan_data = df[mask]
             
-            prompt = f"""
-            Sen maktab yordamchisi - botisan. 
-            Quyidagi jadval ma'lumotlari asosida foydalanuvchining savoliga o'zbek tilida aniq javob ber.
+            # Agar topilmasa, bazaning bir qismini ko'rsatamiz
+            if qidirilgan_data.empty:
+                context = "Hech qanday ma'lumot topilmadi."
+            else:
+                # Faqat topilgan qatorlarni (max 50 ta) AIga yuboramiz
+                context = qidirilgan_data.head(50).to_string(index=False)
             
-            Ma'lumotlar:
-            {context}
-            
-            Savol: {savol}
-            """
-            
-            with st.spinner("Qidiryapman..."):
-                try:
+            try:
+                model = genai.GenerativeModel(working_model)
+                prompt = f"Maktab bazasidan olingan ma'lumotlar:\n{context}\n\nSavol: {savol}\n\nJavobni o'zbek tilida ber."
+                
+                with st.spinner("Qidiryapman..."):
                     response = model.generate_content(prompt)
                     st.write(response.text)
-                except Exception as e:
-                    st.error(f"AI javob berishda xato qildi: {e}")
-elif not working_model_name:
-    st.error("❌ API kalitda hech qanday model topilmadi. API kalitni tekshiring.")
+            except Exception as e:
+                if "429" in str(e):
+                    st.error("⏳ Google biroz charchadi (Limit). 30 soniya kutib qayta urining.")
+                else:
+                    st.error(f"Xato: {e}")
 else:
-    st.warning("⚠️ Excel fayllar topilmadi. GitHub'ga .xlsx fayllarni yuklang.")
-
-with st.sidebar:
-    st.write(f"**Admin:** Ma'rufjon Abdiyev")
-    if st.button("Chiqish"):
-        del st.session_state.authenticated
-        st.rerun()
+    st.warning("⚠️ Excel fayllar topilmadi.")
