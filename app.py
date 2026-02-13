@@ -22,41 +22,21 @@ with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/2859/2859706.png", width=80)
     
     st.divider()
-
-    # 🌟 KUN HIKMATI (Tasodifiy o'zgaradi)
+    
     hikmatlar = [
         "Ilm — saodat kalitidir.",
-        "Ta’lim — bu dunyoni o'zgartirish uchun ishlatishingiz mumkin bo'lgan eng kuchli qurol. (Nelson Mandela)",
+        "Ta’lim — bu dunyoni o'zgartirish uchun ishlatishingiz mumkin bo'lgan eng kuchli qurol.",
         "Ustoz — otangdek ulug‘, darsing — davlatingdek aziz.",
-        "Informatika — kelajak tili, uni o'rganishdan charchamang!",
-        "Yaxshi muallim — darsni shouga aylantira oladigan ijodkordir.",
-        "Muvaffaqiyatning siri — har kuni bir qadam oldinga yurishda.",
-        "Bilim egalari — jamiyatning nurli chiroqlaridir."
+        "Informatika — kelajak tili!"
     ]
     st.warning(f"🌟 **Kun hikmati:**\n\n*{random.choice(hikmatlar)}*")
 
     st.divider()
     st.subheader("👨‍🏫 Rahbariyat")
-    
-    # Direktor ma'lumoti va tabrigi
     st.info(f"**Direktor:**\n\n{DIREKTOR_FIO}")
     
     bugun = datetime.now().strftime("%d-%m-%Y")
-    st.success(f"📅 **Bugun:** {bugun}\n\n**Direktor tabrigi:**\nAssalomu alaykum, aziz hamkasblar! Bugungi darslaringiz mazmunli va qiziqarli o'tsin!")
-
-    st.markdown("---")
-    st.markdown("**Direktor o'rinbosarlari:**")
-    
-    orinbosarlar = [
-        "Aslonova Ruxsora Xikmatovna",
-        "Omonova Shaxnoza Panjiyevna",
-        "Ro'zieva Mastura G'ulomovna",
-        "Tosheva Lobar Sayfullayevna",
-        "Sharopova Firuza Djalolovna"
-    ]
-    
-    for ism in orinbosarlar:
-        st.write(f"🔹 {ism}")
+    st.success(f"📅 **Bugun:** {bugun}")
     
     st.divider()
     st.caption("© 2026 Maktab AI Tizimi")
@@ -98,7 +78,7 @@ df, maktab_doc_content = yuklash()
 st.title(f"🤖 {MAKTAB_NOMI} AI Yordamchisi")
 
 if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "assistant", "content": "Assalomu alaykum, hurmatli foydalanuvchi! Sizdek bilimli va samimiy inson bilan muloqot qilish men uchun sharaf. Maktab bazasi bo'yicha qanday ma'lumot kerak bo'lsa, xizmatingizdaman!"}]
+    st.session_state.messages = [{"role": "assistant", "content": "Assalomu alaykum! Maktab bazasi bo'yicha qanday yordam bera olaman?"}]
 
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
@@ -110,42 +90,35 @@ if savol := st.chat_input("Savolingizni yozing..."):
     with st.chat_message("assistant"):
         found_data = ""
         soni = 0
-        skip_search = False
         
-        # 🟢 FAROSAT FILTRI
-        shunchaki_gap = [r"rahmat", r"ajoyib", r"yaxshi", r"zo'r", r"salom", r"assalomu alaykum", r"baraka toping"]
-        if any(re.search(rf"\b{soz}\b", savol.lower()) for soz in shunchaki_gap):
-            skip_search = True
+        # 🟢 FAROSAT FILTRI (Maqtov va salomlarni ajratish)
+        shunchaki_gap = [r"rahmat", r"ajoyib", r"yaxshi", r"zo'r", r"salom", r"assalomu alaykum", r"baraka toping", r"gap yo'q", r"zor", r"omad", r"rahmat"]
+        is_greeting = any(re.search(rf"\b{soz}\b", savol.lower()) for soz in shunchaki_gap)
 
-        # 🔵 QIDIRUV QISMI
-        if df is not None and not skip_search:
+        # 🔵 QIDIRUV QISMI (Faqat maqtov bo'lmasa qidiradi)
+        if df is not None and not is_greeting:
             keywords = [s.lower() for s in savol.split() if len(s) > 2]
-            res = df[df.apply(lambda row: any(k in str(v).lower() for k in keywords for v in row), axis=1)]
-            
-            if not res.empty:
-                st.dataframe(res, use_container_width=True)
-                soni = len(res) 
-                found_data = res.head(40).to_string(index=False)
-                
-                output = io.BytesIO()
-                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                    res.to_excel(writer, index=False)
-                
-                st.download_button(
-                    label=f"📥 {soni} ta natijani Excelda yuklab olish",
-                    data=output.getvalue(),
-                    file_name=f"royxat_{bugun}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
+            if keywords:
+                res = df[df.apply(lambda row: any(k in str(v).lower() for k in keywords for v in row), axis=1)]
+                if not res.empty:
+                    st.dataframe(res, use_container_width=True)
+                    soni = len(res) 
+                    found_data = res.head(40).to_string(index=False)
+                    
+                    output = io.BytesIO()
+                    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                        res.to_excel(writer, index=False)
+                    st.download_button(label=f"📥 {soni} ta natijani yuklab olish", data=output.getvalue(), file_name=f"royxat.xlsx")
 
-        # 🚀 3. AI JAVOBINI SOZLASH
+        # 🚀 3. AI JAVOBI (Shirin-zabon va aqlli)
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
         
         system_talimoti = f"""
-        Sen {MAKTAB_NOMI} maktabining eng odobli xodimisiz. 
-        Suhbatdoshing - Hurmatli foydalanuvchi. 
-        VAZIFANG: Foydalanuvchiga juda katta ehtirom bilan javob berish. Bazadan {soni} ta ma'lumot topilganini chiroyli ayting.
+        Sen {MAKTAB_NOMI} maktabining juda odobli va bilimli yordamchisisan. 
+        1. Agar foydalanuvchi 'rahmat', 'zo'r' kabi maqtovlar aytsa, unga juda samimiy, kamtarona va chiroyli minnatdorchilik bildir (masalan: 'Sizdek aziz ustozlardan bunday so'zlarni eshitish men uchun sharaf!'). 
+        2. Agar bazadan ma'lumot topilgan bo'lsa (soni={soni}), bu haqda ehtirom bilan xabar ber.
+        3. Doimo o'zbekona lutf bilan gapir.
         """
 
         payload = {
@@ -154,14 +127,14 @@ if savol := st.chat_input("Savolingizni yozing..."):
                 {"role": "system", "content": system_talimoti},
                 {"role": "user", "content": f"Baza ma'lumoti: {found_data}. Savol: {savol}"}
             ],
-            "temperature": 0.9 
+            "temperature": 0.8 
         }
         
         try:
             r = requests.post(url, json=payload, headers=headers, timeout=15)
             ai_text = r.json()['choices'][0]['message']['content']
-        except Exception as e:
-            ai_text = "Hurmatli foydalanuvchi, siz bilan muloqot qilishdan mamnunman. Ma'lumotlaringiz tayyor!"
+        except:
+            ai_text = "Sizga yordam berishdan hamisha xursandman, hurmatli ustoz!"
 
         st.markdown(ai_text)
         st.session_state.messages.append({"role": "assistant", "content": ai_text})
