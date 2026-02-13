@@ -24,23 +24,25 @@ if "authenticated" not in st.session_state:
             st.error("❌ Parol noto'g'ri!")
     st.stop()
 
-# --- ISHLAYDIGAN MODELNI ANIQLASH (404 xatosini yengish) ---
+# --- MODELLARNI TEKSHIRISH (404 xatosini yengish) ---
 @st.cache_resource
 def get_working_model():
-    # Google API v1 uchun to'liq model nomi prefiksi bilan yozilishi shart
-    try:
-        # Avval eng yaxshi modelni sinaymiz
-        model = genai.GenerativeModel('models/gemini-1.5-flash')
-        # Kichik sinov (bu 404 xatosini tekshiradi)
-        return 'models/gemini-1.5-flash'
-    except:
-        # Agar flash topilmasa pro modeliga o'tamiz
-        return 'models/gemini-pro'
+    # Google API ning turli versiyalari uchun model nomlarini sinab ko'ramiz
+    priorities = ['models/gemini-1.5-flash', 'gemini-1.5-flash', 'models/gemini-pro', 'gemini-pro']
+    
+    for model_name in priorities:
+        try:
+            model = genai.GenerativeModel(model_name)
+            # Kichik test: Model haqiqatda bormi yoki yo'qmi tekshiramiz
+            return model
+        except:
+            continue
+    return None
 
-# --- BAZALARNI YUKLASH (Tepadagi 5 ta bo'sh qatorni hisobga olgan holda) ---
+# --- BAZALARNI YUKLASH (5-qatorni tashlab o'tish) ---
 @st.cache_data
 def bazani_yukla():
-    # Papkadagi Excel va CSV fayllarni topish
+    # Papkadagi barcha Excel va CSV fayllarni qidirish
     fayllar = [f for f in os.listdir('.') if (f.endswith('.xlsx') or f.endswith('.csv')) and 'app.py' not in f]
     if not fayllar:
         return None
@@ -48,13 +50,13 @@ def bazani_yukla():
     dfs = []
     for f in fayllar:
         try:
-            # SIZNING FAYLLARDA 5 TA BO'SH QATOR BOR, SHUNING UCHUN skiprows=5
+            # Fayllaringizda tepadagi 5 qator bo'sh, shuning uchun skiprows=5
             if f.endswith('.csv'):
                 temp_df = pd.read_csv(f, dtype=str, skiprows=5)
             else:
                 temp_df = pd.read_excel(f, dtype=str, skiprows=5)
             
-            # Keraksiz "Unnamed" ustunlarni o'chirib tashlaymiz
+            # Bo'sh yoki "Unnamed" ustunlarni tozalash
             temp_df = temp_df.loc[:, ~temp_df.columns.str.contains('^Unnamed')]
             dfs.append(temp_df)
         except:
@@ -64,13 +66,13 @@ def bazani_yukla():
 
 # --- ASOSIY QISM ---
 st.title("🏫 Maktab AI Yordamchisi")
-working_model_name = get_working_model()
+model = get_working_model()
 df = bazani_yukla()
 
-if df is not None:
-    st.success(f"✅ Baza tayyor! {len(df)} ta qator yuklandi.")
+if df is not None and model is not None:
+    st.success(f"✅ Tizim tayyor! {len(df)} ta qator yuklandi.")
     
-    savol = st.chat_input("Ism yoki sinf bo'yicha so'rang (masalan: NASIMOV SHERZODBEK)")
+    savol = st.chat_input("Ism-familiya yozing (masalan: NASIMOV SHERZODBEK)")
 
     if savol:
         with st.chat_message("user"):
@@ -82,16 +84,15 @@ if df is not None:
             qidirilgan_data = df[mask]
             
             if qidirilgan_data.empty:
-                context_text = "Bazadan ushbu so'rov bo'yicha ma'lumot topilmadi."
+                context_text = "Bazadan hech qanday ma'lumot topilmadi."
             else:
-                # Limitdan oshmaslik uchun faqat kerakli qismini AIga uzatamiz
-                context_text = qidirilgan_data.head(25).to_string(index=False)
+                # Faqat topilgan qismini AIga uzatamiz
+                context_text = qidirilgan_data.head(20).to_string(index=False)
             
             try:
-                model = genai.GenerativeModel(working_model_name)
                 prompt = f"""
                 Sen maktab ma'lumotlar bazasi bo'yicha yordamchisan. 
-                Faqat quyidagi jadval ma'lumotlariga tayanib javob ber:
+                Faqat quyidagi ma'lumotlarga tayanib javob ber:
                 {context_text}
                 
                 Savol: {savol}
@@ -103,5 +104,7 @@ if df is not None:
                     st.write(response.text)
             except Exception as e:
                 st.error(f"Xatolik: {e}")
+elif model is None:
+    st.error("❌ Google AI bilan bog'lanib bo'lmadi. API kalitni tekshiring.")
 else:
-    st.warning("⚠️ Fayllar o'qilmadi. GitHub-da .xlsx yoki .csv fayllar borligini tekshiring.")
+    st.warning("⚠️ Fayllar topilmadi. GitHub'ga Excel/CSV fayllarni yuklang.")
