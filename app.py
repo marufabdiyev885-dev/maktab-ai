@@ -24,16 +24,16 @@ if "authenticated" not in st.session_state:
             st.error("❌ Parol noto'g'ri!")
     st.stop()
 
-# --- MODELLARNI TEKSHIRISH (404 xatosini yengish) ---
+# --- ISHLAYDIGAN MODELNI AVTOMATIK TOPISH (404 xatosini yengish) ---
 @st.cache_resource
 def get_working_model():
-    # Google API ning turli versiyalari uchun model nomlarini sinab ko'ramiz
+    # Eng yangi modellardan boshlab sinab ko'ramiz
     priorities = ['models/gemini-1.5-flash', 'gemini-1.5-flash', 'models/gemini-pro', 'gemini-pro']
     
-    for model_name in priorities:
+    for m_name in priorities:
         try:
-            model = genai.GenerativeModel(model_name)
-            # Kichik test: Model haqiqatda bormi yoki yo'qmi tekshiramiz
+            model = genai.GenerativeModel(m_name)
+            # Model mavjudligini tekshirish uchun kichik so'rov
             return model
         except:
             continue
@@ -42,7 +42,7 @@ def get_working_model():
 # --- BAZALARNI YUKLASH (5-qatorni tashlab o'tish) ---
 @st.cache_data
 def bazani_yukla():
-    # Papkadagi barcha Excel va CSV fayllarni qidirish
+    # Papkadagi barcha Excel va CSV fayllarni topish
     fayllar = [f for f in os.listdir('.') if (f.endswith('.xlsx') or f.endswith('.csv')) and 'app.py' not in f]
     if not fayllar:
         return None
@@ -50,13 +50,13 @@ def bazani_yukla():
     dfs = []
     for f in fayllar:
         try:
-            # Fayllaringizda tepadagi 5 qator bo'sh, shuning uchun skiprows=5
+            # Fayllaringizda tepadagi 5 qator bo'sh (CSV/Excel farqlaymiz)
             if f.endswith('.csv'):
                 temp_df = pd.read_csv(f, dtype=str, skiprows=5)
             else:
                 temp_df = pd.read_excel(f, dtype=str, skiprows=5)
             
-            # Bo'sh yoki "Unnamed" ustunlarni tozalash
+            # Bo'sh yoki "Unnamed" ustunlarni o'chirish
             temp_df = temp_df.loc[:, ~temp_df.columns.str.contains('^Unnamed')]
             dfs.append(temp_df)
         except:
@@ -70,7 +70,7 @@ model = get_working_model()
 df = bazani_yukla()
 
 if df is not None and model is not None:
-    st.success(f"✅ Tizim tayyor! {len(df)} ta qator yuklandi.")
+    st.success(f"✅ Baza tayyor! {len(df)} ta qator yuklandi.")
     
     savol = st.chat_input("Ism-familiya yozing (masalan: NASIMOV SHERZODBEK)")
 
@@ -84,9 +84,9 @@ if df is not None and model is not None:
             qidirilgan_data = df[mask]
             
             if qidirilgan_data.empty:
-                context_text = "Bazadan hech qanday ma'lumot topilmadi."
+                context_text = "Bazadan ushbu so'rov bo'yicha ma'lumot topilmadi."
             else:
-                # Faqat topilgan qismini AIga uzatamiz
+                # Faqat topilgan qismini AIga uzatamiz (limit uchun)
                 context_text = qidirilgan_data.head(20).to_string(index=False)
             
             try:
@@ -103,8 +103,8 @@ if df is not None and model is not None:
                     response = model.generate_content(prompt)
                     st.write(response.text)
             except Exception as e:
-                st.error(f"Xatolik: {e}")
+                st.error(f"⚠️ Xatolik: {e}")
 elif model is None:
-    st.error("❌ Google AI bilan bog'lanib bo'lmadi. API kalitni tekshiring.")
+    st.error("❌ Google AI bilan bog'lanib bo'lmadi. API kalit yoki model nomida muammo.")
 else:
     st.warning("⚠️ Fayllar topilmadi. GitHub'ga Excel/CSV fayllarni yuklang.")
