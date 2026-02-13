@@ -6,7 +6,6 @@ import requests
 # --- 1. MAKTAB MA'LUMOTLARI ---
 MAKTAB_NOMI = "32-sonli umumta'lim maktabi" 
 DIREKTOR_FIO = "Eshmatov Toshmat" 
-
 K1 = "gsk_aj4oXwYYxRBhcrPghQwS"
 K2 = "WGdyb3FYSu9boRvJewpZakpofhrPMklX"
 GROQ_API_KEY = K1 + K2
@@ -14,18 +13,18 @@ TO_GRI_PAROL = "informatika2024"
 
 st.set_page_config(page_title=f"{MAKTAB_NOMI} AI", layout="wide")
 
-# --- 2. XAVFSIZLIK ---
+# --- 2. PAROL TIZIMI ---
 if "authenticated" not in st.session_state:
     st.title(f"🔐 {MAKTAB_NOMI} | Kirish")
-    parol = st.text_input("Tizim paroli:", type="password")
+    parol = st.text_input("Parolni kiriting:", type="password")
     if st.button("Kirish"):
         if parol == TO_GRI_PAROL:
             st.session_state.authenticated = True
             st.rerun()
-        else: st.error("❌ Parol xato!")
+        else: st.error("❌ Parol noto'g'ri!")
     st.stop()
 
-# --- 3. BAZANI YUKLASH ---
+# --- 3. BAZANI YUKLASH (ENG KUCHLI VARIANT) ---
 @st.cache_data
 def yuklash():
     files = [f for f in os.listdir('.') if f.lower().endswith(('.xlsx', '.csv')) and 'app.py' not in f]
@@ -37,7 +36,10 @@ def yuklash():
                 excel = pd.ExcelFile(f)
                 for sheet in excel.sheet_names:
                     df_s = pd.read_excel(f, sheet_name=sheet, dtype=str)
+                    # Ustun nomlarini va kataklarni tozalaymiz
                     df_s.columns = [str(c).strip().lower() for c in df_s.columns]
+                    for col in df_s.columns:
+                        df_s[col] = df_s[col].astype(str).str.strip()
                     all_data.append(df_s)
         except: continue
     return pd.concat(all_data, ignore_index=True) if all_data else None
@@ -45,7 +47,7 @@ def yuklash():
 df = yuklash()
 
 # --- 4. CHAT ---
-st.title(f"🤖 {MAKTAB_NOMI} AI")
+st.title(f"🤖 {MAKTAB_NOMI} AI Yordamchisi")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -53,37 +55,22 @@ if "messages" not in st.session_state:
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
-if savol := st.chat_input("Savol yozing (masalan: o'qituvchilar yoki 9-A)..."):
+if savol := st.chat_input("Sinf (9-A) yoki o'qituvchi ismini yozing..."):
     st.session_state.messages.append({"role": "user", "content": savol})
     with st.chat_message("user"): st.markdown(savol)
     
     with st.chat_message("assistant"):
-        found_data = "Bazada ma'lumot topilmadi."
+        found_data = "Bazada bunday ma'lumot topilmadi."
         qidiruv = savol.lower().strip()
         
         if df is not None:
-            # 🎯 Maxsus qidiruv logic:
-            mask = pd.Series(False, index=df.index)
-            
-            # Agar foydalanuvchi "o'qituvchi" yoki "pedagog" deb so'rasa
-            if "o'qituvchi" in qidiruv or "pedagog" in qidiruv:
-                if 'sinfi' in df.columns:
-                    mask = df['sinfi'].astype(str).str.lower().str.contains("o'qituvchi|pedagog", na=False)
-            
-            # Agar sinf yoki ism so'ralsa
-            if not mask.any():
-                if 'sinfi' in df.columns:
-                    mask |= (df['sinfi'].astype(str).str.lower() == qidiruv)
-                if 'pedagokning ismi familiyasi' in df.columns:
-                    mask |= (df['pedagokning ismi familiyasi'].astype(str).str.lower().str.contains(qidiruv, na=False))
-            
-            # Agar hali ham bo'sh bo'lsa umumiy qidiruv
-            if not mask.any():
-                mask = df.apply(lambda row: row.astype(str).str.lower().str.contains(qidiruv, na=False).any(), axis=1)
+            # 🔍 QIDIRUV MANTIG'I (Xatolarga chidamli)
+            # Har qanday ustunda qidiruv so'zi qatnashganini tekshirish
+            mask = df.apply(lambda row: row.astype(str).str.lower().str.contains(qidiruv, na=False).any(), axis=1)
             
             res_df = df[mask]
             if not res_df.empty:
-                st.write(f"🔍 **Topilgan ma'lumotlar:**")
+                st.write(f"🔍 **Topilgan natijalar:**")
                 st.dataframe(res_df, use_container_width=True)
                 found_data = res_df.head(20).to_string(index=False)
 
@@ -91,25 +78,21 @@ if savol := st.chat_input("Savol yozing (masalan: o'qituvchilar yoki 9-A)..."):
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
         
-        # System promptni tozaladik, AI endi o'zidan to'qimaydi, faqat bazadagini aytadi
-        sys_prompt = f"""Sen {MAKTAB_NOMI} boti san. Direktor: {DIREKTOR_FIO}.
-        Faqat taqdim etilgan baza asosida javob ber. 
+        sys_prompt = f"""Sen {MAKTAB_NOMI} maktabi xodimisiz. Foydalanuvchi: Ma'rufjon aka.
         Baza ma'lumotlari: {found_data}
-        Ma'rufjon akaga samimiy o'zbek tilida javob ber."""
+        Agar ma'lumot topilgan bo'lsa, uni jadvalga qarab xulosa qil. 
+        Agar topilmagan bo'lsa, Ma'rufjon akaga ma'lumot yo'qligini samimiy tushuntir. Faqat o'zbekcha javob ber."""
 
         payload = {
             "model": "llama-3.3-70b-versatile",
-            "messages": [
-                {"role": "system", "content": sys_prompt},
-                {"role": "user", "content": savol}
-            ]
+            "messages": [{"role": "system", "content": sys_prompt}, {"role": "user", "content": savol}]
         }
         
         try:
             r = requests.post(url, json=payload, headers=headers, timeout=15)
             ai_text = r.json()['choices'][0]['message']['content']
         except:
-            ai_text = "Ma'lumotlar jadvalda ko'rsatildi."
+            ai_text = "Ma'lumotlar yuqoridagi jadvalda."
 
         st.markdown(ai_text)
         st.session_state.messages.append({"role": "assistant", "content": ai_text})
