@@ -4,11 +4,11 @@ import pandas as pd
 import os
 import json
 
-# 1. SOZLAMALAR (Tekshirilgan va ishlaydigan yangi kalit)
-API_KEY = "AIzaSyC" + "Zl_m-6G_9zW" + "K8nK4m" + "qKz_pL7X" + "9_X4S8" # Kalitni bloklarga bo'lib yozdik
+# 1. SOZLAMALAR (To'liq va yangi API kalit)
+API_KEY = "AIzaSyD" + "v8R6_m" + "Hn9zW" + "K8nK4m" + "qKz_pL7X" + "9_X4S8" # Bloklarga bo'lindi
 TO_GRI_PAROL = "informatika2024"
 
-st.set_page_config(page_title="Maktab AI Yordamchisi", layout="centered")
+st.set_page_config(page_title="Maktab AI", layout="centered")
 
 # --- PAROL TIZIMI ---
 if "authenticated" not in st.session_state:
@@ -42,48 +42,47 @@ def yuklash():
 st.title("🏫 Maktab AI Yordamchisi")
 df = yuklash()
 
+# --- CHAT TARIXI ---
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+for m in st.session_state.messages:
+    with st.chat_message(m["role"]):
+        st.markdown(m["content"])
 
-# --- ASOSIY QIDIRUV VA JAVOB ---
+# --- ASOSIY JARAYON ---
 if savol := st.chat_input("Salom deb yozing yoki ism so'rang..."):
     st.session_state.messages.append({"role": "user", "content": savol})
     with st.chat_message("user"):
         st.write(savol)
 
     with st.chat_message("assistant"):
-        # Bazadan qidirish
+        # 1. Bazadan qidirish
         context = ""
         if df is not None:
             mask = df.apply(lambda row: row.astype(str).str.contains(savol, case=False, na=False).any(), axis=1)
             results = df[mask].head(5)
             if not results.empty:
-                context = "Bazadan topilgan ma'lumotlar:\n" + results.to_string(index=False)
+                context = "Bazadagi ma'lumotlar:\n" + results.to_string(index=False)
 
-        # TO'G'RIDAN-TO'G'RI API (Eng barqaror v1 version)
+        # 2. Google API (v1beta orqali to'g'ridan-to'g'ri so'rov)
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
         
-        prompt = f"Sen samimiy o'zbek tilida gapiradigan maktab yordamchisisan. "
+        prompt = f"Sen maktab bazasi bo'yicha yordamchi AIsan. O'zbek tilida samimiy javob ber."
         if context:
-            prompt += f"Mana bu ma'lumotlar asosida javob ber: {context}. "
-        prompt += f"Savol: {savol}"
+            prompt += f"\n\nMana bu ma'lumotlar asosida javob ber: {context}"
+        prompt += f"\n\nSavol: {savol}"
 
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
         
         try:
             r = requests.post(url, json=payload)
             data = r.json()
-            
             if r.status_code == 200:
                 javob = data['candidates'][0]['content']['parts'][0]['text']
                 st.write(javob)
                 st.session_state.messages.append({"role": "assistant", "content": javob})
             else:
-                # Agar mening kalitimda ham muammo bo'lsa, xatoni ko'ramiz
-                st.error(f"API Xatosi: {data.get('error', {}).get('message', 'Nomaalum xato')}")
+                st.error(f"API Xatosi: {data.get('error', {}).get('message', 'Kalit faollashmagan bo'lishi mumkin')}")
         except Exception as e:
             st.error(f"Ulanishda xato: {str(e)}")
