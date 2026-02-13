@@ -24,76 +24,71 @@ if "authenticated" not in st.session_state:
             st.error("❌ Parol noto'g'ri!")
     st.stop()
 
-# --- ISHLAYDIGAN MODELNI TOPISH (404 xatosini yechish) ---
+# --- ISHLAYDIGAN MODELNI AVTOMATIK ANIQLASH ---
 @st.cache_resource
-def get_working_model():
-    # Google tanishi mumkin bo'lgan barcha nomlar ketma-ketligi
-    model_names = [
-        'gemini-1.5-flash',
-        'gemini-1.5-pro',
-        'gemini-pro'
-    ]
-    
-    for name in model_names:
+def get_model():
+    # Tizimda ruxsat berilgan barcha modellarni ko'rib chiqadi
+    try:
+        # Avval eng yaxshisini sinab ko'radi
+        m = genai.GenerativeModel('gemini-1.5-flash')
+        m.generate_content("hi", generation_config={"max_output_tokens": 1})
+        return m
+    except:
         try:
-            model = genai.GenerativeModel(name)
-            # Kichik sinov o'tkazamiz
-            model.generate_content("test", generation_config={"max_output_tokens": 1})
-            return model
+            # Agar flash-1.5 bo'lmasa, pro versiyani ko'radi
+            m = genai.GenerativeModel('gemini-pro')
+            return m
         except:
-            continue
-    return None
+            return None
 
-# --- BAZANI O'QISH ---
+# --- BAZANI O'QISH (CSV VA EXCEL UCHUN) ---
 @st.cache_data
-def bazani_yukla():
-    # Papkadagi barcha Excel va CSV fayllarni topish
-    fayllar = [f for f in os.listdir('.') if f.lower().endswith(('.xlsx', '.csv')) and 'app.py' not in f]
-    
-    dfs = []
-    for f in fayllar:
+def yuklash():
+    # Papkadagi barcha fayllarni tekshirish
+    files = [f for f in os.listdir('.') if f.endswith(('.xlsx', '.csv'))]
+    all_data = []
+    for f in files:
         try:
-            if f.lower().endswith('.csv'):
-                temp_df = pd.read_csv(f, dtype=str)
+            if f.endswith('.csv'):
+                df = pd.read_csv(f, dtype=str)
             else:
-                temp_df = pd.read_excel(f, dtype=str)
-            dfs.append(temp_df)
+                # Excelning barcha listlarini birlashtirish
+                sheets = pd.read_excel(f, sheet_name=None, dtype=str)
+                df = pd.concat(sheets.values(), ignore_index=True)
+            all_data.append(df)
         except:
             continue
-    
-    return pd.concat(dfs, ignore_index=True) if dfs else None
+    return pd.concat(all_data, ignore_index=True) if all_data else None
 
+# --- ASOSIY ---
 st.title("🏫 Maktab AI Yordamchisi")
-df = bazani_yukla()
-model = get_working_model()
+model = get_model()
+df = yuklash()
 
 if df is not None and model is not None:
-    st.success(f"✅ Baza tayyor! {len(df)} ta qator yuklandi.")
+    st.success(f"✅ Tizim tayyor! {len(df)} ta qator yuklandi.")
     
-    savol = st.chat_input("Ism yozing (masalan: SHERZODBEK)")
-
+    savol = st.chat_input("Ism yoki sinfni yozing...")
     if savol:
         with st.chat_message("user"):
             st.write(savol)
         
         with st.chat_message("assistant"):
-            # Bazadan qidirish
+            # Filtrlash (Ismni bazadan qidirish)
             mask = df.apply(lambda row: row.astype(str).str.contains(savol, case=False, na=False).any(), axis=1)
-            results = df[mask].head(15)
+            results = df[mask].head(10)
             
             if results.empty:
-                st.warning(f"'{savol}' bo'yicha ma'lumot topilmadi.")
+                st.warning("Ma'lumot topilmadi.")
             else:
                 context = results.to_string(index=False)
-                try:
-                    with st.spinner("AI javob bermoqda..."):
-                        response = model.generate_content(
-                            f"Sen maktab bazasi bo'yicha yordamchisan. Faqat quyidagi jadval ma'lumotlari asosida javob ber:\n\n{context}\n\nSavol: {savol}"
-                        )
+                with st.spinner("AI o'ylamoqda..."):
+                    try:
+                        response = model.generate_content(f"Ma'lumot: {context}\nSavol: {savol}\nJavobni o'zbekcha ber.")
                         st.write(response.text)
-                except Exception as e:
-                    st.error(f"Xatolik: {str(e)}")
+                    except Exception as e:
+                        st.error(f"Xatolik: {e}")
 elif model is None:
-    st.error("❌ Google AI tizimiga ulanib bo'lmadi. API kalit yoki model xatosi.")
+    st.error("❌ Google AI modeliga ulanib bo'lmadi. Kalitni tekshiring.")
 else:
-    st.warning("⚠️ Bazaga oid fayllar topilmadi.")
+    st.warning("⚠️ Fayllar topilmadi.")
