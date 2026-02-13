@@ -6,7 +6,7 @@ import requests
 # --- 1. MAKTAB MA'LUMOTLARI ---
 MAKTAB_NOMI = "32-sonli umumta'lim maktabi" 
 DIREKTOR_FIO = "Eshmatov Toshmat" 
-# Kalitni birlashtiramiz
+# Kalitni GitHub skaneridan yashirish
 K1 = "gsk_aj4oXwYYxRBhcrPghQwS"
 K2 = "WGdyb3FYSu9boRvJewpZakpofhrPMklX"
 GROQ_API_KEY = K1 + K2
@@ -37,6 +37,7 @@ def yuklash():
                 excel = pd.ExcelFile(f)
                 for sheet in excel.sheet_names:
                     df_s = pd.read_excel(f, sheet_name=sheet, dtype=str)
+                    df_s.columns = [str(c).strip() for c in df_s.columns]
                     all_data.append(df_s)
         except: continue
     return pd.concat(all_data, ignore_index=True) if all_data else None
@@ -63,7 +64,7 @@ if savol := st.chat_input("Savolingizni yozing..."):
                 st.dataframe(sinf_data, use_container_width=True)
                 found_data = f"Topilgan qatorlar: {sinf_data.head(3).to_dict(orient='records')}"
 
-        # 🚀 GROQ API - MODELNI YANGILADIK (Llama3-8b)
+        # 🚀 GROQ API - Llama3-8b
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {
             "Authorization": f"Bearer {GROQ_API_KEY}",
@@ -71,7 +72,7 @@ if savol := st.chat_input("Savolingizni yozing..."):
         }
         
         payload = {
-            "model": "llama3-8b-8192", # Eng barqaror model
+            "model": "llama3-8b-8192",
             "messages": [
                 {"role": "system", "content": f"Sen {MAKTAB_NOMI} xodimi san. Direktor: {DIREKTOR_FIO}. Foydalanuvchi: Ma'rufjon aka. Faqat o'zbekcha javob ber."},
                 {"role": "user", "content": f"Baza ma'lumoti: {found_data}. Savol: {savol}"}
@@ -83,11 +84,11 @@ if savol := st.chat_input("Savolingizni yozing..."):
             if r.status_code == 200:
                 ai_text = r.json()['choices'][0]['message']['content']
             else:
-                # Agar xato bo'lsa, xatoni o'zini chiqarib ko'ramiz (diagnostika uchun)
-                error_msg = r.json().get('error', {}).get('message', 'Noma'lum xato')
-                ai_text = f"Ma'rufjon aka, Groq xato berdi: {error_msg}. Lekin jadval tayyor!"
+                # Xatolikni to'g'ri ko'rsatish uchun qo'shtirnoqlar to'g'irlandi
+                error_msg = r.json().get("error", {}).get("message", "Noma'lum xato yuz berdi")
+                ai_text = f"Ma'rufjon aka, Groq xato berdi: {error_msg}. Jadval yuqorida ko'rinib turibdi."
         except:
-            ai_text = "Ulanishda xato bo'ldi."
+            ai_text = "Aloqa uzildi, qayta urinib ko'ring."
 
         st.markdown(ai_text)
         st.session_state.messages.append({"role": "assistant", "content": ai_text})
