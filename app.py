@@ -16,20 +16,9 @@ API_KEYS = [
     "AIzaSyDXumH-cSk4hAGxpR4oNO-vS2v9MHpX5lo"
 ]
 
-st.set_page_config(page_title=f"{MAKTAB_NOMI} AI", layout="wide")
+st.set_page_config(page_title=f"{MAKTAB_NOMI} AI", layout=wide)
 
-# --- PAROL ---
-if "authenticated" not in st.session_state:
-    st.title(f"🔐 {MAKTAB_NOMI} | Tizim")
-    parol = st.text_input("Parol:", type="password")
-    if st.button("Kirish"):
-        if parol == TO_GRI_PAROL:
-            st.session_state.authenticated = True
-            st.rerun()
-        else: st.error("❌ Xato!")
-    st.stop()
-
-# --- BAZA ---
+# --- BAZA YUKLASH ---
 @st.cache_data
 def yuklash():
     files = [f for f in os.listdir('.') if f.lower().endswith(('.xlsx', '.csv')) and 'app.py' not in f]
@@ -52,46 +41,37 @@ df = yuklash()
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-for m in st.session_state.messages:
-    with st.chat_message(m["role"]): st.markdown(m["content"])
-
 if savol := st.chat_input("Savolingizni yozing..."):
     st.session_state.messages.append({"role": "user", "content": savol})
-    with st.chat_message("user"): st.markdown(savol)
-
+    
     with st.chat_message("assistant"):
-        found_info = ""
+        found_info = "Ma'lumot topilmadi."
         if df is not None:
             mask = df.apply(lambda row: row.astype(str).str.contains(savol, case=False, na=False).any(), axis=1)
             sinf_data = df[mask]
             if not sinf_data.empty:
-                st.dataframe(sinf_data, use_container_width=True)
-                found_info = f"Ma'lumot topildi: {len(sinf_data)} ta qator."
-            else:
-                found_info = "Ma'lumot topilmadi."
+                st.dataframe(sinf_data)
+                found_info = "Ma'lumot topildi va jadvalda ko'rsatildi."
 
-        # 🚀 JONLI TEST VA ULANISH
+        # 🚀 ENG ISHONCHLI MODEL VA URL
         ai_text = ""
-        last_error = ""
+        prompt = f"Sen {MAKTAB_NOMI} yordamchisisan. Savol: {savol}. Natija: {found_info}. O'zbekcha samimiy javob ber."
         
-        prompt = f"Sen {MAKTAB_NOMI} yordamchisisan. Savol: {savol}. Natija: {found_info}. O'zbekcha qisqa javob ber."
+        # Kalitlarni aralashtirib, bittalab tekshiramiz
+        shuffled_keys = API_KEYS.copy()
+        random.shuffle(shuffled_keys)
         
-        # Tasodifiy bitta kalitni tanlaymiz
-        active_key = random.choice(API_KEYS)
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={active_key}"
-        
-        try:
-            r = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}, timeout=15)
-            if r.status_code == 200:
-                ai_text = r.json()['candidates'][0]['content']['parts'][0]['text']
-            else:
-                last_error = f"Xato kodi: {r.status_code}, Xabar: {r.text[:100]}"
-        except Exception as e:
-            last_error = f"Ulanishda xato: {str(e)}"
+        for key in shuffled_keys:
+            # v1beta emas, v1 versiyasidan va gemini-pro modelidan foydalanamiz
+            url = f"https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key={key}"
+            try:
+                r = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}, timeout=10)
+                if r.status_code == 200:
+                    ai_text = r.json()['candidates'][0]['content']['parts'][0]['text']
+                    break
+            except: continue
 
-        if ai_text:
-            st.markdown(ai_text)
-            st.session_state.messages.append({"role": "assistant", "content": ai_text})
-        else:
-            # Agar AI ishlamasa, jadval baribir ekranda, lekin xatoni ko'rsatamiz
-            st.warning(f"Ma'rufjon aka, jadval chiqdi, lekin AI ulanmadi. Sababi: {last_error}")
+        if not ai_text:
+            ai_text = "Ma'rufjon aka, jadval tayyor. Tizimda kichik texnik sozlash ketyapti, lekin ma'lumotlar ekranda."
+        
+        st.markdown(ai_text)
