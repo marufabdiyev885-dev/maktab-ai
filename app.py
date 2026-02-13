@@ -18,7 +18,7 @@ API_KEYS = [
 
 st.set_page_config(page_title=f"{MAKTAB_NOMI} AI", layout="wide")
 
-# --- PAROL ---
+# --- PAROL TIZIMI ---
 if "authenticated" not in st.session_state:
     st.title(f"🔐 {MAKTAB_NOMI} | Tizim")
     parol = st.text_input("Parol:", type="password")
@@ -26,7 +26,7 @@ if "authenticated" not in st.session_state:
         if parol == TO_GRI_PAROL:
             st.session_state.authenticated = True
             st.rerun()
-        else: st.error("❌ Xato!")
+        else: st.error("❌ Parol noto'g'ri!")
     st.stop()
 
 # --- BAZA YUKLASH ---
@@ -59,31 +59,20 @@ if savol := st.chat_input("Savolingizni yozing..."):
     with st.chat_message("user"): st.markdown(savol)
     
     with st.chat_message("assistant"):
-        found_info = "Ma'lumot topilmadi."
+        found = False
         if df is not None:
             mask = df.apply(lambda row: row.astype(str).str.contains(savol, case=False, na=False).any(), axis=1)
             sinf_data = df[mask]
             if not sinf_data.empty:
                 st.dataframe(sinf_data, use_container_width=True)
-                found_info = f"Topilgan ma'lumot: {sinf_data.iloc[0].to_string()}"
+                found = True
+                found_count = len(sinf_data)
 
-        # 🚀 XAVFSIZLIK FILTRLARINI O'CHIRIB ULANISH
+        # 🚀 GIBRID JAVOB BERISH TIZIMI
         ai_text = ""
-        prompt = f"Sen {MAKTAB_NOMI} yordamchisisan. Ma'rufjon aka so'rayapti. Natija: {found_info}. Savol: {savol}. O'zbekcha samimiy javob ber."
         
-        # Xavfsizlik sozlamalari (hamma narsaga ruxsat berish)
-        safety_settings = [
-            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
-        ]
-        
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "safetySettings": safety_settings,
-            "generationConfig": {"temperature": 0.7, "topP": 0.8, "topK": 40}
-        }
+        # 1-qadam: AI bilan bog'lanib ko'rish
+        prompt = f"Sen {MAKTAB_NOMI} yordamchisisan. Savol: {savol}. Natija: {'Topildi' if found else 'Topilmadi'}. O'zbekcha javob ber."
         
         shuffled_keys = API_KEYS.copy()
         random.shuffle(shuffled_keys)
@@ -91,16 +80,27 @@ if savol := st.chat_input("Savolingizni yozing..."):
         for key in shuffled_keys:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={key}"
             try:
-                r = requests.post(url, json=payload, timeout=10)
+                r = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}, timeout=5)
                 if r.status_code == 200:
-                    res_json = r.json()
-                    if 'candidates' in res_json:
-                        ai_text = res_json['candidates'][0]['content']['parts'][0]['text']
-                        break
+                    ai_text = r.json()['candidates'][0]['content']['parts'][0]['text']
+                    break
             except: continue
 
+        # 2-qadam: Agar AI ishlamasa, TAYYOR SHABLONLAR (Ma'rufjon aka uslubida)
         if not ai_text:
-            ai_text = "Ma'rufjon aka, jadval tayyor! AI hozircha matnli javob bera olmadi, lekin ma'lumotlar ekranda."
+            if found:
+                shablonlar = [
+                    f"Ma'rufjon aka, mana siz so'ragan ma'lumotlar. Hammasini jadvalga joyladim!",
+                    f"Siz so'ragan so'rov bo'yicha {found_count} ta natija topildi. Jadvaldan ko'rishingiz mumkin.",
+                    f"Marhamat, ma'lumotlar tayyor. Yana biror narsani qidirib ko'ramizmi?"
+                ]
+            else:
+                shablonlar = [
+                    f"Ma'rufjon aka, afsuski bazada '{savol}' bo'yicha hech narsa topilmadi. Ism yoki sinfni to'g'ri yozganingizga ishonch hosil qiling.",
+                    f"Kechirasiz, bunday ma'lumot topilmadi. Boshqa kalit so'z bilan qidirib ko'ring.",
+                    f"Bazada bunday ma'lumot mavjud emas."
+                ]
+            ai_text = random.choice(shablonlar)
         
         st.markdown(ai_text)
         st.session_state.messages.append({"role": "assistant", "content": ai_text})
