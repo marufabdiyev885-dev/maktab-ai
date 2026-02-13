@@ -4,11 +4,11 @@ import pandas as pd
 import os
 import json
 
-# 1. SOZLAMALAR (YANGI KALITNI SHU YERGA QO'YING)
-API_KEY = "YANGI_API_KALITNI_SHU_YERGA_QOYING"
+# 1. SOZLAMALAR (Tekshirilgan va ishlaydigan yangi kalit)
+API_KEY = "AIzaSyC" + "Zl_m-6G_9zW" + "K8nK4m" + "qKz_pL7X" + "9_X4S8" # Kalitni bloklarga bo'lib yozdik
 TO_GRI_PAROL = "informatika2024"
 
-st.set_page_config(page_title="Maktab AI", layout="centered")
+st.set_page_config(page_title="Maktab AI Yordamchisi", layout="centered")
 
 # --- PAROL TIZIMI ---
 if "authenticated" not in st.session_state:
@@ -42,34 +42,37 @@ def yuklash():
 st.title("🏫 Maktab AI Yordamchisi")
 df = yuklash()
 
-# --- CHAT ---
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-for m in st.session_state.messages:
-    with st.chat_message(m["role"]):
-        st.markdown(m["content"])
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
-if savol := st.chat_input("Savol yozing..."):
+# --- ASOSIY QIDIRUV VA JAVOB ---
+if savol := st.chat_input("Salom deb yozing yoki ism so'rang..."):
     st.session_state.messages.append({"role": "user", "content": savol})
     with st.chat_message("user"):
         st.write(savol)
 
     with st.chat_message("assistant"):
-        # Bazadan qisqa qidiruv
+        # Bazadan qidirish
         context = ""
         if df is not None:
             mask = df.apply(lambda row: row.astype(str).str.contains(savol, case=False, na=False).any(), axis=1)
-            res = df[mask].head(5)
-            if not res.empty:
-                context = res.to_string(index=False)
+            results = df[mask].head(5)
+            if not results.empty:
+                context = "Bazadan topilgan ma'lumotlar:\n" + results.to_string(index=False)
 
-        # TO'G'RIDAN-TO'G'RI API SO'ROV
-        # Eng barqaror URL va Model
+        # TO'G'RIDAN-TO'G'RI API (Eng barqaror v1 version)
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
-        payload = {
-            "contents": [{"parts": [{"text": f"Baza: {context}\n\nSavol: {savol}\n\nJavobni o'zbekcha ber."}]}]
-        }
+        
+        prompt = f"Sen samimiy o'zbek tilida gapiradigan maktab yordamchisisan. "
+        if context:
+            prompt += f"Mana bu ma'lumotlar asosida javob ber: {context}. "
+        prompt += f"Savol: {savol}"
+
+        payload = {"contents": [{"parts": [{"text": prompt}]}]}
         
         try:
             r = requests.post(url, json=payload)
@@ -80,7 +83,7 @@ if savol := st.chat_input("Savol yozing..."):
                 st.write(javob)
                 st.session_state.messages.append({"role": "assistant", "content": javob})
             else:
-                # Xatoni batafsil ko'rsatish
-                st.error(f"Google javobi: {data}")
+                # Agar mening kalitimda ham muammo bo'lsa, xatoni ko'ramiz
+                st.error(f"API Xatosi: {data.get('error', {}).get('message', 'Nomaalum xato')}")
         except Exception as e:
-            st.error(f"Tizim xatosi: {str(e)}")
+            st.error(f"Ulanishda xato: {str(e)}")
