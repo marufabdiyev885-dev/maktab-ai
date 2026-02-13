@@ -1,19 +1,18 @@
 import streamlit as st
-import google.generativeai as genai
+import requests
 import pandas as pd
 import os
 
-# 1. Sozlamalar
+# 1. API va Xavfsizlik sozlamalari
 API_KEY = "AIzaSyAp3ImXzlVyNF_UXjes2LsSVhG0Uusobdw"
 TO_GRI_PAROL = "informatika2024"
+FAYL_NOMI = "baza.xlsx"  # GitHub'ga yuklaydigan faylingiz nomi aynan shunday bo'lsin
 
-genai.configure(api_key=API_KEY)
+st.set_page_config(page_title="Maktab AI | Ma'rufjon Abdiyev", layout="centered")
 
-st.set_page_config(page_title="Maktab AI | Abdiyev Ma'rufjon", layout="centered")
-
-# --- PAROL ---
+# --- PAROL TEKSHIRISH ---
 if "authenticated" not in st.session_state:
-    st.title("🔐 Kirish")
+    st.title("🔐 Tizimga kirish")
     parol = st.text_input("Parolni kiriting:", type="password")
     if st.button("Kirish"):
         if parol == TO_GRI_PAROL:
@@ -23,71 +22,66 @@ if "authenticated" not in st.session_state:
             st.error("❌ Parol noto'g'ri!")
     st.stop()
 
-# --- MODELLARNI TEKSHIRISH ---
-@st.cache_resource
-def get_working_model():
-    try:
-        models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        priorities = ['models/gemini-1.5-flash', 'models/gemini-pro']
-        for m in priorities:
-            if m in models: return m
-        return models[0] if models else None
-    except:
-        return "models/gemini-1.5-flash"
+# --- ASOSIY DASTUR ---
+st.markdown("""
+    <style>
+    .main {background-color: #f8f9fa;}
+    </style>
+    """, unsafe_allow_html=True)
 
-# --- BAZALARNI O'QISH ---
-def bazani_yukla():
-    fayllar = [f for f in os.listdir('.') if f.endswith('.xlsx')]
-    if not fayllar: return None
-    
-    dfs = []
-    for f in fayllar:
-        try:
-            temp_df = pd.read_excel(f)
-            # Har bir qatorni matnga aylantirib, qaysi fayldanligini belgilaymiz
-            temp_df['manba_fayl'] = f
-            dfs.append(temp_df)
-        except: continue
-    return pd.concat(dfs, ignore_index=True) if dfs else None
+with st.sidebar:
+    st.title("👨‍🏫 Ustoz Panel")
+    st.info(f"Abdiyev Ma'rufjon")
+    if st.button("Chiqish"):
+        del st.session_state.authenticated
+        st.rerun()
+    st.divider()
+    st.write("Baza holati:")
+    if os.path.exists(FAYL_NOMI):
+        st.success("✅ Baza topildi va yuklangan")
+    else:
+        st.error("⚠️ baza.xlsx topilmadi!")
 
-# --- ASOSIY ---
 st.title("🏫 Maktab AI Yordamchisi")
-working_model = get_working_model()
-df = bazani_yukla()
+st.write("Men maktab bazasi asosida savollaringizga javob beraman.")
 
-if df is not None:
-    st.success(f"✅ {len(os.listdir('.')) - 2} ta fayl yuklangan.")
-    
-    savol = st.chat_input("Ism yoki sinfni yozing...")
+# Modelni aniqlash
+if 'active_model' not in st.session_state:
+    st.session_state.active_model = "gemini-1.5-flash"
 
-    if savol:
-        with st.chat_message("user"):
-            st.write(savol)
+# --- BAZANI AVTOMATIK O'QISH ---
+if os.path.exists(FAYL_NOMI):
+    try:
+        # Excel faylni o'qish
+        df = pd.read_excel(FAYL_NOMI)
         
-        with st.chat_message("assistant"):
-            # --- FILTRLASH (Limitdan oshmaslik uchun) ---
-            # Savoldagi so'zlar qaysi qatorda qatnashganini qidiramiz
-            mask = df.astype(str).apply(lambda x: x.str.contains(savol, case=False, na=False)).any(axis=1)
-            qidirilgan_data = df[mask]
+        # Chat interfeysi
+        savol = st.chat_input("O'quvchi yoki sinf haqida so'rang...")
+
+        if savol:
+            with st.chat_message("user"):
+                st.write(savol)
             
-            # Agar topilmasa, bazaning bir qismini ko'rsatamiz
-            if qidirilgan_data.empty:
-                context = "Hech qanday ma'lumot topilmadi."
-            else:
-                # Faqat topilgan qatorlarni (max 50 ta) AIga yuboramiz
-                context = qidirilgan_data.head(50).to_string(index=False)
-            
-            try:
-                model = genai.GenerativeModel(working_model)
-                prompt = f"Maktab bazasidan olingan ma'lumotlar:\n{context}\n\nSavol: {savol}\n\nJavobni o'zbek tilida ber."
+            with st.chat_message("assistant"):
+                # Jadvalni matn ko'rinishiga o'tkazish
+                context = df.to_string(index=False) 
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{st.session_state.active_model}:generateContent?key={API_KEY}"
                 
                 with st.spinner("Qidiryapman..."):
-                    response = model.generate_content(prompt)
-                    st.write(response.text)
-            except Exception as e:
-                if "429" in str(e):
-                    st.error("⏳ Google biroz charchadi (Limit). 30 soniya kutib qayta urining.")
-                else:
-                    st.error(f"Xato: {e}")
+                    payload = {
+                        "contents": [{
+                            "parts": [{
+                                "text": f"Quyidagi jadval ma'lumotlari asosida savolga o'zbek tilida javob ber:\n\n{context}\n\nSavol: {savol}"
+                            }]
+                        }]
+                    }
+                    r = requests.post(url, json=payload)
+                    if r.status_code == 200:
+                        res_json = r.json()
+                        st.write(res_json['candidates'][0]['content']['parts'][0]['text'])
+                    else:
+                        st.error(f"API xatosi: {r.status_code}")
+    except Exception as e:
+        st.error(f"Faylni o'qishda xato: {e}")
 else:
-    st.warning("⚠️ Excel fayllar topilmadi.")
+    st.warning(f"⚠️ GitHub-da '{FAYL_NOMI}' fayli topilmadi. Iltimos, faylni yuklang.")
