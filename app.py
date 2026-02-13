@@ -16,7 +16,6 @@ API_KEYS = [
     "AIzaSyDXumH-cSk4hAGxpR4oNO-vS2v9MHpX5lo"
 ]
 
-# --- SAHIFA SOZLAMALARI (XATO SHU YERDA EDI) ---
 st.set_page_config(page_title=f"{MAKTAB_NOMI} AI", layout="wide")
 
 # --- PAROL ---
@@ -49,14 +48,13 @@ def yuklash():
 
 df = yuklash()
 
-# --- CHAT TARIXI ---
+# --- CHAT ---
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
-# --- ASOSIY QISIM ---
 if savol := st.chat_input("Savolingizni yozing..."):
     st.session_state.messages.append({"role": "user", "content": savol})
     with st.chat_message("user"): st.markdown(savol)
@@ -64,31 +62,41 @@ if savol := st.chat_input("Savolingizni yozing..."):
     with st.chat_message("assistant"):
         found_info = "Ma'lumot topilmadi."
         if df is not None:
-            # Bazadan qidirish
             mask = df.apply(lambda row: row.astype(str).str.contains(savol, case=False, na=False).any(), axis=1)
             sinf_data = df[mask]
             if not sinf_data.empty:
                 st.dataframe(sinf_data, use_container_width=True)
-                found_info = f"Ma'lumot topildi: {len(sinf_data)} ta qator ko'rsatildi."
+                found_info = f"Topildi: {len(sinf_data)} ta qator."
 
-        # 🚀 AI BILAN ALOQA (v1/gemini-pro - EN ISHONCHLISI)
+        # 🚀 UNIVERSAL ULANISH TIZIMI
         ai_text = ""
-        prompt = f"Sen {MAKTAB_NOMI} yordamchisisan. Savol: {savol}. Natija: {found_info}. O'zbekcha samimiy javob ber."
+        prompt = f"Sen {MAKTAB_NOMI} yordamchisisan. Savol: {savol}. Natija: {found_info}. O'zbekcha javob ber."
+        
+        # Barcha mumkin bo'lgan kombinatsiyalarni sinaymiz
+        possible_models = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]
+        possible_versions = ["v1beta", "v1"]
         
         shuffled_keys = API_KEYS.copy()
         random.shuffle(shuffled_keys)
         
+        break_outer = False
         for key in shuffled_keys:
-            url = f"https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key={key}"
-            try:
-                r = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}, timeout=10)
-                if r.status_code == 200:
-                    ai_text = r.json()['candidates'][0]['content']['parts'][0]['text']
-                    break
-            except: continue
+            if break_outer: break
+            for ver in possible_versions:
+                if break_outer: break
+                for mod in possible_models:
+                    url = f"https://generativelanguage.googleapis.com/{ver}/models/{mod}:generateContent?key={key}"
+                    try:
+                        r = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}, timeout=7)
+                        if r.status_code == 200:
+                            ai_text = r.json()['candidates'][0]['content']['parts'][0]['text']
+                            break_outer = True
+                            break
+                    except:
+                        continue
 
         if not ai_text:
-            ai_text = "Ma'rufjon aka, jadvalni tayyorlab qo'ydim. Google liniyalari bandligi sababli AI hozircha matnli javob berolmadi."
+            ai_text = "Ma'rufjon aka, jadval tayyor! Hozir Google tizimi juda band, lekin ma'lumotlarni jadvaldan ko'rishingiz mumkin."
         
         st.markdown(ai_text)
         st.session_state.messages.append({"role": "assistant", "content": ai_text})
