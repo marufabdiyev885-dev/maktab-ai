@@ -3,13 +3,11 @@ import google.generativeai as genai
 import pandas as pd
 import os
 
-# 1. SOZLAMALAR
+# 1. API VA SOZLAMALAR
 API_KEY = "AIzaSyAp3ImXzlVyNF_UXjes2LsSVhG0Uusobdw"
 TO_GRI_PAROL = "informatika2024"
 
-# Google AI ni sozlash (v1beta o'rniga v1 ishlatamiz)
 genai.configure(api_key=API_KEY)
-
 st.set_page_config(page_title="Maktab AI", layout="centered")
 
 # --- PAROL TIZIMI ---
@@ -44,35 +42,45 @@ def yuklash():
 st.title("🏫 Maktab AI Yordamchisi")
 df = yuklash()
 
-if df is not None:
-    st.success(f"✅ Baza yuklandi! {len(df)} ta qator tayyor.")
-    
-    savol = st.chat_input("Ism yozing (Masalan: NASIMOV yoki JALILOVA)")
+# --- CHAT INTERFEYSI ---
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-    if savol:
-        with st.chat_message("user"):
-            st.write(savol)
-        
-        with st.chat_message("assistant"):
-            # AQLLI QIDIRUV
+# Avvalgi xabarlarni ko'rsatish
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+
+# Yangi savol kirsa
+if savol := st.chat_input("Nima so'raymiz?"):
+    st.session_state.messages.append({"role": "user", "content": savol})
+    with st.chat_message("user"):
+        st.markdown(savol)
+
+    with st.chat_message("assistant"):
+        # 1. Bazadan qidirib ko'ramiz
+        context = ""
+        if df is not None:
             mask = df.apply(lambda row: row.astype(str).str.contains(savol, case=False, na=False).any(), axis=1)
-            results = df[mask].head(15)
-            
-            if results.empty:
-                st.warning(f"'{savol}' bo'yicha ma'lumot topilmadi. Bazadagi ismlardan birini yozing.")
-            else:
+            results = df[mask].head(10)
+            if not results.empty:
                 context = results.to_string(index=False)
-                
-                # 404 XATOSINI YO'QOTISH UCHUN MODELNI TO'G'RI CHAQIRISH
-                try:
-                    # 'gemini-pro' har doim ishlaydi va 404 bermaydi
-                    model = genai.GenerativeModel('gemini-pro')
-                    
-                    with st.spinner("AI javob bermoqda..."):
-                        prompt = f"Sen maktab yordamchisisan. Faqat ushbu ma'lumotlar asosida javob ber:\n{context}\n\nSavol: {savol}"
-                        response = model.generate_content(prompt)
-                        st.write(response.text)
-                except Exception as e:
-                    st.error(f"Xatolik yuz berdi. API kalitda muammo bo'lishi mumkin.")
-else:
-    st.warning("⚠️ Fayllar topilmadi.")
+
+        # 2. AI javob tayyorlaydi
+        try:
+            model = genai.GenerativeModel('gemini-pro')
+            
+            # Agar bazadan ma'lumot topsa, o'shani qo'shib beramiz
+            # Agar topmasa, shunchaki gaplashadi
+            if context:
+                full_prompt = f"Sen maktab yordamchisisan. Mana bu ma'lumotlar asosida javob ber: {context}\nSavol: {savol}"
+            else:
+                full_prompt = f"Sen samimiy maktab yordamchisisan. Foydalanuvchi bilan gaplash va savoliga javob ber. Savol: {savol}"
+            
+            with st.spinner("O'ylayapman..."):
+                response = model.generate_content(full_prompt)
+                full_res = response.text
+                st.markdown(full_res)
+                st.session_state.messages.append({"role": "assistant", "content": full_res})
+        except Exception as e:
+            st.error("AI hozir biroz charchadi, qaytadan yozib ko'ring.")
