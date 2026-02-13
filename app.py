@@ -62,9 +62,9 @@ if savol := st.chat_input("Savolingizni yozing..."):
             sinf_data = df[mask]
             if not sinf_data.empty:
                 st.dataframe(sinf_data, use_container_width=True)
-                found_data = f"Topilgan qatorlar: {sinf_data.head(3).to_dict(orient='records')}"
+                found_data = f"Topilgan qatorlar: {sinf_data.head(5).to_dict(orient='records')}"
 
-        # 🚀 GROQ API - Llama3-8b
+        # 🚀 GROQ API - YANGI MODEL (Llama 3.3)
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {
             "Authorization": f"Bearer {GROQ_API_KEY}",
@@ -72,7 +72,7 @@ if savol := st.chat_input("Savolingizni yozing..."):
         }
         
         payload = {
-            "model": "llama3-8b-8192",
+            "model": "llama-3.3-70b-versatile", # Eng yangi va kuchli model
             "messages": [
                 {"role": "system", "content": f"Sen {MAKTAB_NOMI} xodimi san. Direktor: {DIREKTOR_FIO}. Foydalanuvchi: Ma'rufjon aka. Faqat o'zbekcha javob ber."},
                 {"role": "user", "content": f"Baza ma'lumoti: {found_data}. Savol: {savol}"}
@@ -80,11 +80,10 @@ if savol := st.chat_input("Savolingizni yozing..."):
         }
         
         try:
-            r = requests.post(url, json=payload, headers=headers, timeout=10)
+            r = requests.post(url, json=payload, headers=headers, timeout=15)
             if r.status_code == 200:
                 ai_text = r.json()['choices'][0]['message']['content']
             else:
-                # Xatolikni to'g'ri ko'rsatish uchun qo'shtirnoqlar to'g'irlandi
                 error_msg = r.json().get("error", {}).get("message", "Noma'lum xato yuz berdi")
                 ai_text = f"Ma'rufjon aka, Groq xato berdi: {error_msg}. Jadval yuqorida ko'rinib turibdi."
         except:
