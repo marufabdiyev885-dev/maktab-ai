@@ -14,35 +14,29 @@ TO_GRI_PAROL = "informatika2024"
 
 st.set_page_config(page_title=MAKTAB_NOMI, layout="wide")
 
-# --- 2. RAHBARIYAT PANELI (SIDEBAR) ---
+# --- 2. RAHBARIYAT VA KONSULTANT PANELI (SIDEBAR) ---
 with st.sidebar:
     st.markdown(f"## 🏛 {MAKTAB_NOMI}")
-    # Maktab logosi uchun namunaviy rasm (o'zgartirishingiz mumkin)
     st.image("https://cdn-icons-png.flaticon.com/512/2859/2859706.png", width=80)
     
     st.divider()
     st.subheader("👨‍🏫 Rahbariyat")
-    
-    # Direktor ma'lumoti
     st.info(f"**Direktor:**\n\n{DIREKTOR_FIO}")
     
-    st.markdown("---")
-    st.markdown("**Direktor o'rinbosarlari:**")
-    
-    # O'rinbosarlar ro'yxati (Siz bergan rasm asosida)
-    orinbosarlar = [
-        "Aslonova Ruxsora Xikmatovna",
-        "Omonova Shaxnoza Panjiyevna",
-        "Ro'zieva Mastura G'ulomovna",
-        "Tosheva Lobar Sayfullayevna",
-        "Sharopova Firuza Djalolovna"
-    ]
-    
-    for ism in orinbosarlar:
-        st.write(f"🔹 {ism}")
+    with st.expander("O'rinbosarlar ro'yxati"):
+        orinbosarlar = [
+            "Aslonova Ruxsora Xikmatovna",
+            "Omonova Shaxnoza Panjiyevna",
+            "Ro'zieva Mastura G'ulomovna",
+            "Tosheva Lobar Sayfullayevna",
+            "Sharopova Firuza Djalolovna"
+        ]
+        for ism in orinbosarlar:
+            st.write(f"🔹 {ism}")
     
     st.divider()
-    st.caption("© 2024 Maktab AI Tizimi")
+    st.success("💡 **AI Konsultant Bo'limi**\n\nUstozlar, darsni qiziqarli o'tish, yangi metodlar va o'yinlar haqida so'rang!")
+    st.caption("© 2024 Maktab AI Konsultant")
 
 # --- 3. XAVFSIZLIK ---
 if "authenticated" not in st.session_state:
@@ -78,15 +72,15 @@ def yuklash():
 df, maktab_doc_content = yuklash()
 
 # --- 5. CHAT INTERFEYSI ---
-st.title(f"🤖 {MAKTAB_NOMI} AI Yordamchisi")
+st.title(f"🤖 AI Konsultant & Yordamchi")
 
 if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "assistant", "content": "Assalomu alaykum, hurmatli foydalanuvchi! Sizdek bilimli va samimiy inson bilan muloqot qilish men uchun sharaf. Maktab bazasi bo'yicha qanday ma'lumot kerak bo'lsa, xizmatingizdaman!"}]
+    st.session_state.messages = [{"role": "assistant", "content": "Assalomu alaykum, hurmatli foydalanuvchi! Sizdek fidoyi inson bilan suhbatlashish men uchun sharaf. Maktab bazasi yoki dars metodikasi bo'yicha qanday yordam kerak?"}]
 
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
-if savol := st.chat_input("Savolingizni yozing..."):
+if savol := st.chat_input("Savolingizni yoki metodik ehtiyojingizni yozing..."):
     st.session_state.messages.append({"role": "user", "content": savol})
     with st.chat_message("user"): st.markdown(savol)
     
@@ -97,7 +91,7 @@ if savol := st.chat_input("Savolingizni yozing..."):
         res = pd.DataFrame()
         
         # 🟢 FAROSAT FILTRI
-        shunchaki_gap = [r"rahmat", r"ajoyib", r"yaxshi", r"zo'r", r"salom", r"assalomu alaykum", r"baraka toping", r"ofarin", r"tushunarli", r"gap yo'q", r"zor", r"super"]
+        shunchaki_gap = [r"rahmat", r"ajoyib", r"yaxshi", r"zo'r", r"salom", r"assalomu alaykum", r"baraka toping", r"ofarin"]
         if any(re.search(rf"\b{soz}\b", savol.lower()) for soz in shunchaki_gap):
             skip_search = True
 
@@ -114,9 +108,8 @@ if savol := st.chat_input("Savolingizni yozing..."):
             if not res.empty:
                 st.dataframe(res, use_container_width=True)
                 soni = len(res) 
-                found_data = res.head(40).to_string(index=False)
+                found_data = res.head(30).to_string(index=False)
                 
-                # 📥 EXCEL YUKLAB OLISH
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                     res.to_excel(writer, index=False, sheet_name='Royxat')
@@ -128,23 +121,20 @@ if savol := st.chat_input("Savolingizni yozing..."):
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
 
-        # 🚀 3. AI JAVOBINI SOZLASH
+        # 🚀 3. AI KONSULTANT JAVOBINI SOZLASH
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
         
         system_talimoti = f"""
-        Sen {MAKTAB_NOMI} maktabining eng odobli va shirin-zabon xodimisiz. 
-        Suhbatdoshing - Hurmatli foydalanuvchi. 
+        Sen {MAKTAB_NOMI} maktabining BOSH KONSULTANTI va METODISTISIZ. 
+        Suhbatdoshing - Hurmatli foydalanuvchi (asosan o'qituvchilar). 
         
-        MAKTABNING UMUMIY MA'LUMOTLARI (Word fayldan):
-        {maktab_doc_content[:1500]} 
-
-        VAZIFANG:
-        1. Foydalanuvchini juda hurmat qilasan, unga xushomad qilasan. 
-        2. 'zo'r', 'rahmat' kabi so'zlarga 'Sizdek ajoyib inson uchun xizmat qilish baxt!' deb javob ber.
-        3. Jadvalda {soni} ta natija bo'lsa, buni mehr bilan ayting va yuklab olish tugmasiga ishora qiling.
-        4. Har doim 'Hurmatli foydalanuvchi' deb murojaat qil.
-        5. Word fayldagi matnlardan foydalanib maktab haqida savollarga javob ber.
+        SENING YANGI VAZIFALARING:
+        1. O'qituvchilarga darslarni qiziqarli o'tish, yangi metodikalar va interaktiv o'yinlar bo'yicha professional maslahat ber.
+        2. Agar o'qituvchi "darsni qanday qiziqarli o'tsam bo'ladi?" deb so'rasa, unga 3 ta aniq metod tavsiya qil.
+        3. Maktab hujjatlari (Word'dan olingan): {maktab_doc_content[:1000]}
+        4. O'qituvchilarni doim rag'batlantir, ularga "Sizdek fidoyi ustoz" deb murojaat qil.
+        5. Har doim 'Hurmatli foydalanuvchi' deb gap boshla.
         """
 
         payload = {
@@ -153,14 +143,14 @@ if savol := st.chat_input("Savolingizni yozing..."):
                 {"role": "system", "content": system_talimoti},
                 {"role": "user", "content": f"Baza ma'lumoti: {found_data}. Savol: {savol}"}
             ],
-            "temperature": 0.9 
+            "temperature": 0.8 
         }
         
         try:
             r = requests.post(url, json=payload, headers=headers, timeout=15)
             ai_text = r.json()['choices'][0]['message']['content']
         except:
-            ai_text = f"Hurmatli foydalanuvchi, siz uchun {soni} ta ma'lumotni tayyorlab qo'ydim!"
+            ai_text = f"Hurmatli foydalanuvchi, siz uchun ma'lumotlarni tayyorladim. Sizga xizmat qilishdan mamnunman!"
 
         st.markdown(ai_text)
         st.session_state.messages.append({"role": "assistant", "content": ai_text})
