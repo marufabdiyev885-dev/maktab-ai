@@ -6,7 +6,6 @@ import os
 # 1. API VA SOZLAMALAR
 API_KEY = "AIzaSyAp3ImXzlVyNF_UXjes2LsSVhG0Uusobdw"
 TO_GRI_PAROL = "informatika2024"
-FAYL_NOMI = "baza.xlsx" 
 
 genai.configure(api_key=API_KEY)
 st.set_page_config(page_title="Maktab AI", layout="centered")
@@ -23,33 +22,41 @@ if "authenticated" not in st.session_state:
             st.error("❌ Parol noto'g'ri!")
     st.stop()
 
-# --- BAZANI O'QISH ---
+# --- BAZANI O'QISH (KUCHAYTIRILGAN) ---
 @st.cache_data
 def bazani_yukla():
-    # Hozirgi papkadagi hamma fayllarni ko'rish (Tekshirish uchun)
-    barcha_fayllar = os.listdir('.')
+    # Papkadagi barcha Excel va CSV fayllarni topish
+    fayllar = [f for f in os.listdir('.') if f.endswith(('.xlsx', '.csv')) and 'app.py' not in f]
     
-    if os.path.exists(FAYL_NOMI):
-        try:
-            # Excelning barcha betlarini o'qish
-            all_sheets = pd.read_excel(FAYL_NOMI, sheet_name=None, dtype=str)
-            df = pd.concat(all_sheets.values(), ignore_index=True)
-            return df
-        except Exception as e:
-            st.error(f"Faylni o'qishda xato: {e}")
-            return None
-    else:
-        st.error(f"⚠️ '{FAYL_NOMI}' topilmadi!")
-        st.write("GitHub'dagi fayllar ro'yxati:", barcha_fayllar)
+    if not fayllar:
+        st.error("⚠️ GitHub'da hech qanday Excel yoki CSV fayl topilmadi!")
         return None
+    
+    dfs = []
+    for f in fayllar:
+        try:
+            if f.endswith('.csv'):
+                # CSV bo'lsa (UTF-8 formatida o'qiymiz)
+                temp_df = pd.read_csv(f, dtype=str, encoding='utf-8')
+            else:
+                # Excel bo'lsa
+                temp_df = pd.read_excel(f, dtype=str)
+            dfs.append(temp_df)
+        except Exception as e:
+            st.warning(f"{f} faylini o'qishda muammo: {e}")
+            continue
+            
+    if dfs:
+        return pd.concat(dfs, ignore_index=True)
+    return None
 
 st.title("🏫 Maktab AI Yordamchisi")
 df = bazani_yukla()
 
 if df is not None:
-    st.success(f"✅ Baza yuklandi! {len(df)} ta qator topildi.")
+    st.success(f"✅ Baza tayyor! {len(df)} ta qator yuklandi.")
     
-    savol = st.chat_input("Masalan: JALILOVA DILFUZA")
+    savol = st.chat_input("Ism yozing (masalan: SHERZODBEK yoki DILFUZA)")
 
     if savol:
         with st.chat_message("user"):
@@ -57,16 +64,23 @@ if df is not None:
         
         with st.chat_message("assistant"):
             # Bazadan qidirish (Katta-kichik harfga qaramaydi)
+            # o‘, g‘ harflari muammosini hal qilish uchun qisman qidirish
             mask = df.apply(lambda row: row.astype(str).str.contains(savol, case=False, na=False).any(), axis=1)
-            results = df[mask].head(20)
+            results = df[mask].head(15) # AIga 15 ta qator yetarli
             
             if results.empty:
-                st.warning("Bazadan ushbu ism bo'yicha ma'lumot topilmadi. Ism to'g'ri yozilganini tekshiring.")
+                st.warning(f"'{savol}' bo'yicha ma'lumot topilmadi. Ismni boshqacharoq yozib ko'ring.")
             else:
                 context = results.to_string(index=False)
                 try:
+                    # Modelni chaqirish
                     model = genai.GenerativeModel('gemini-1.5-flash')
-                    response = model.generate_content(f"Ma'lumotlar: {context}\nSavol: {savol}")
-                    st.write(response.text)
-                except:
-                    st.error("AI bilan bog'lanishda muammo.")
+                    prompt = f"Sen maktab yordamchisisan. Quyidagi jadval ma'lumotlari asosida savolga o'zbek tilida javob ber:\n\n{context}\n\nSavol: {savol}"
+                    
+                    with st.spinner("O'ylayapman..."):
+                        response = model.generate_content(prompt)
+                        st.write(response.text)
+                except Exception as e:
+                    st.error("AI xizmati hozir band. Birozdan so'ng urinib ko'ring.")
+else:
+    st.warning("⚠️ Fayllar topilmadi. GitHub-ga fayllarni yuklang.")
