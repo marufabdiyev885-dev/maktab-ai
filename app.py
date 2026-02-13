@@ -62,33 +62,32 @@ if savol := st.chat_input("Ma'rufjon aka, buyuravering..."):
                 context_text = results.to_string(index=False)
                 st.dataframe(results)
 
-        # YANGILANGAN MODEL VA YO'NALISH
-        # v1beta o'rniga v1 va gemini-1.5-flash o'rniga gemini-pro sinab ko'ramiz
-        url = f"https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key={API_KEY}"
+        # ENG YANGI ENDPOINT VA MODEL
+        # Google AI Studio uchun hozirda eng barqaror yo'l:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
         headers = {'Content-Type': 'application/json'}
         
-        prompt = f"Sen Ma'rufjon ismli maktab adminiga yordam beruvchi aqlli AIsan. Mana bu bazadagi ma'lumotlar: {context_text}. Foydalanuvchi savoli: {savol}. O'zbek tilida samimiy va insondek javob ber."
+        prompt = f"Sen Ma'rufjon ismli maktab adminiga yordam beruvchi aqlli AIsan. Mana bu bazadagi ma'lumotlar: {context_text}. Foydalanuvchi savoli: {savol}. O'zbek tilida samimiy va insondek fikrlab javob ber."
         
-        payload = {"contents": [{"parts": [{"text": prompt}]}]}
+        payload = {
+            "contents": [{
+                "parts": [{"text": prompt}]
+            }]
+        }
 
         try:
-            r = requests.post(url, headers=headers, data=json.dumps(payload))
+            r = requests.post(url, headers=headers, json=payload)
             res_json = r.json()
             
             if r.status_code == 200:
                 ai_text = res_json['candidates'][0]['content']['parts'][0]['text']
             else:
-                # Agar gemini-pro ham o'xshamasa, gemini-1.5-flash ni v1 versiyada sinaymiz
-                url_flash = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={API_KEY}"
-                r_flash = requests.post(url_flash, headers=headers, data=json.dumps(payload))
-                if r_flash.status_code == 200:
-                    ai_text = r_flash.json()['candidates'][0]['content']['parts'][0]['text']
-                else:
-                    err = res_json.get('error', {}).get('message', 'Noma\'lum xato')
-                    ai_text = f"Hali ham model bilan muammo bor: {err}"
+                # Agar hali ham xato bersa, xatoni to'liq ko'rsatamiz
+                err = res_json.get('error', {}).get('message', str(res_json))
+                ai_text = f"Ma'rufjon aka, mana bu xato chiqdi: {err}"
                 
         except Exception as e:
-            ai_text = f"Texnik ulanishda xato: {str(e)}"
+            ai_text = f"Ulanishda texnik xato: {str(e)}"
 
         st.markdown(ai_text)
         st.session_state.messages.append({"role": "assistant", "content": ai_text})
