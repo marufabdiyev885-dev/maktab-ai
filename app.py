@@ -4,7 +4,7 @@ import pandas as pd
 import os
 import json
 
-# 1. API VA SOZLAMALAR
+# 1. SOZLAMALAR
 API_KEY = "AIzaSyAp3ImXzlVyNF_UXjes2LsSVhG0Uusobdw"
 TO_GRI_PAROL = "informatika2024"
 
@@ -60,20 +60,19 @@ if savol := st.chat_input("Salom deb yozing yoki ma'lumot so'rang..."):
         # 1. Bazadan qidirish
         context = ""
         if df is not None:
-            # Ismni bazadan qidirish (katta-kichik harfga qaramaydi)
             mask = df.apply(lambda row: row.astype(str).str.contains(savol, case=False, na=False).any(), axis=1)
             results = df[mask].head(10)
             if not results.empty:
-                context = "Bazadan topilgan ma'lumotlar:\n" + results.to_string(index=False)
+                context = "Bazadagi ma'lumotlar:\n" + results.to_string(index=False)
 
-        # 2. TO'G'IRLANGAN GOOGLE API SO'ROVI (v1 versiyasi)
-        # 404 xatosini oldini olish uchun URL va model nomi o'zgartirildi
-        url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={API_KEY}"
+        # 2. GOOGLE API (ENG BARQAROR GEMINI-PRO MODELI)
+        # 404 xatosini butunlay yo'qotish uchun gemini-pro ga o'tdik
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={API_KEY}"
         headers = {'Content-Type': 'application/json'}
         
-        prompt = f"Sen samimiy maktab yordamchisisan. Foydalanuvchi savoliga o'zbek tilida javob ber."
+        prompt = f"Sen maktab yordamchisisan. Foydalanuvchiga o'zbek tilida samimiy javob ber."
         if context:
-            prompt += f"\n\nQuyidagi ma'lumotlar bazadan topildi, shularga tayanib javob ber:\n{context}"
+            prompt += f"\n\nMana bu ma'lumotlardan foydalan:\n{context}"
         
         prompt += f"\n\nSavol: {savol}"
 
@@ -91,8 +90,6 @@ if savol := st.chat_input("Salom deb yozing yoki ma'lumot so'rang..."):
                     st.markdown(full_res)
                     st.session_state.messages.append({"role": "assistant", "content": full_res})
                 else:
-                    # Agar v1 ham xato bersa, xatoni aniq ko'rsatadi
-                    error_msg = res_json.get('error', {}).get('message', 'Nomaalum xato')
-                    st.error(f"API xatosi: {error_msg}")
+                    st.error(f"API javob bermadi. Muammo: {res_json.get('error', {}).get('message', 'Nomaalum xato')}")
         except Exception as e:
             st.error(f"Ulanishda xato: {str(e)}")
