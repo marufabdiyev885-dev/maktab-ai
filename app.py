@@ -8,7 +8,7 @@ import json
 API_KEY = "AIzaSyAJpdQJJmdWC54Repc9Oz7Qs0nFniEMprI" 
 TO_GRI_PAROL = "informatika2024"
 
-st.set_page_config(page_title="Maktab AI | Final", layout="wide")
+st.set_page_config(page_title="Maktab AI | 100% Ishlaydigan", layout="wide")
 
 # --- PAROL ---
 if "authenticated" not in st.session_state:
@@ -48,7 +48,7 @@ if "messages" not in st.session_state:
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
-if savol := st.chat_input("Ma'rufjon aka, endi sinab ko'ring..."):
+if savol := st.chat_input("Ma'rufjon aka, endi aniq ishlashi kerak..."):
     st.session_state.messages.append({"role": "user", "content": savol})
     with st.chat_message("user"): st.markdown(savol)
 
@@ -58,37 +58,35 @@ if savol := st.chat_input("Ma'rufjon aka, endi sinab ko'ring..."):
             mask = df.apply(lambda row: row.astype(str).str.contains(savol, case=False, na=False).any(), axis=1)
             res = df[mask].head(10)
             if not res.empty:
-                context = "Bazadagi ma'lumotlar: " + res.to_string(index=False)
+                context = "Baza ma'lumoti: " + res.to_string(index=False)
                 st.dataframe(res)
 
-        # DIQQAT: v1beta va gemini-1.5-flash-latest kombinatsiyasi eng chidamlisi
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={API_KEY}"
-        headers = {'Content-Type': 'application/json'}
-        
-        prompt = (
-            f"Sen Ma'rufjon aka ismli maktab adminining yordamchisisan. "
-            f"Bazadagi ma'lumot: {context}. Savol: {savol}. "
-            f"Javobni o'zbek tilida, juda samimiy va Ma'rufjon aka deb murojaat qilgan holda ber."
-        )
-        
-        payload = {"contents": [{"parts": [{"text": prompt}]}]}
+        # 🚀 ENG ISHONCHLI STRATEGIYA: 
+        # Avval modellarni ro'yxatdan o'tkazamiz
+        url_list = f"https://generativelanguage.googleapis.com/v1beta/models?key={API_KEY}"
         
         try:
-            r = requests.post(url, headers=headers, json=payload)
-            res_json = r.json()
-            if r.status_code == 200:
-                javob = res_json['candidates'][0]['content']['parts'][0]['text']
-            else:
-                # Agar flash-latest ham o'xshamas, oddiy gemini-pro ni sinaymiz
-                url_alt = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={API_KEY}"
-                r_alt = requests.post(url_alt, headers=headers, json=payload)
-                if r_alt.status_code == 200:
-                    javob = r_alt.json()['candidates'][0]['content']['parts'][0]['text']
+            models_res = requests.get(url_list).json()
+            # Ishlaydigan birinchi modelni tanlaymiz (asosan gemini-1.5-flash yoki gemini-pro)
+            available_models = [m['name'] for m in models_res.get('models', []) if 'generateContent' in m.get('supportedGenerationMethods', [])]
+            
+            if available_models:
+                target_model = available_models[0] # Eng birinchi modelni olamiz
+                url = f"https://generativelanguage.googleapis.com/v1beta/{target_model}:generateContent?key={API_KEY}"
+                
+                prompt = f"Sen Ma'rufjon aka ismli maktab adminiga yordam beruvchi AIsan. Mana ma'lumot: {context}. Savol: {savol}. O'zbekcha javob ber."
+                payload = {"contents": [{"parts": [{"text": prompt}]}]}
+                
+                r = requests.post(url, json=payload)
+                if r.status_code == 200:
+                    ai_text = r.json()['candidates'][0]['content']['parts'][0]['text']
                 else:
-                    err = res_json.get('error', {}).get('message', 'Model topilmadi')
-                    javob = f"Ma'rufjon aka, Google hali ham modelni bermayapti. Xato: {err}"
-        except:
-            javob = "Texnik xatolik yuz berdi."
+                    ai_text = f"Ma'rufjon aka, server rad etdi. Kalit hali faollashmagan bo'lishi mumkin."
+            else:
+                ai_text = "Ma'rufjon aka, hisobingizda birorta ham AI model topilmadi. AI Studio-da sozlamalarni ko'rish kerak."
+                
+        except Exception as e:
+            ai_text = f"Texnik xato: {str(e)}"
 
-        st.markdown(javob)
-        st.session_state.messages.append({"role": "assistant", "content": javob})
+        st.markdown(ai_text)
+        st.session_state.messages.append({"role": "assistant", "content": ai_text})
