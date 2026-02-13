@@ -8,7 +8,7 @@ import json
 API_KEY = "AIzaSyAp3ImXzlVyNF_UXjes2LsSVhG0Uusobdw"
 TO_GRI_PAROL = "informatika2024"
 
-st.set_page_config(page_title="Maktab AI", layout="centered")
+st.set_page_config(page_title="Maktab AI | Ma'rufjon Abdiyev", layout="centered")
 
 # --- PAROL TIZIMI ---
 if "authenticated" not in st.session_state:
@@ -60,26 +60,29 @@ if savol := st.chat_input("Salom deb yozing yoki ma'lumot so'rang..."):
         # 1. Bazadan qidirish
         context = ""
         if df is not None:
+            # Ismni bazadan qidirish (katta-kichik harfga qaramaydi)
             mask = df.apply(lambda row: row.astype(str).str.contains(savol, case=False, na=False).any(), axis=1)
             results = df[mask].head(10)
             if not results.empty:
-                context = "Quyidagilar bazadan topilgan ma'lumotlar:\n" + results.to_string(index=False)
+                context = "Bazadan topilgan ma'lumotlar:\n" + results.to_string(index=False)
 
-        # 2. Google API ga to'g'ridan-to'g'ri so'rov yuborish (v1beta)
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
+        # 2. TO'G'IRLANGAN GOOGLE API SO'ROVI (v1 versiyasi)
+        # 404 xatosini oldini olish uchun URL va model nomi o'zgartirildi
+        url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={API_KEY}"
         headers = {'Content-Type': 'application/json'}
         
-        prompt = f"Sen samimiy maktab yordamchisisan. Foydalanuvchi savoliga o'zbek tilida javob ber. "
+        prompt = f"Sen samimiy maktab yordamchisisan. Foydalanuvchi savoliga o'zbek tilida javob ber."
         if context:
-            prompt += f"Mana bu bazadagi ma'lumotlardan foydalan:\n{context}\n\n"
-        prompt += f"Savol: {savol}"
+            prompt += f"\n\nQuyidagi ma'lumotlar bazadan topildi, shularga tayanib javob ber:\n{context}"
+        
+        prompt += f"\n\nSavol: {savol}"
 
         payload = {
             "contents": [{"parts": [{"text": prompt}]}]
         }
 
         try:
-            with st.spinner("AI javob bermoqda..."):
+            with st.spinner("O'ylayapman..."):
                 r = requests.post(url, headers=headers, data=json.dumps(payload))
                 res_json = r.json()
                 
@@ -88,6 +91,8 @@ if savol := st.chat_input("Salom deb yozing yoki ma'lumot so'rang..."):
                     st.markdown(full_res)
                     st.session_state.messages.append({"role": "assistant", "content": full_res})
                 else:
-                    st.error(f"Xato yuz berdi: {res_json.get('error', {}).get('message', 'Nomaalum xato')}")
+                    # Agar v1 ham xato bersa, xatoni aniq ko'rsatadi
+                    error_msg = res_json.get('error', {}).get('message', 'Nomaalum xato')
+                    st.error(f"API xatosi: {error_msg}")
         except Exception as e:
             st.error(f"Ulanishda xato: {str(e)}")
