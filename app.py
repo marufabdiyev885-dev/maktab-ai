@@ -8,11 +8,11 @@ import json
 API_KEY = "AIzaSyAp3ImXzlVyNF_UXjes2LsSVhG0Uusobdw" 
 TO_GRI_PAROL = "informatika2024"
 
-st.set_page_config(page_title="Maktab AI | Mukammal", layout="wide")
+st.set_page_config(page_title="Maktab AI | Universal", layout="wide")
 
 # --- PAROL TIZIMI ---
 if "authenticated" not in st.session_state:
-    st.title("🔐 Maktab AI Tizimi")
+    st.title("🔐 Maktab AI")
     parol = st.text_input("Parol:", type="password")
     if st.button("Kirish"):
         if parol == TO_GRI_PAROL:
@@ -49,7 +49,7 @@ for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
 # --- ASOSIY JARAYON ---
-if savol := st.chat_input("Ma'rufjon aka, buyuravering..."):
+if savol := st.chat_input("Ma'rufjon aka, biror nima so'rang..."):
     st.session_state.messages.append({"role": "user", "content": savol})
     with st.chat_message("user"): st.markdown(savol)
 
@@ -57,37 +57,40 @@ if savol := st.chat_input("Ma'rufjon aka, buyuravering..."):
         context_text = ""
         if df is not None:
             mask = df.apply(lambda row: row.astype(str).str.contains(savol, case=False, na=False).any(), axis=1)
-            results = df[mask].head(10)
+            results = df[mask].head(5)
             if not results.empty:
                 context_text = results.to_string(index=False)
                 st.dataframe(results)
 
-        # ENG YANGI ENDPOINT VA MODEL
-        # Google AI Studio uchun hozirda eng barqaror yo'l:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
-        headers = {'Content-Type': 'application/json'}
+        # SINAB KO'RILADIGAN MODELLAR RO'YXATI
+        models_to_try = [
+            "gemini-1.5-flash",
+            "gemini-1.5-pro",
+            "gemini-pro"
+        ]
         
-        prompt = f"Sen Ma'rufjon ismli maktab adminiga yordam beruvchi aqlli AIsan. Mana bu bazadagi ma'lumotlar: {context_text}. Foydalanuvchi savoli: {savol}. O'zbek tilida samimiy va insondek fikrlab javob ber."
+        ai_text = ""
+        success = False
         
-        payload = {
-            "contents": [{
-                "parts": [{"text": prompt}]
-            }]
-        }
-
-        try:
-            r = requests.post(url, headers=headers, json=payload)
-            res_json = r.json()
+        for model_name in models_to_try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={API_KEY}"
+            payload = {"contents": [{"parts": [{"text": f"Sen maktab admini Ma'rufjon akaga yordam beruvchi aqlli AIsan. Bazadagi ma'lumot: {context_text}. Savol: {savol}. O'zbekcha javob ber."}]}]}
             
-            if r.status_code == 200:
-                ai_text = res_json['candidates'][0]['content']['parts'][0]['text']
-            else:
-                # Agar hali ham xato bersa, xatoni to'liq ko'rsatamiz
-                err = res_json.get('error', {}).get('message', str(res_json))
-                ai_text = f"Ma'rufjon aka, mana bu xato chiqdi: {err}"
-                
-        except Exception as e:
-            ai_text = f"Ulanishda texnik xato: {str(e)}"
+            try:
+                r = requests.post(url, json=payload, timeout=10)
+                if r.status_code == 200:
+                    res_json = r.json()
+                    ai_text = res_json['candidates'][0]['content']['parts'][0]['text']
+                    success = True
+                    break # Agar ishlasa, tsikldan chiqamiz
+                else:
+                    last_error = r.json().get('error', {}).get('message', 'Noma\'lum xato')
+                    continue # Keyingi modelni sinab ko'ramiz
+            except:
+                continue
+
+        if not success:
+            ai_text = f"Ma'rufjon aka, Google serveri hozircha bizning barcha urinishlarimizni rad etdi. Oxirgi xato: {last_error}"
 
         st.markdown(ai_text)
         st.session_state.messages.append({"role": "assistant", "content": ai_text})
