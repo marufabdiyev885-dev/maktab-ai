@@ -1,12 +1,15 @@
 import streamlit as st
-import requests
+import google.generativeai as genai
 import pandas as pd
 import os
 
-# 1. SOZLAMALAR
+# 1. API VA XAVFSIZLIK
 API_KEY = "AIzaSyAp3ImXzlVyNF_UXjes2LsSVhG0Uusobdw"
 TO_GRI_PAROL = "informatika2024"
 FAYL_NOMI = "baza.xlsx" 
+
+# Google AI ni rasmiy kutubxona orqali sozlash
+genai.configure(api_key=API_KEY)
 
 st.set_page_config(page_title="Maktab AI | Ma'rufjon Abdiyev", layout="centered")
 
@@ -22,15 +25,15 @@ if "authenticated" not in st.session_state:
             st.error("❌ Parol noto'g'ri!")
     st.stop()
 
-# --- BAZANI O'QISH ---
+# --- BAZANI O'QISH (Toza fayl uchun) ---
 @st.cache_data
 def bazani_yukla():
     if os.path.exists(FAYL_NOMI):
         try:
-            # Excelning barcha listlarini birlashtirib o'qiymiz
+            # Barcha listlarni (O'quvchilar va Pedagoglar) o'qiymiz
             all_sheets = pd.read_excel(FAYL_NOMI, sheet_name=None, dtype=str)
-            combined_df = pd.concat(all_sheets.values(), ignore_index=True)
-            return combined_df
+            df = pd.concat(all_sheets.values(), ignore_index=True)
+            return df
         except Exception as e:
             st.error(f"Faylni o'qishda xato: {e}")
             return None
@@ -41,9 +44,9 @@ st.title("🏫 Maktab AI Yordamchisi")
 df = bazani_yukla()
 
 if df is not None:
-    st.success(f"✅ Baza tayyor! {len(df)} ta qator yuklandi.")
+    st.success(f"✅ Baza yuklandi! {len(df)} ta ma'lumot tayyor.")
     
-    savol = st.chat_input("Ism yoki familiyani yozing...")
+    savol = st.chat_input("Ism, familiya yoki sinf bo'yicha so'rang...")
 
     if savol:
         with st.chat_message("user"):
@@ -52,32 +55,29 @@ if df is not None:
         with st.chat_message("assistant"):
             # Bazadan qidirish
             mask = df.apply(lambda row: row.astype(str).str.contains(savol, case=False, na=False).any(), axis=1)
-            context_data = df[mask].head(25).to_string(index=False)
+            results = df[mask].head(25)
             
-            if not context_data.strip() or "Empty DataFrame" in context_data:
-                context_data = "Ma'lumot topilmadi."
-
-            # 404 XATOSINI OLDIRINI OLUVCHI TO'G'RI URL:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
-            
-            with st.spinner("Qidiryapman..."):
-                payload = {
-                    "contents": [{
-                        "parts": [{
-                            "text": f"Sen maktab yordamchisisan. Quyidagi ma'lumotlarga tayanib o'zbek tilida javob ber:\n{context_data}\n\nSavol: {savol}"
-                        }]
-                    }]
-                }
+            if results.empty:
+                st.write("Bazadan ma'lumot topilmadi.")
+            else:
+                context = results.to_string(index=False)
                 
                 try:
-                    r = requests.post(url, json=payload)
-                    if r.status_code == 200:
-                        res_json = r.json()
-                        st.write(res_json['candidates'][0]['content']['parts'][0]['text'])
-                    else:
-                        # Agar yana 404 bersa, muqobil modelni sinab ko'radi
-                        st.error(f"API xatosi: {r.status_code}. Iltimos, API kalitini yoki model nomini tekshiring.")
+                    # MODELNI CHAQIRISH (Eng barqaror usul)
+                    model = genai.GenerativeModel('gemini-1.5-flash')
+                    
+                    with st.spinner("O'ylayapman..."):
+                        response = model.generate_content(
+                            f"Sen maktab yordamchisisan. Faqat quyidagi ma'lumotlarga tayanib o'zbek tilida javob ber:\n\n{context}\n\nSavol: {savol}"
+                        )
+                        st.write(response.text)
                 except Exception as e:
-                    st.error(f"Bog'lanishda xato: {e}")
+                    # Agar 1.5-flash ishlamasa, gemini-pro ni sinab ko'radi
+                    try:
+                        model_alt = genai.GenerativeModel('gemini-pro')
+                        response = model_alt.generate_content(f"Ma'lumot: {context}\nSavol: {savol}")
+                        st.write(response.text)
+                    except:
+                        st.error("AI bilan bog'lanishda xato. API kalitingizni tekshiring.")
 else:
-    st.warning(f"⚠️ '{FAYL_NOMI}' fayli topilmadi. GitHub'ga yuklaganingizga ishonch hosil qiling.")
+    st.warning(f"⚠️ '{FAYL_NOMI}' fayli topilmadi.")
