@@ -3,17 +3,18 @@ import google.generativeai as genai
 import pandas as pd
 import os
 
-# 1. Sozlamalar
+# 1. SOZLAMALAR
 API_KEY = "AIzaSyAp3ImXzlVyNF_UXjes2LsSVhG0Uusobdw"
 TO_GRI_PAROL = "informatika2024"
 
+# Google AI ni sozlash
 genai.configure(api_key=API_KEY)
 
 st.set_page_config(page_title="Maktab AI | Abdiyev Ma'rufjon", layout="centered")
 
-# --- PAROL ---
+# --- PAROL TIZIMI ---
 if "authenticated" not in st.session_state:
-    st.title("🔐 Kirish")
+    st.title("🔐 Tizimga kirish")
     parol = st.text_input("Parolni kiriting:", type="password")
     if st.button("Kirish"):
         if parol == TO_GRI_PAROL:
@@ -23,7 +24,24 @@ if "authenticated" not in st.session_state:
             st.error("❌ Parol noto'g'ri!")
     st.stop()
 
-# --- BAZALARNI O'QISH ---
+# --- ISHLAYDIGAN MODELNI ANIQLASH (404 xatosini oldini olish) ---
+@st.cache_resource
+def get_working_model():
+    try:
+        # Mavjud modellarni tekshirish
+        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        
+        # Ustuvor modellar ro'yxati
+        priorities = ['models/gemini-1.5-flash', 'models/gemini-1.5-flash-8b', 'models/gemini-pro']
+        
+        for model_path in priorities:
+            if model_path in available_models:
+                return model_path
+        return available_models[0] if available_models else "models/gemini-pro"
+    except:
+        return "models/gemini-pro"
+
+# --- BAZALARNI YUKLASH VA BIRLASHTIRISH ---
 @st.cache_data
 def bazani_yukla():
     fayllar = [f for f in os.listdir('.') if f.endswith('.xlsx')]
@@ -33,64 +51,74 @@ def bazani_yukla():
     dfs = []
     for f in fayllar:
         try:
-            # Excelni o'qishda hamma ustunlarni matn ko'rinishida olamiz
+            # Ma'lumotlarni matn sifatida o'qish (qidiruv oson bo'lishi uchun)
             temp_df = pd.read_excel(f, dtype=str)
             dfs.append(temp_df)
         except:
             continue
-    return pd.concat(dfs, ignore_index=True) if dfs else None
+    
+    if dfs:
+        return pd.concat(dfs, ignore_index=True)
+    return None
 
-# --- ASOSIY ---
+# --- ASOSIY QISM ---
 st.title("🏫 Maktab AI Yordamchisi")
+working_model_name = get_working_model()
 df = bazani_yukla()
 
 if df is not None:
-    st.success(f"✅ Baza yuklandi ({len(df)} ta qator mavjud).")
+    st.success(f"✅ Baza tayyor! ({len(df)} ta qator ma'lumot yuklandi)")
     
-    savol = st.chat_input("Ism, familiya yoki sinfni yozing...")
+    savol = st.chat_input("Ism, familiya yoki sinf bo'yicha so'rang...")
 
     if savol:
         with st.chat_message("user"):
             st.write(savol)
         
         with st.chat_message("assistant"):
-            # Savolni bo'laklarga bo'lib qidiramiz (masalan: "Ali 9-sinf")
+            # --- AQLLI FILTR (Limit 429 xatosini oldini olish uchun) ---
             qidiruv_sozlari = savol.split()
-            
-            # Bazadan savolga aloqador qatorlarni topish
+            # Kamida bitta so'z qatnashgan qatorlarni qidirish
             mask = df.apply(lambda row: row.astype(str).str.contains(qidiruv_sozlari[0], case=False).any(), axis=1)
             for soz in qidiruv_sozlari[1:]:
                 mask &= df.apply(lambda row: row.astype(str).str.contains(soz, case=False).any(), axis=1)
             
             qidirilgan_data = df[mask]
             
-            # Agar juda ko'p ma'lumot chiqsa, limit uchun kamaytiramiz
-            context_data = qidirilgan_data.head(30).to_string(index=False)
-            
             if qidirilgan_data.empty:
-                # Agar aniq topilmasa, AIga umumiyroq qidirishni buyuramiz
-                context_data = "Bazadan aniq ma'lumot topilmadi. O'zingdagi umumiy bilimlardan foydalanma, faqat bazada yo'qligini ayt."
-
+                context_text = "Bazadan ushbu so'rov bo'yicha hech qanday ma'lumot topilmadi."
+            else:
+                # Faqat topilgan qismini AIga yuboramiz (max 40 qator)
+                context_text = qidirilgan_data.head(40).to_string(index=False)
+            
+            # --- AI JAVOBI ---
             try:
-                model = genai.GenerativeModel('models/gemini-1.5-flash')
+                model = genai.GenerativeModel(working_model_name)
                 prompt = f"""
-                Sen maktab xodimlari va o'quvchilari haqidagi bazadan javob beruvchi yordamchisan.
+                Sen maktab yordamchi botisan. Faqat quyidagi ma'lumotlar bazasiga tayanib javob ber.
+                Ma'lumot topilmasa, o'zingdan to'qima, bazada yo'qligini ayt.
                 
-                Quyida bazadan topilgan ma'lumotlar berilgan:
-                {context_data}
+                Bazadagi ma'lumotlar:
+                {context_text}
                 
                 Foydalanuvchi savoli: {savol}
-                
-                Vazifang: 
-                1. Agar ma'lumot topilgan bo'lsa, jadval shaklida yoki chiroyli qilib tushuntirib ber.
-                2. Agar ma'lumot topilmagan bo'lsa, "Kechirasiz, bazada bunday ma'lumot topilmadi" deb javob ber.
-                Javobni o'zbek tilida ber.
+                Javobni o'zbek tilida, chiroyli va tushunarli qilib ber.
                 """
                 
-                with st.spinner("O'ylayapman..."):
+                with st.spinner("Qidiryapman..."):
                     response = model.generate_content(prompt)
                     st.write(response.text)
             except Exception as e:
-                st.error(f"Xato yuz berdi: {e}")
+                if "429" in str(e):
+                    st.error("⏳ Google limitiga yetdi. 30 soniyadan so'ng qayta urinib ko'ring.")
+                else:
+                    st.error(f"⚠️ Xatolik: {e}")
 else:
-    st.warning("⚠️ Excel fayllar hali ham topilmadi. Nomlarini tekshiring!")
+    st.warning("⚠️ Excel (.xlsx) fayllar topilmadi. GitHub'ga fayllarni yuklang!")
+
+with st.sidebar:
+    st.info(f"Admin: Abdiyev Ma'rufjon")
+    st.write(f"Model: {working_model_name}")
+    if st.button("Chiqish"):
+        del st.session_state.authenticated
+        st.rerun()
