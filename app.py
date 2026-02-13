@@ -9,7 +9,7 @@ import time
 API_KEY = "AIzaSyAJpdQJJmdWC54Repc9Oz7Qs0nFniEMprI" 
 TO_GRI_PAROL = "informatika2024"
 
-st.set_page_config(page_title="Maktab AI | Active Chat", layout="wide")
+st.set_page_config(page_title="Maktab AI | Smart Retry", layout="wide")
 
 # --- PAROL ---
 if "authenticated" not in st.session_state:
@@ -49,56 +49,55 @@ if "messages" not in st.session_state:
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
-if savol := st.chat_input("Savolingizni yozing..."):
+if savol := st.chat_input("Ma'rufjon aka, so'rov yuboryapman..."):
     st.session_state.messages.append({"role": "user", "content": savol})
     with st.chat_message("user"): st.markdown(savol)
 
     with st.chat_message("assistant"):
         found_info = ""
         if df is not None:
-            # Bazadan qidirish
             mask = df.apply(lambda row: row.astype(str).str.contains(savol, case=False, na=False).any(), axis=1)
             sinf_data = df[mask]
-
             if not sinf_data.empty:
-                st.success(f"Ma'rufjon aka, {len(sinf_data)} ta ma'lumot topildi:")
+                st.success(f"Ma'rufjon aka, {len(sinf_data)} ta ma'lumot topildi!")
                 st.dataframe(sinf_data, use_container_width=True)
-                # AIga qidiruv natijasi haqida qisqa ma'lumot yuborish
-                found_info = f"Bazadan {len(sinf_data)} ta qator topildi. Qidiruv so'zi: {savol}."
+                found_info = f"Bazadan {len(sinf_data)} ta qator topildi. So'z: {savol}."
             else:
-                found_info = f"'{savol}' bo'yicha hech narsa topilmadi."
+                found_info = f"'{savol}' bo'yicha ma'lumot yo'q."
 
-        # 🚀 AI BILAN BOG'LANISH (Timeout 30 soniyaga oshirildi)
+        # 🚀 AQLLI QAYTA URINISH (SMART RETRY)
         url_list = f"https://generativelanguage.googleapis.com/v1beta/models?key={API_KEY}"
+        ai_text = ""
         
-        with st.spinner("Ma'rufjon aka, o'ylab ko'ryapman..."):
-            try:
-                # Modellar ro'yxatini olish
-                models_res = requests.get(url_list).json()
-                available_models = [m['name'] for m in models_res.get('models', []) if 'generateContent' in m.get('supportedGenerationMethods', [])]
-                target_model = available_models[0] if available_models else "models/gemini-1.5-flash"
-                
-                url = f"https://generativelanguage.googleapis.com/v1beta/{target_model}:generateContent?key={API_KEY}"
-                
-                prompt = (
-                    f"Sen Ma'rufjon aka ismli maktab adminining aqlli yordamchisisan. "
-                    f"Natija: {found_info}. "
-                    f"Foydalanuvchi savoli: {savol}. "
-                    f"Vazifang: Ma'rufjon aka bilan juda samimiy gaplashish. "
-                    f"Har safar uning ismini ayt va natijaga moslab turlicha gapir. "
-                    f"Bir xil gapni qaytarma. O'zbekcha javob ber."
-                )
-                
-                payload = {"contents": [{"parts": [{"text": prompt}]}]}
-                # Timeoutni 30 qildik, shunda u xatoga o'tib ketmaydi
-                r = requests.post(url, json=payload, timeout=30)
-                
-                if r.status_code == 200:
-                    ai_text = r.json()['candidates'][0]['content']['parts'][0]['text']
-                else:
-                    ai_text = f"Ma'rufjon aka, hozir Google biroz band ekan. Lekin jadval tayyor. (Xato kodi: {r.status_code})"
-            except Exception as e:
-                ai_text = f"Ma'rufjon aka, aloqada uzilish bo'ldi. Lekin men qidirishda davom etyapman!"
+        with st.spinner("Google biroz band, navbat kutyapman..."):
+            for i in range(3): # 3 marta urinib ko'radi
+                try:
+                    # Modelni aniqlash
+                    models_res = requests.get(url_list).json()
+                    available_models = [m['name'] for m in models_res.get('models', []) if 'generateContent' in m.get('supportedGenerationMethods', [])]
+                    target_model = available_models[0] if available_models else "models/gemini-1.5-flash"
+                    
+                    url = f"https://generativelanguage.googleapis.com/v1beta/{target_model}:generateContent?key={API_KEY}"
+                    prompt = f"Sen Ma'rufjon akaga yordamchi MaktabAIsan. Natija: {found_info}. Savol: {savol}. O'zbekcha samimiy javob ber."
+                    payload = {"contents": [{"parts": [{"text": prompt}]}]}
+                    
+                    r = requests.post(url, json=payload, timeout=30)
+                    
+                    if r.status_code == 200:
+                        ai_text = r.json()['candidates'][0]['content']['parts'][0]['text']
+                        break # Muvaffaqiyatli bo'lsa, tsikldan chiqadi
+                    elif r.status_code == 429:
+                        time.sleep(5) # 5 soniya kutib keyin yana urinadi
+                        continue
+                    else:
+                        ai_text = f"Ma'rufjon aka, Google'da xatolik: {r.status_code}"
+                        break
+                except:
+                    time.sleep(2)
+                    continue
+            
+            if not ai_text:
+                ai_text = "Ma'rufjon aka, Google hozir juda band. Jadvalni chiqardim, 1 minutdan keyin qayta so'rasangiz, batafsil tushuntirib beraman."
 
         st.markdown(ai_text)
         st.session_state.messages.append({"role": "assistant", "content": ai_text})
