@@ -2,17 +2,17 @@ import streamlit as st
 import pandas as pd
 import os
 import requests
+import json
 
 # 1. SOZLAMALAR
-# !!! DIQQAT: API_KEY qismiga o'zingizni kalitingizni qo'ying !!!
-API_KEY = "AIzaSyAhOGh5sdIzXGHkoxCZsXGtwrc_232hQj4" 
+API_KEY = "AIzaSyAp3ImXzlVyNF_UXjes2LsSVhG0Uusobdw" 
 TO_GRI_PAROL = "informatika2024"
 
 st.set_page_config(page_title="Maktab AI | Mukammal", layout="wide")
 
 # --- PAROL TIZIMI ---
 if "authenticated" not in st.session_state:
-    st.title("🔐 Maktab AI")
+    st.title("🔐 Maktab AI Tizimi")
     parol = st.text_input("Parol:", type="password")
     if st.button("Kirish"):
         if parol == TO_GRI_PAROL:
@@ -41,54 +41,53 @@ def yuklash():
 
 df = yuklash()
 
-# --- CHAT TIZIMI ---
+# --- CHAT TARIXI ---
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
+# --- ASOSIY JARAYON ---
 if savol := st.chat_input("Ma'rufjon aka, biror nima so'rang..."):
     st.session_state.messages.append({"role": "user", "content": savol})
     with st.chat_message("user"): st.markdown(savol)
 
     with st.chat_message("assistant"):
-        # 1. BAZADAN QIDIRISH (AIga kontekst sifatida berish uchun)
-        context = ""
+        context_text = ""
+        # 1. Bazadan qidirish (AIga ma'lumot berish uchun)
         if df is not None:
             mask = df.apply(lambda row: row.astype(str).str.contains(savol, case=False, na=False).any(), axis=1)
-            res = df[mask].head(10) # Eng yaqin 10 ta ma'lumotni olamiz
-            if not res.empty:
-                context = "Bazadagi ma'lumotlar:\n" + res.to_string(index=False)
-                st.dataframe(res) # Jadvalni baribir ko'rsatib turamiz
+            results = df[mask].head(15) # Topilgan 15 tagacha ma'lumotni AIga beramiz
+            if not results.empty:
+                context_text = results.to_string(index=False)
+                st.dataframe(results) # Jadvalni baribir ko'rsatamiz
 
-        # 2. GEMINI AI BILAN BOG'LANISH (ASOSIY MIYA)
+        # 2. Gemini AI bilan suhbat
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
+        headers = {'Content-Type': 'application/json'}
         
-        system_prompt = (
-            "Sen Ma'rufjon ismli maktab adminiga yordam beruvchi o'ta aqlli va samimiy AIsan. "
-            "Sening isming 'Maktab AI'. Sen xuddi insondek fikrlaysan. "
-            "Agar savolga tegishli ma'lumot baza ichida bo'lsa, o'sha ma'lumotni tahlil qilib javob ber. "
-            "Masalan: 'Ma'rufjon aka, men bu o'quvchini topdim. U 9-A sinfda o'qir ekan...' deb javob ber. "
-            "Agar savol bazaga tegishli bo'lmasa, umumiy mavzularda suhbatlash. "
-            "O'zbek tilida, do'stona va professional tilda javob qaytar."
+        system_instruction = (
+            "Sen Ma'rufjon ismli maktab administratorining shaxsiy yordamchisisan. Isming MaktabAI. "
+            "Sening vazifang maktab bazasidagi ma'lumotlarni tahlil qilish va Ma'rufjon aka bilan samimiy suhbatlashish. "
+            "Agar bazadan ma'lumot topilsa, uni shunchaki o'qib bermay, tahlil qilib ber. "
+            "Masalan: 'Ma'rufjon aka, men qidiringiz bo'yicha 2 ta o'quvchini topdim, biri 9-A dan ekan...' deb javob ber. "
+            "Har doim o'zbek tilida, do'stona va o'ta aqlli javob ber. "
+            "Bazadagi ma'lumotlar quyidagilar: " + context_text
         )
-        
+
         payload = {
-            "contents": [{
-                "parts": [{"text": f"{system_prompt}\n\nKontekst: {context}\n\nSavol: {savol}"}]
-            }]
+            "contents": [{"parts": [{"text": f"{system_instruction}\n\nFoydalanuvchi savoli: {savol}"}]}]
         }
 
         try:
-            response = requests.post(url, json=payload)
-            if response.status_code == 200:
-                ai_javob = response.json()['candidates'][0]['content']['parts'][0]['text']
+            r = requests.post(url, headers=headers, data=json.dumps(payload))
+            if r.status_code == 200:
+                ai_text = r.json()['candidates'][0]['content']['parts'][0]['text']
             else:
-                ai_javob = "Ma'rufjon aka, AI miyam bilan ulanishda biroz muammo bo'ldi. Lekin jadvaldan qidirib ko'rdim."
+                ai_text = "Ma'rufjon aka, hozircha jadvalga qarab turing, AI tizimida kichik uzilish bo'ldi."
         except:
-            ai_javob = "Ulanishda xato. Internetni yoki API kalitni tekshiring."
+            ai_text = "Ulanishda muammo bor, lekin jadvaldan qidiruv ishlayapti."
 
-        st.markdown(ai_javob)
-        st.session_state.messages.append({"role": "assistant", "content": ai_javob})
-
+        st.markdown(ai_text)
+        st.session_state.messages.append({"role": "assistant", "content": ai_text})
