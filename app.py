@@ -62,26 +62,24 @@ if savol := st.chat_input("Savolingizni yozing (masalan: 9-A ro'yxati)..."):
         sinf_data = pd.DataFrame()
 
         if df is not None:
-            # 🔍 AQLLI QIDIRUV: Gap ichidan sinf formatini qidirish (Masalan: 9-A yoki 10-B)
+            # 🔍 AQLLI QIDIRUV
             qidiruv_sozi = savol.lower()
             sinf_match = re.search(r'\d{1,2}-[a-z|A-Z]', savol)
             
             if sinf_match:
                 kalit = sinf_match.group().lower()
-                # "sinfi" ustunidan aniq shu sinfni qidirish
                 if 'sinfi' in df.columns:
                     sinf_data = df[df['sinfi'].str.lower() == kalit]
             
-            # Agar sinf topilmasa yoki gapda ism bo'lsa, umumiy qidirish
             if sinf_data.empty:
-                # Gapni so'zlarga bo'lamiz va muhim so'zlarni qidiramiz
-                keywords = [s for s in savol.split() if len(s) > 2 and s.lower() not in ['sinf', 'ro'yxati', 'kerak', 'ber']]
+                # BU YERDA XATO TUZATILDI: Tirnoqlar to'g'rilandi
+                keywords = [s for s in savol.split() if len(s) > 2 and s.lower() not in ["sinf", "ro'yxati", "kerak", "ber"]]
                 if keywords:
                     mask = df.apply(lambda row: any(k.lower() in str(v).lower() for k in keywords for v in row), axis=1)
                     sinf_data = df[mask]
 
             if not sinf_data.empty:
-                st.success(f"Ma'rufjon aka, topildi!")
+                st.success("Ma'rufjon aka, topildi!")
                 st.dataframe(sinf_data, use_container_width=True)
                 found_data = sinf_data.head(20).to_string(index=False)
 
@@ -92,7 +90,7 @@ if savol := st.chat_input("Savolingizni yozing (masalan: 9-A ro'yxati)..."):
         payload = {
             "model": "llama-3.3-70b-versatile",
             "messages": [
-                {"role": "system", "content": f"Sen {MAKTAB_NOMI} xodimisiz. Foydalanuvchi: Ma'rufjon aka. Baza: {found_data}. Faqat o'zbekcha javob ber."},
+                {"role": "system", "content": f"Sen {MAKTAB_NOMI} xodimisiz. Ma'rufjon akaga samimiy javob ber. Baza: {found_data}"},
                 {"role": "user", "content": savol}
             ]
         }
