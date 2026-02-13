@@ -41,7 +41,6 @@ def yuklash():
                 excel = pd.ExcelFile(f)
                 for sheet in excel.sheet_names:
                     df_s = pd.read_excel(f, sheet_name=sheet, dtype=str)
-                    df_s.columns = [str(c).strip() for c in df_s.columns]
                     all_data.append(df_s)
         except: continue
     return pd.concat(all_data, ignore_index=True) if all_data else None
@@ -66,37 +65,42 @@ if savol := st.chat_input("Savolingizni yozing..."):
             sinf_data = df[mask]
             if not sinf_data.empty:
                 st.dataframe(sinf_data, use_container_width=True)
-                found_info = f"Topildi: {len(sinf_data)} ta qator."
+                found_info = f"Topilgan ma'lumot: {sinf_data.iloc[0].to_string()}"
 
-        # 🚀 UNIVERSAL ULANISH TIZIMI
+        # 🚀 XAVFSIZLIK FILTRLARINI O'CHIRIB ULANISH
         ai_text = ""
-        prompt = f"Sen {MAKTAB_NOMI} yordamchisisan. Savol: {savol}. Natija: {found_info}. O'zbekcha javob ber."
+        prompt = f"Sen {MAKTAB_NOMI} yordamchisisan. Ma'rufjon aka so'rayapti. Natija: {found_info}. Savol: {savol}. O'zbekcha samimiy javob ber."
         
-        # Barcha mumkin bo'lgan kombinatsiyalarni sinaymiz
-        possible_models = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]
-        possible_versions = ["v1beta", "v1"]
+        # Xavfsizlik sozlamalari (hamma narsaga ruxsat berish)
+        safety_settings = [
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
+        ]
+        
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "safetySettings": safety_settings,
+            "generationConfig": {"temperature": 0.7, "topP": 0.8, "topK": 40}
+        }
         
         shuffled_keys = API_KEYS.copy()
         random.shuffle(shuffled_keys)
         
-        break_outer = False
         for key in shuffled_keys:
-            if break_outer: break
-            for ver in possible_versions:
-                if break_outer: break
-                for mod in possible_models:
-                    url = f"https://generativelanguage.googleapis.com/{ver}/models/{mod}:generateContent?key={key}"
-                    try:
-                        r = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}, timeout=7)
-                        if r.status_code == 200:
-                            ai_text = r.json()['candidates'][0]['content']['parts'][0]['text']
-                            break_outer = True
-                            break
-                    except:
-                        continue
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={key}"
+            try:
+                r = requests.post(url, json=payload, timeout=10)
+                if r.status_code == 200:
+                    res_json = r.json()
+                    if 'candidates' in res_json:
+                        ai_text = res_json['candidates'][0]['content']['parts'][0]['text']
+                        break
+            except: continue
 
         if not ai_text:
-            ai_text = "Ma'rufjon aka, jadval tayyor! Hozir Google tizimi juda band, lekin ma'lumotlarni jadvaldan ko'rishingiz mumkin."
+            ai_text = "Ma'rufjon aka, jadval tayyor! AI hozircha matnli javob bera olmadi, lekin ma'lumotlar ekranda."
         
         st.markdown(ai_text)
         st.session_state.messages.append({"role": "assistant", "content": ai_text})
