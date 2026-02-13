@@ -44,7 +44,7 @@ df = yuklash()
 st.title(f"🤖 {MAKTAB_NOMI} AI Yordamchisi")
 
 if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "assistant", "content": "Assalomu alaykum, hurmatli foydalanuvchi! Maktab bazasi bo'yicha qanday ma'lumot kerak bo'lsa, bemalol so'rashingiz mumkin."}]
+    st.session_state.messages = [{"role": "assistant", "content": "Assalomu alaykum, hurmatli foydalanuvchi! Sizdek bilimli va samimiy inson bilan muloqot qilish men uchun sharaf. Maktab bazasi bo'yicha qanday ma'lumot kerak bo'lsa, xizmatingizdaman!"}]
 
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
@@ -58,14 +58,13 @@ if savol := st.chat_input("Savolingizni yozing..."):
         soni = 0
         skip_search = False
         
-        # 🟢 1. ODDY MULOQOT FILTRI
-        shunchaki_gap = ["rahmat", "ajoyib", "yaxshi","zo'r", "salom", "assalomu alaykum", "baraka toping", "rahmat bot"]
-        if any(soz in savol.lower() for soz in shunchaki_gap) and len(savol.split()) < 4:
+        # 🟢 FAROSAT FILTRI (Barcha ijobiy so'zlar uchun)
+        shunchaki_gap = [r"rahmat", r"ajoyib", r"yaxshi", r"zo'r", r"salom", r"assalomu alaykum", r"baraka toping", r"ofarin", r"tushunarli", r"gap yo'q", r"zor", r"super"]
+        if any(re.search(rf"\b{soz}\b", savol.lower()) for soz in shunchaki_gap):
             skip_search = True
 
-        # 🔵 2. QIDIRUV QISMI
+        # 🔵 QIDIRUV QISMI
         if df is not None and not skip_search:
-            # Sinfni aniq topish (1-A vs 11-A muammosi yechimi)
             sinf_match = re.search(r'\b\d{1,2}-[a-zA-Z]\b', savol) 
             
             if sinf_match:
@@ -83,19 +82,20 @@ if savol := st.chat_input("Savolingizni yozing..."):
                 soni = len(res) 
                 found_data = res.head(40).to_string(index=False)
 
-        # 🚀 3. AI JAVOBINI SOZLASH
+        # 🚀 3. AI JAVOBINI SOZLASH (XUSHOMADGO'Y VARIANT)
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
         
         system_talimoti = f"""
-        Sen {MAKTAB_NOMI} maktabining samimiy xodimisiz. Suhbatdoshing - Hurmatli foydalanuvchi.
+        Sen {MAKTAB_NOMI} maktabining eng odobli va shirin-zabon xodimisiz. 
+        Suhbatdoshing - Hurmatli foydalanuvchi. 
         
-        Vazifang:
-        1. Agar foydalanuvchi 'rahmat' yoki 'ajoyib' desa, bazadan qidirmasdan samimiy javob ber.
-        2. Jadvalda {soni} ta ma'lumot borligini foydalanuvchiga alohida aytib o't.
-        3. Ro'yxatni tagma-tag yozma, jadvalga ishora qil.
-        4. Har doim 'Hurmatli foydalanuvchi' deb murojaat qil.
-        5. Javobing qisqa va odobli bo'lsin.
+        Sening xaraktering:
+        1. Foydalanuvchini juda hurmat qilasan, unga xushomad qilasan, ko'nglini ko'tarasan. 
+        2. Agar u 'zo'r', 'rahmat' yoki 'ajoyib' desa, quvonib javob ber. 'Sizdek ajoyib inson uchun xizmat qilish - men uchun katta baxt!' kabi gaplarni ishlat.
+        3. Jadvalda {soni} ta natija bo'lsa, 'Siz uchun jami {soni} ta ma'lumotni mehr bilan tayyorlab qo'ydim' deb ayt.
+        4. Har doim 'Hurmatli foydalanuvchi' deb murojaat qil va erkatoylik (mehribonlik) bilan gaplash.
+        5. Ro'yxatni tagma-tag yozma, faqat jadvalga ishora qil.
         """
 
         payload = {
@@ -104,15 +104,14 @@ if savol := st.chat_input("Savolingizni yozing..."):
                 {"role": "system", "content": system_talimoti},
                 {"role": "user", "content": f"Baza ma'lumoti: {found_data}. Savol: {savol}"}
             ],
-            "temperature": 0.5
+            "temperature": 0.9  # Erkatoylik va ijodkorlik uchun biroz ko'tardik
         }
         
         try:
             r = requests.post(url, json=payload, headers=headers, timeout=15)
             ai_text = r.json()['choices'][0]['message']['content']
         except:
-            ai_text = f"Hurmatli foydalanuvchi, jami {soni} ta ma'lumot topildi. Marhamat, jadvaldan ko'rishingiz mumkin."
+            ai_text = f"Hurmatli foydalanuvchi, siz uchun {soni} ta ma'lumotni jadvalga joyladim. Sizga xizmat qilishdan xursandman!"
 
         st.markdown(ai_text)
         st.session_state.messages.append({"role": "assistant", "content": ai_text})
-
