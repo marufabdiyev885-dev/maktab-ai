@@ -8,7 +8,7 @@ import json
 API_KEY = "AIzaSyAJpdQJJmdWC54Repc9Oz7Qs0nFniEMprI" 
 TO_GRI_PAROL = "informatika2024"
 
-st.set_page_config(page_title="Maktab AI | Sinflar Kesimi", layout="wide")
+st.set_page_config(page_title="Maktab AI | Professional", layout="wide")
 
 # --- PAROL ---
 if "authenticated" not in st.session_state:
@@ -48,29 +48,26 @@ if "messages" not in st.session_state:
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
-if savol := st.chat_input("Masalan: 9-A sinf o'quvchilarini chiqar..."):
+if savol := st.chat_input("Sinf nomini yozing (masalan: 9-A)..."):
     st.session_state.messages.append({"role": "user", "content": savol})
     with st.chat_message("user"): st.markdown(savol)
 
     with st.chat_message("assistant"):
-        context = ""
-        
+        found = False
         if df is not None:
-            # 1. SINFNI ANIQLASH (Filtrlash mantiqi)
-            # Savol ichidan sinf nomini qidiramiz (masalan '9-a', '10-b')
+            # Sinfni aniqroq qidirish (case-insensitive)
             mask = df.apply(lambda row: row.astype(str).str.contains(savol, case=False, na=False).any(), axis=1)
             sinf_data = df[mask]
 
             if not sinf_data.empty:
-                st.success(f"Ma'rufjon aka, '{savol}' bo'yicha {len(sinf_data)} ta ma'lumot topildi:")
-                st.dataframe(sinf_data, use_container_width=True) # To'liq ro'yxat
-                
-                # AIga yuborish uchun qisqacha ma'lumot
-                context = f"Foydalanuvchi '{savol}' so'radi. Bazadan {len(sinf_data)} ta o'quvchi topildi. Ismlar: {', '.join(sinf_data.iloc[:, 0].head(10).tolist())}..."
+                st.success(f"Ma'rufjon aka, {len(sinf_data)} ta ma'lumot topildi:")
+                st.dataframe(sinf_data, use_container_width=True)
+                found = True
+                summary = f"Savol: {savol}. Topilgan qatorlar soni: {len(sinf_data)} ta."
             else:
-                context = "Hech narsa topilmadi."
+                summary = f"Savol: {savol}. Afsuski, hech narsa topilmadi."
 
-        # 2. AI JAVOBI
+        # 🚀 AI BILAN BOG'LANISH (Yengillashtirilgan variant)
         url_list = f"https://generativelanguage.googleapis.com/v1beta/models?key={API_KEY}"
         try:
             models_res = requests.get(url_list).json()
@@ -78,13 +75,22 @@ if savol := st.chat_input("Masalan: 9-A sinf o'quvchilarini chiqar..."):
             target_model = available_models[0] if available_models else "models/gemini-1.5-flash"
             
             url = f"https://generativelanguage.googleapis.com/v1beta/{target_model}:generateContent?key={API_KEY}"
-            prompt = f"Sen Ma'rufjon akaga yordam beruvchi AIsan. Mana natija: {context}. Savol: {savol}. O'zbekcha javob ber."
+            
+            # AI'ga katta jadvalni emas, shunchaki natija haqida hisobotni yuboramiz
+            prompt = (
+                f"Sen Ma'rufjon aka ismli maktab adminining yordamchisisan. "
+                f"Tizimda natija topildimi: {'Ha' if found else 'Yoq'}. {summary}. "
+                f"Sening vazifang - Ma'rufjon akaga samimiy qilib natija haqida xabar berish. "
+                f"Agar topilgan bo'lsa: 'Ma'rufjon aka, mana siz so'ragan ro'yxatni chiqardim' kabi gapir. "
+                f"Agar topilmagan bo'lsa: 'Ma'rufjon aka, bazada bunday ma'lumot topilmadi' deb ayt. "
+                f"O'zbekcha javob ber."
+            )
             
             payload = {"contents": [{"parts": [{"text": prompt}]}]}
-            r = requests.post(url, json=payload)
+            r = requests.post(url, json=payload, timeout=15)
             ai_text = r.json()['candidates'][0]['content']['parts'][0]['text']
         except:
-            ai_text = "Ma'rufjon aka, jadvalni chiqardim, lekin tahlil qilishda biroz xatolik bo'ldi."
+            ai_text = "Ma'rufjon aka, jadval tayyor! AI bilan aloqada ozgina tormozlanish bo'ldi, lekin ma'lumotlar ekranda."
 
         st.markdown(ai_text)
         st.session_state.messages.append({"role": "assistant", "content": ai_text})
