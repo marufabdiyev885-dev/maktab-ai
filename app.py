@@ -4,8 +4,8 @@ import pandas as pd
 import os
 import json
 
-# 1. SOZLAMALAR
-API_KEY = "AIzaSyAp3ImXzlVyNF_UXjes2LsSVhG0Uusobdw"
+# 1. SOZLAMALAR (YANGI KALITNI SHU YERGA QO'YING)
+API_KEY = "YANGI_API_KALITNI_SHU_YERGA_QOYING"
 TO_GRI_PAROL = "informatika2024"
 
 st.set_page_config(page_title="Maktab AI", layout="centered")
@@ -42,62 +42,45 @@ def yuklash():
 st.title("🏫 Maktab AI Yordamchisi")
 df = yuklash()
 
-# --- CHAT TARIXI ---
+# --- CHAT ---
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+for m in st.session_state.messages:
+    with st.chat_message(m["role"]):
+        st.markdown(m["content"])
 
-# --- MODELLARNI TESTDAN O'TKAZISH VA JAVOB OLISH ---
-def ask_google_ai(prompt_text):
-    # Google tanishi mumkin bo'lgan barcha model nomlari (404 ni chetlab o'tish uchun)
-    models = [
-        "gemini-1.5-flash-8b",
-        "gemini-1.5-flash",
-        "gemini-1.0-pro",
-        "gemini-pro"
-    ]
-    
-    for model_name in models:
-        # Har bir modelni v1beta orqali sinab ko'ramiz
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={API_KEY}"
-        payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
-        
-        try:
-            r = requests.post(url, json=payload, timeout=5)
-            if r.status_code == 200:
-                res = r.json()
-                return res['candidates'][0]['content']['parts'][0]['text']
-        except:
-            continue
-    return None
-
-# --- ASOSIY JARAYON ---
-if savol := st.chat_input("Salom deb yozing yoki ism so'rang..."):
+if savol := st.chat_input("Savol yozing..."):
     st.session_state.messages.append({"role": "user", "content": savol})
     with st.chat_message("user"):
         st.write(savol)
 
     with st.chat_message("assistant"):
-        # Bazadan qidirish
+        # Bazadan qisqa qidiruv
         context = ""
         if df is not None:
             mask = df.apply(lambda row: row.astype(str).str.contains(savol, case=False, na=False).any(), axis=1)
-            results = df[mask].head(10)
-            if not results.empty:
-                context = "Bazadagi ma'lumotlar:\n" + results.to_string(index=False)
+            res = df[mask].head(5)
+            if not res.empty:
+                context = res.to_string(index=False)
 
-        prompt = f"Sen maktab yordamchisisan. Foydalanuvchi savoliga o'zbek tilida javob ber. "
-        if context:
-            prompt += f"Mana bu bazadagi ma'lumotlardan foydalan:\n{context}\n\n"
-        prompt += f"Savol: {savol}"
-
-        with st.spinner("AI o'ylamoqda..."):
-            javob = ask_google_ai(prompt)
-            if javob:
-                st.markdown(javob)
+        # TO'G'RIDAN-TO'G'RI API SO'ROV
+        # Eng barqaror URL va Model
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
+        payload = {
+            "contents": [{"parts": [{"text": f"Baza: {context}\n\nSavol: {savol}\n\nJavobni o'zbekcha ber."}]}]
+        }
+        
+        try:
+            r = requests.post(url, json=payload)
+            data = r.json()
+            
+            if r.status_code == 200:
+                javob = data['candidates'][0]['content']['parts'][0]['text']
+                st.write(javob)
                 st.session_state.messages.append({"role": "assistant", "content": javob})
             else:
-                st.error("Google AI bilan bog'lanishda muammo. API kalitini yangilash kerak bo'lishi mumkin.")
+                # Xatoni batafsil ko'rsatish
+                st.error(f"Google javobi: {data}")
+        except Exception as e:
+            st.error(f"Tizim xatosi: {str(e)}")
