@@ -25,17 +25,15 @@ with st.sidebar:
     
     with st.expander("O'rinbosarlar ro'yxati"):
         orinbosarlar = [
-            "Aslonova Ruxsora Xikmatovna",
-            "Omonova Shaxnoza Panjiyevna",
-            "Ro'zieva Mastura G'ulomovna",
-            "Tosheva Lobar Sayfullayevna",
+            "Aslonova Ruxsora Xikmatovna", "Omonova Shaxnoza Panjiyevna",
+            "Ro'zieva Mastura G'ulomovna", "Tosheva Lobar Sayfullayevna",
             "Sharopova Firuza Djalolovna"
         ]
         for ism in orinbosarlar:
             st.write(f"🔹 {ism}")
     
     st.divider()
-    st.success("💡 **Kreativ Metodist**\n\nHar safar yangi o'yinlar va dars ssenariylari! Takrorlanishlardan charchadingizmi? Men yordam beraman.")
+    st.success("💡 **Kreativ Metodist**\n\nBu yerda darsni 'shou'ga aylantiradigan ssenariylar bor. Har safar yangi g'oya!")
     st.caption("© 2024 Maktab AI Master")
 
 # --- 3. XAVFSIZLIK ---
@@ -75,7 +73,7 @@ df, maktab_doc_content = yuklash()
 st.title(f"🤖 AI Konsultant & Metodist")
 
 if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "assistant", "content": "Assalomu alaykum, hurmatli ijodkor ustoz! Men maktabingizning yangilangan metodistiman. Bugun darsingizni qanday noyob o'yin bilan boyitamiz?"}]
+    st.session_state.messages = [{"role": "assistant", "content": "Assalomu alaykum, hurmatli ijodkor ustoz! Bugun darsingizni qaysi 'sirli' metod bilan qiziqarli qilamiz?"}]
 
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
@@ -111,24 +109,24 @@ if savol := st.chat_input("Dars mavzusi yoki o'yin turini yozing..."):
                 st.download_button("📥 Excelda yuklab olish", output.getvalue(), "royxat.xlsx")
                 st.divider()
 
-        # 🚀 3. AI KONSULTANT (KO'P VA TURFA O'YINLAR)
+        # 🚀 3. AI KONSULTANT (SSENARIY VA SIRLI ELEMENTLAR)
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
         
         system_talimoti = f"""
-        Sen {MAKTAB_NOMI} maktabining eng kreativ METODISTISIZ. 
-        VAZIFANG: O'qituvchilarga har safar TURLI XIL, yangi va takrorlanmas pedagogik o'yinlar hamda ssenariylar berish.
-        
-        DIQQAT: Bir xil metodlarni (masalan, faqat aqliy hujum) qaytaraverma. Quyidagi turlardan foydalan:
-        - Harakatli o'yinlar, Rolli o'yinlar, Raqamli kvestlar, Debatlar, Mantiqiy jumboqlar.
+        Sen {MAKTAB_NOMI} maktabining professional KREATIV METODISTISIZ. 
+        VAZIFANG: O'qituvchilarga darsni 'SHOU' darajasiga ko'taradigan jonli o'yinlar berish.
+
+        🔴 TAQIQLANADI: "Muhokama qiling", "O'zaro savol bering", "Varaqaga yozing" kabi zerikarli buyruqlar.
+        🟢 BUYURILADI: Har bir metodga 'SIRLI ELEMENT' qo'sh (konvertlar, vaqt cheklovi, kvest, rollar, 'mina maydoni').
 
         Javob formati:
-        🎯 **Noyob o'yin nomi**
-        🛠 **Kerakli asboblar**
-        📝 **Qadamba-qadam ssenariy** (O'qituvchi va o'quvchi harakati)
-        💡 **Darsdan aniq misol** (Mavzuga bog'langan keys)
+        🎯 **O'yin nomi:** (Noyob va qiziqarli)
+        🛠 **Kerakli asboblar:** (Stiker, soat, musiqa, quti va h.k.)
+        📝 **Dars ssenariysi:** (O'qituvchi darsga qanday kirishi, hayrat elementini qanday yaratishi - aniq harakatlar)
+        💡 **Jonli misol (Keys):** (Masalan, Informatika yoki Matematika darsida ushbu o'yinni qanday qo'llash ssenariysi)
         
-        Muloqot: 'Hurmatli foydalanuvchi' deb boshla. Ustozni 'ijodkor va fidoyi' deb ruhlantir.
+        Muloqot: 'Hurmatli foydalanuvchi' deb murojaat qil. Ustozni 'ijodkor va fidoyi' deb ruhlantir.
         """
 
         payload = {
@@ -137,14 +135,15 @@ if savol := st.chat_input("Dars mavzusi yoki o'yin turini yozing..."):
                 {"role": "system", "content": system_talimoti},
                 {"role": "user", "content": f"Baza: {found_data}. Savol: {savol}"}
             ],
-            "temperature": 1.1  # Ijodkorlik darajasi yanada oshirildi!
+            "temperature": 1.2, # Maksimal ijodkorlik
+            "top_p": 0.9
         }
         
         try:
             r = requests.post(url, json=payload, headers=headers, timeout=15)
             ai_text = r.json()['choices'][0]['message']['content']
         except:
-            ai_text = "Hurmatli foydalanuvchi, tizimda kichik yuklama. Iltimos, qayta urinib ko'ring."
+            ai_text = "Hurmatli foydalanuvchi, ulanishda biroz muammo. Iltimos, qaytadan urinib ko'ring."
 
         st.info(ai_text)
         st.session_state.messages.append({"role": "assistant", "content": ai_text})
