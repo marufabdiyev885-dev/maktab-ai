@@ -9,11 +9,11 @@ MAKTAB_NOMI = "32-sonli umumta'lim maktabi"
 DIREKTOR_FIO = "Eshmatov Toshmat" 
 TO_GRI_PAROL = "informatika2024"
 
-# --- API KALITLAR RO'YXATI (3 TA KALIT) ---
+# --- API KALITLAR RO'YXATI ---
 API_KEYS = [
-    "AIzaSyAJpdQJJmdWC54Repc9Oz7Qs0nFniEMprI", # 1-kalit
-    "AIzaSyBY-QpfMsPgGe3IRc0aS9Cl1fDObIgA2LA", # 2-kalit
-    "AIzaSyDXumH-cSk4hAGxpR4oNO-vS2v9MHpX5lo"  # 3-kalit
+    "AIzaSyAJpdQJJmdWC54Repc9Oz7Qs0nFniEMprI", 
+    "AIzaSyBY-QpfMsPgGe3IRc0aS9Cl1fDObIgA2LA", 
+    "AIzaSyDXumH-cSk4hAGxpR4oNO-vS2v9MHpX5lo"
 ]
 
 st.set_page_config(page_title=f"{MAKTAB_NOMI} AI", layout="wide")
@@ -29,7 +29,7 @@ if "authenticated" not in st.session_state:
         else: st.error("❌ Xato!")
     st.stop()
 
-# --- BAZANI YUKLASH ---
+# --- BAZA ---
 @st.cache_data
 def yuklash():
     files = [f for f in os.listdir('.') if f.lower().endswith(('.xlsx', '.csv')) and 'app.py' not in f]
@@ -48,7 +48,7 @@ def yuklash():
 
 df = yuklash()
 
-# --- CHAT TARIXI ---
+# --- CHAT ---
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -66,34 +66,39 @@ if savol := st.chat_input("Savolingizni yozing..."):
             sinf_data = df[mask]
             if not sinf_data.empty:
                 st.dataframe(sinf_data, use_container_width=True)
-                found_info = f"Bazadan topilgan ma'lumotlar: {sinf_data.head(10).to_string(index=False)}"
+                found_info = f"Ma'lumot topildi. So'ralgan sinf/o'quvchi ro'yxati ekranda."
             else:
-                found_info = "Bazada ma'lumot yo'q."
+                found_info = "Bazada bunday ma'lumot yo'q."
 
-        # 🚀 AQLLI API ALMASHTIRISH (Load Balancing)
+        # 🚀 MULTI-MODEL & MULTI-KEY LOGIKA
         prompt = (
-            f"Sen {MAKTAB_NOMI}ning rasmiy raqamli yordamchisisan. Direktor: {DIREKTOR_FIO}. "
-            f"Hozir senga murojaat qilayotgan: Ma'rufjon aka. Bazadagi ma'lumot: {found_info}. "
-            f"Foydalanuvchi savoli: {savol}. "
-            f"Javobing samimiy bo'lsin, AI yoki Google ekaningni aytma. O'zbekcha javob ber."
+            f"Sen {MAKTAB_NOMI}ning rasmiy yordamchisisan. Direktor: {DIREKTOR_FIO}. "
+            f"Foydalanuvchi: Ma'rufjon aka. Bazadagi holat: {found_info}. Savol: {savol}. "
+            f"O'zbekcha samimiy javob ber."
         )
 
         ai_text = ""
+        # Sinab ko'rish uchun modellar ro'yxati
+        models = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]
+        
         shuffled_keys = API_KEYS.copy()
-        random.shuffle(shuffled_keys) # Har safar har xil kalitdan boshlaydi
+        random.shuffle(shuffled_keys)
 
+        success = False
         for key in shuffled_keys:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={key}"
-            try:
-                r = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}, timeout=15)
-                if r.status_code == 200:
-                    ai_text = r.json()['candidates'][0]['content']['parts'][0]['text']
-                    break # Javob olindi, to'xtaymiz
-                else: continue # Keyingi kalitga o'tamiz
-            except: continue
+            if success: break
+            for model in models:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
+                try:
+                    r = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}, timeout=10)
+                    if r.status_code == 200:
+                        ai_text = r.json()['candidates'][0]['content']['parts'][0]['text']
+                        success = True
+                        break
+                except: continue
 
         if not ai_text:
-            ai_text = "Ma'rufjon aka, hozircha jadvalga qarab turing, barcha liniyalarimiz band ekan."
+            ai_text = "Ma'rufjon aka, jadvalni chiqardim. AI hozir biroz o'ylanib qoldi, lekin ma'lumotlar yuqoridagi jadvalda ko'rinib turibdi."
 
         st.markdown(ai_text)
         st.session_state.messages.append({"role": "assistant", "content": ai_text})
