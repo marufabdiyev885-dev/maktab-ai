@@ -6,7 +6,6 @@ import re
 import io
 import docx  # Word fayllari uchun
 import random
-from datetime import datetime
 
 # --- 1. ASOSIY SOZLAMALAR ---
 MAKTAB_NOMI = "1-sonli umumta'lim maktabi"
@@ -35,11 +34,8 @@ with st.sidebar:
     st.subheader("👨‍🏫 Rahbariyat")
     st.info(f"**Direktor:**\n\n{DIREKTOR_FIO}")
     
-    bugun = datetime.now().strftime("%d-%m-%Y")
-    st.success(f"📅 **Bugun:** {bugun}")
-    
     st.divider()
-    st.caption("© 2026 Maktab AI Tizimi")
+    st.caption("© Maktab AI Tizimi")
 
 # --- 3. XAVFSIZLIK ---
 if "authenticated" not in st.session_state:
@@ -108,15 +104,15 @@ if savol := st.chat_input("Savolingizni yozing..."):
                     output = io.BytesIO()
                     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                         res.to_excel(writer, index=False)
-                    st.download_button(label=f"📥 {soni} ta natijani yuklab olish", data=output.getvalue(), file_name=f"royxat.xlsx")
+                    st.download_button(label=f"📥 {soni} ta natijani yuklab olish", data=output.getvalue(), file_name="royxat.xlsx")
 
-        # 🚀 3. AI JAVOBI (Shirin-zabon va aqlli)
+        # 🚀 3. AI JAVOBI
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
         
         system_talimoti = f"""
         Sen {MAKTAB_NOMI} maktabining juda odobli va bilimli yordamchisisan. 
-        1. Agar foydalanuvchi 'rahmat', 'zo'r' kabi maqtovlar aytsa, unga juda samimiy, kamtarona va chiroyli minnatdorchilik bildir (masalan: 'Sizdek aziz ustozlardan bunday so'zlarni eshitish men uchun sharaf!'). 
+        1. Agar foydalanuvchi 'rahmat', 'zo'r' kabi maqtovlar aytsa, unga juda samimiy va chiroyli minnatdorchilik bildir. 
         2. Agar bazadan ma'lumot topilgan bo'lsa (soni={soni}), bu haqda ehtirom bilan xabar ber.
         3. Doimo o'zbekona lutf bilan gapir.
         """
