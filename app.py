@@ -5,20 +5,21 @@ import requests
 import json
 
 # 1. SOZLAMALAR
-API_KEY = "AIzaSyAp3ImXzlVyNF_UXjes2LsSVhG0Uusobdw" 
+# Yangi kalit o'rnatildi!
+API_KEY = "AIzaSyAJpdQJJmdWC54Repc9Oz7Qs0nFniEMprI" 
 TO_GRI_PAROL = "informatika2024"
 
-st.set_page_config(page_title="Maktab AI | Universal", layout="wide")
+st.set_page_config(page_title="Maktab AI | Active", layout="wide")
 
-# --- PAROL TIZIMI ---
+# --- PAROL ---
 if "authenticated" not in st.session_state:
-    st.title("🔐 Maktab AI")
-    parol = st.text_input("Parol:", type="password")
+    st.title("🔐 Maktab AI Tizimi")
+    parol = st.text_input("Parolni kiriting:", type="password")
     if st.button("Kirish"):
         if parol == TO_GRI_PAROL:
             st.session_state.authenticated = True
             st.rerun()
-        else: st.error("Xato!")
+        else: st.error("❌ Parol noto'g'ri!")
     st.stop()
 
 # --- BAZANI YUKLASH ---
@@ -49,48 +50,46 @@ for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
 # --- ASOSIY JARAYON ---
-if savol := st.chat_input("Ma'rufjon aka, biror nima so'rang..."):
+if savol := st.chat_input("Ma'rufjon aka, yangi AI bilan gaplashib ko'ring..."):
     st.session_state.messages.append({"role": "user", "content": savol})
     with st.chat_message("user"): st.markdown(savol)
 
     with st.chat_message("assistant"):
         context_text = ""
+        # 1. Bazadan qidirish
         if df is not None:
             mask = df.apply(lambda row: row.astype(str).str.contains(savol, case=False, na=False).any(), axis=1)
-            results = df[mask].head(5)
+            results = df[mask].head(15)
             if not results.empty:
                 context_text = results.to_string(index=False)
                 st.dataframe(results)
 
-        # SINAB KO'RILADIGAN MODELLAR RO'YXATI
-        models_to_try = [
-            "gemini-1.5-flash",
-            "gemini-1.5-pro",
-            "gemini-pro"
-        ]
+        # 2. Yangi Gemini API bilan suhbat (v1 version)
+        url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={API_KEY}"
+        headers = {'Content-Type': 'application/json'}
         
-        ai_text = ""
-        success = False
-        
-        for model_name in models_to_try:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={API_KEY}"
-            payload = {"contents": [{"parts": [{"text": f"Sen maktab admini Ma'rufjon akaga yordam beruvchi aqlli AIsan. Bazadagi ma'lumot: {context_text}. Savol: {savol}. O'zbekcha javob ber."}]}]}
-            
-            try:
-                r = requests.post(url, json=payload, timeout=10)
-                if r.status_code == 200:
-                    res_json = r.json()
-                    ai_text = res_json['candidates'][0]['content']['parts'][0]['text']
-                    success = True
-                    break # Agar ishlasa, tsikldan chiqamiz
-                else:
-                    last_error = r.json().get('error', {}).get('message', 'Noma\'lum xato')
-                    continue # Keyingi modelni sinab ko'ramiz
-            except:
-                continue
+        system_instruction = (
+            "Sen Ma'rufjon ismli maktab administratorining aqlli yordamchisisan. Isming MaktabAI. "
+            "Sening miyangda 1362 ta o'quvchi va o'qituvchining ma'lumoti bor. "
+            "Agar savol bazadagi ma'lumotga tegishli bo'lsa, uni tahlil qilib ber. "
+            "Ma'rufjon aka bilan juda samimiy, do'stona va o'zbek tilida gaplash. "
+            "U kishini har doim 'Ma'rufjon aka' deb chaqir. "
+            "Bazadagi topilgan ma'lumotlar: " + context_text
+        )
 
-        if not success:
-            ai_text = f"Ma'rufjon aka, Google serveri hozircha bizning barcha urinishlarimizni rad etdi. Oxirgi xato: {last_error}"
+        payload = {
+            "contents": [{"parts": [{"text": f"{system_instruction}\n\nSavol: {savol}"}]}]
+        }
+
+        try:
+            r = requests.post(url, headers=headers, data=json.dumps(payload))
+            if r.status_code == 200:
+                ai_text = r.json()['candidates'][0]['content']['parts'][0]['text']
+            else:
+                error_info = r.json().get('error', {}).get('message', 'Noma\'lum xato')
+                ai_text = f"Ma'rufjon aka, texnik muammo: {error_info}"
+        except:
+            ai_text = "Ma'rufjon aka, ulanishda xato bo'ldi. Internetni tekshiring."
 
         st.markdown(ai_text)
         st.session_state.messages.append({"role": "assistant", "content": ai_text})
