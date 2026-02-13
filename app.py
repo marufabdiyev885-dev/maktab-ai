@@ -1,11 +1,8 @@
 import streamlit as st
-import requests
 import pandas as pd
 import os
-import json
 
 # 1. SOZLAMALAR
-API_KEY = "AIzaSyD" + "v8R6_m" + "Hn9zW" + "K8nK4m" + "qKz_pL7X" + "9_X4S8"
 TO_GRI_PAROL = "informatika2024"
 
 st.set_page_config(page_title="Maktab AI", layout="centered")
@@ -39,49 +36,42 @@ def yuklash():
             continue
     return pd.concat(all_data, ignore_index=True) if all_data else None
 
-st.title("🏫 Maktab AI Yordamchisi")
+st.title("🏫 Maktab Yordamchisi")
 df = yuklash()
 
 if "messages" not in st.session_state:
-    st.session_state.messages = []
+    st.session_state.messages = [{"role": "assistant", "content": "Assalomu alaykum! Men maktab yordamchisiman. Kimni qidiryapmiz?"}]
 
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
         st.markdown(m["content"])
 
-# --- ASOSIY JARAYON ---
-if savol := st.chat_input("Salom deb yozing yoki ism so'rang..."):
+# --- QIDIRUV VA JAVOB ---
+if savol := st.chat_input("Ism yoki familiya yozing..."):
     st.session_state.messages.append({"role": "user", "content": savol})
     with st.chat_message("user"):
         st.write(savol)
 
     with st.chat_message("assistant"):
-        context = ""
-        if df is not None:
+        # 1. Salomlashishni tekshirish
+        salomlar = ["salom", "assalom", "qalay", "yaxshimi", "zdrav", "hello"]
+        if any(s in savol.lower() for s in salomlar):
+            javob = "Vaalaykum assalom! Yaxshimisiz? Maktab bazasidan kimni qidirib beray?"
+        
+        # 2. Bazadan qidirish
+        elif df is not None:
             mask = df.apply(lambda row: row.astype(str).str.contains(savol, case=False, na=False).any(), axis=1)
-            results = df[mask].head(5)
+            results = df[mask].head(10)
+            
             if not results.empty:
-                context = "Bazadagi ma'lumotlar:\n" + results.to_string(index=False)
-
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
-        
-        prompt = f"Sen maktab yordamchisisan. O'zbek tilida javob ber. "
-        if context:
-            prompt += f"Mana bu ma'lumotlar asosida javob ber: {context}. "
-        prompt += f"Savol: {savol}"
-
-        payload = {"contents": [{"parts": [{"text": prompt}]}]}
-        
-        try:
-            r = requests.post(url, json=payload)
-            data = r.json()
-            if r.status_code == 200:
-                javob = data['candidates'][0]['content']['parts'][0]['text']
-                st.write(javob)
-                st.session_state.messages.append({"role": "assistant", "content": javob})
+                javob = f"Bazadan quyidagi ma'lumotlarni topdim:\n\n"
+                # Ma'lumotni chiroyli jadval ko'rinishida chiqarish
+                st.dataframe(results)
+                javob += "Yana kimdir haqida bilmoqchimisiz?"
             else:
-                # Tutuq belgisi xatosi tuzatildi
-                xato_matni = data.get('error', {}).get('message', 'Kalitda muammo bor')
-                st.error(f"API Xatosi: {xato_matni}")
-        except Exception as e:
-            st.error(f"Ulanishda xato: {str(e)}")
+                javob = f"Uzr, bazamizda '{savol}' ismli shaxs haqida ma'lumot topilmadi. Ismni to'g'ri yozganingizga ishonch hosil qiling."
+        else:
+            javob = "Hozircha baza yuklanmagan. Iltimos, Excel faylni GitHub-ga yuklang."
+
+        st.markdown(javob)
+        st.session_state.messages.append({"role": "assistant", "content": javob})
