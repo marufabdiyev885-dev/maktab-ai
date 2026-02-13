@@ -5,16 +5,15 @@ import requests
 import json
 
 # 1. SOZLAMALAR
-# Yangi kalit o'rnatildi!
 API_KEY = "AIzaSyAJpdQJJmdWC54Repc9Oz7Qs0nFniEMprI" 
 TO_GRI_PAROL = "informatika2024"
 
-st.set_page_config(page_title="Maktab AI | Active", layout="wide")
+st.set_page_config(page_title="Maktab AI | Final", layout="wide")
 
 # --- PAROL ---
 if "authenticated" not in st.session_state:
     st.title("🔐 Maktab AI Tizimi")
-    parol = st.text_input("Parolni kiriting:", type="password")
+    parol = st.text_input("Parol:", type="password")
     if st.button("Kirish"):
         if parol == TO_GRI_PAROL:
             st.session_state.authenticated = True
@@ -22,7 +21,7 @@ if "authenticated" not in st.session_state:
         else: st.error("❌ Parol noto'g'ri!")
     st.stop()
 
-# --- BAZANI YUKLASH ---
+# --- BAZA ---
 @st.cache_data
 def yuklash():
     files = [f for f in os.listdir('.') if f.lower().endswith(('.xlsx', '.csv')) and 'app.py' not in f]
@@ -42,54 +41,54 @@ def yuklash():
 
 df = yuklash()
 
-# --- CHAT TARIXI ---
+# --- CHAT ---
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
-# --- ASOSIY JARAYON ---
-if savol := st.chat_input("Ma'rufjon aka, yangi AI bilan gaplashib ko'ring..."):
+if savol := st.chat_input("Ma'rufjon aka, endi sinab ko'ring..."):
     st.session_state.messages.append({"role": "user", "content": savol})
     with st.chat_message("user"): st.markdown(savol)
 
     with st.chat_message("assistant"):
-        context_text = ""
-        # 1. Bazadan qidirish
+        context = ""
         if df is not None:
             mask = df.apply(lambda row: row.astype(str).str.contains(savol, case=False, na=False).any(), axis=1)
-            results = df[mask].head(15)
-            if not results.empty:
-                context_text = results.to_string(index=False)
-                st.dataframe(results)
+            res = df[mask].head(10)
+            if not res.empty:
+                context = "Bazadagi ma'lumotlar: " + res.to_string(index=False)
+                st.dataframe(res)
 
-        # 2. Yangi Gemini API bilan suhbat (v1 version)
-        url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={API_KEY}"
+        # DIQQAT: v1beta va gemini-1.5-flash-latest kombinatsiyasi eng chidamlisi
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={API_KEY}"
         headers = {'Content-Type': 'application/json'}
         
-        system_instruction = (
-            "Sen Ma'rufjon ismli maktab administratorining aqlli yordamchisisan. Isming MaktabAI. "
-            "Sening miyangda 1362 ta o'quvchi va o'qituvchining ma'lumoti bor. "
-            "Agar savol bazadagi ma'lumotga tegishli bo'lsa, uni tahlil qilib ber. "
-            "Ma'rufjon aka bilan juda samimiy, do'stona va o'zbek tilida gaplash. "
-            "U kishini har doim 'Ma'rufjon aka' deb chaqir. "
-            "Bazadagi topilgan ma'lumotlar: " + context_text
+        prompt = (
+            f"Sen Ma'rufjon aka ismli maktab adminining yordamchisisan. "
+            f"Bazadagi ma'lumot: {context}. Savol: {savol}. "
+            f"Javobni o'zbek tilida, juda samimiy va Ma'rufjon aka deb murojaat qilgan holda ber."
         )
-
-        payload = {
-            "contents": [{"parts": [{"text": f"{system_instruction}\n\nSavol: {savol}"}]}]
-        }
-
+        
+        payload = {"contents": [{"parts": [{"text": prompt}]}]}
+        
         try:
-            r = requests.post(url, headers=headers, data=json.dumps(payload))
+            r = requests.post(url, headers=headers, json=payload)
+            res_json = r.json()
             if r.status_code == 200:
-                ai_text = r.json()['candidates'][0]['content']['parts'][0]['text']
+                javob = res_json['candidates'][0]['content']['parts'][0]['text']
             else:
-                error_info = r.json().get('error', {}).get('message', 'Noma\'lum xato')
-                ai_text = f"Ma'rufjon aka, texnik muammo: {error_info}"
+                # Agar flash-latest ham o'xshamas, oddiy gemini-pro ni sinaymiz
+                url_alt = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={API_KEY}"
+                r_alt = requests.post(url_alt, headers=headers, json=payload)
+                if r_alt.status_code == 200:
+                    javob = r_alt.json()['candidates'][0]['content']['parts'][0]['text']
+                else:
+                    err = res_json.get('error', {}).get('message', 'Model topilmadi')
+                    javob = f"Ma'rufjon aka, Google hali ham modelni bermayapti. Xato: {err}"
         except:
-            ai_text = "Ma'rufjon aka, ulanishda xato bo'ldi. Internetni tekshiring."
+            javob = "Texnik xatolik yuz berdi."
 
-        st.markdown(ai_text)
-        st.session_state.messages.append({"role": "assistant", "content": ai_text})
+        st.markdown(javob)
+        st.session_state.messages.append({"role": "assistant", "content": javob})
