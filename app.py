@@ -5,7 +5,6 @@ import requests
 import re
 import io
 import docx
-import random # Tasodifiylik qo'shish uchun
 
 # --- 1. ASOSIY SOZLAMALAR ---
 MAKTAB_NOMI = "1-sonli umumta'lim maktabi"
@@ -15,12 +14,15 @@ TO_GRI_PAROL = "informatika2024"
 
 st.set_page_config(page_title=MAKTAB_NOMI, layout="wide")
 
-# --- 2. RAHBARIYAT VA SIDEBAR ---
+# --- 2. RAHBARIYAT PANELI (SIDEBAR) ---
 with st.sidebar:
     st.markdown(f"## 🏛 {MAKTAB_NOMI}")
     st.image("https://cdn-icons-png.flaticon.com/512/2859/2859706.png", width=80)
     st.divider()
-    st.success("💡 **Kreativ Produser**\n\nBu bot darsingizni zerikarli ma'ruzadan 'Ekshn' filmga aylantiradi!")
+    st.subheader("👨‍🏫 Rahbariyat")
+    st.info(f"**Direktor:**\n\n{DIREKTOR_FIO}")
+    st.divider()
+    st.success("💡 **Action Metodist**\n\nDarsni shouga aylantiramiz!")
 
 # --- 3. XAVFSIZLIK ---
 if "authenticated" not in st.session_state:
@@ -40,7 +42,7 @@ def yuklash():
     all_data = []
     for f in files:
         try:
-            if f.endswith('.docx'): continue # Matnli qidiruvni soddalashtirdik
+            if f.endswith('.docx'): continue
             df_s = pd.read_excel(f, dtype=str) if f.endswith('.xlsx') else pd.read_csv(f, dtype=str)
             df_s.columns = [str(c).strip().lower() for c in df_s.columns]
             all_data.append(df_s)
@@ -49,52 +51,50 @@ def yuklash():
 
 df = yuklash()
 
-# --- 5. CHAT INTERFEYSI ---
-st.title(f"🤖 Action-Dars Metodisti")
+# --- 5. CHAT INTERFEYSI (MANA SHU YERDA TO'XTASH LOGIKASI) ---
+st.title(f"🤖 AI Konsultant & Metodist")
 
 if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "assistant", "content": "Salom! Bugun darsda qanday 'to'polon' (shov-shuv) ko'taramiz?"}]
+    st.session_state.messages = [{"role": "assistant", "content": "Assalomu alaykum! Bugun darsni qanday 'Ekshn' ssenariy bilan boyitamiz?"}]
 
+# Tarixni chiqarish
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
-if savol := st.chat_input("Mavzuni yozing (masalan: Algoritm)..."):
+if savol := st.chat_input("Dars mavzusini yozing..."):
     st.session_state.messages.append({"role": "user", "content": savol})
     with st.chat_message("user"): st.markdown(savol)
-    
-    # 🛑 FILTR: Rahmat desa javobni to'xtatish
-    if any(word in savol.lower() for word in ["rahmat", "bo'ldi", "tushundim", "ok"]):
-        with st.chat_message("assistant"): st.info("Sizga yordam berganimdan xursandman!")
-        st.stop()
 
+    # 🛑 1-DARVOZA: TO'XTASH FILTRI (Agar rahmat/bo'ldi desa, kod shu yerda tugaydi)
+    stop_sozlar = r"\b(rahmat|boldi|bo'ldi|tushundim|ok|yaxshi|tugadi|xayr)\b"
+    if re.search(stop_sozlar, savol.lower()):
+        xayr_text = "Sizga yordam berganimdan xursandman, ustoz! Keyingi darslarda omad! 😊"
+        with st.chat_message("assistant"):
+            st.success(xayr_text)
+        st.session_state.messages.append({"role": "assistant", "content": xayr_text})
+        st.stop() # <--- ENG MUHIMI! Pastdagi hech narsa ishlamaydi.
+
+    # 🚀 2-DARVOZA: AGAR TO'XTAMASA, AI ISHLAYDI
     with st.chat_message("assistant"):
         found_data = ""
+        # Baza qidiruvi
         if df is not None:
             keywords = [s.lower() for s in savol.split() if len(s) > 2]
             res = df[df.apply(lambda row: any(k in str(v).lower() for k in keywords for v in row), axis=1)]
             if not res.empty:
+                st.markdown("### 📋 Baza ma'lumotlari:")
+                st.dataframe(res, use_container_width=True)
                 found_data = res.head(5).to_string()
 
-        # 🚀 AI KONSULTANT (TEMIR INTIZOM BILAN)
+        # Groq AI so'rovi
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
         
-        # Tasodifiy uslub tanlash (AIni har xil javob berishga majburlash)
-        uslublar = ["Kvest (Ayg'oqchilik)", "Auktsion (Savdo)", "Mina maydoni (Xavf)", "Hakerlar jangi", "Detektiv qidiruv"]
-        tanlangan_uslub = random.choice(uslublar)
-
         system_talimoti = f"""
-        Sen {MAKTAB_NOMI} maktabining 'Kreativ Rejissyorisan'. 
-        VAZIFANG: Faqat va faqat JONLI HARAKATga asoslangan ssenariy berish. 
-
-        ❌ QAT'IYAN TAQIQLANGAN: "Muhokama", "Tushuntirish", "Varaqqa yozish", "Sirli so'zlar" (bu o'yin eskirgan).
-        ✅ BUGUNGI MAJBURIY USLUB: {tanlangan_uslub}.
-
-        Javobni juda qisqa, 'shov-shuvli' va 'Action' elementlari bilan yoz:
-        💥 **Ssenariy nomi**
-        🎭 **O'quvchilar roli** (Masalan: Agentlar, Mijozlar, Robotlar)
-        🎬 **DAQIQA BAYAN REJA:** (10-daqiqa: kutilmagan voqea bo'ladi...)
-        💻 **KEYS:** (Mavzuga bog'liq texnik harakat)
+        Sen {MAKTAB_NOMI} maktabining 'Kreativ Rejissyorisan'.
+        Vazifang: Faqat harakatli o'yinlar berish. 
+        Taqiqlanadi: "Muhokama", "Fidoyi ustoz", "Sirli so'zlar".
+        Format: 💥Nomi, 🎭Rollar, 📦Rekvizit, 🎬Action, 💻Namuna.
         """
 
         payload = {
@@ -103,16 +103,16 @@ if savol := st.chat_input("Mavzuni yozing (masalan: Algoritm)..."):
                 {"role": "system", "content": system_talimoti},
                 {"role": "user", "content": f"Baza: {found_data}. Savol: {savol}"}
             ],
-            "temperature": 1.4, # Maksimal darajada tasodifiy g'oyalar
-            "presence_penalty": 1.5, # Oldin aytgan gapini aytishni taqiqlash
-            "frequency_penalty": 1.5
+            "temperature": 1.3,
+            "presence_penalty": 1.5,
+            "frequency_penalty": 1.0
         }
-        
+
         try:
             r = requests.post(url, json=payload, headers=headers, timeout=15)
             ai_text = r.json()['choices'][0]['message']['content']
         except:
-            ai_text = "Tizim biroz o'ylab qoldi, qaytadan yozing."
+            ai_text = "Tizimda yuklama. Birozdan so'ng urinib ko'ring."
 
         st.info(ai_text)
         st.session_state.messages.append({"role": "assistant", "content": ai_text})
