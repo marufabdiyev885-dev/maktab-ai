@@ -5,6 +5,8 @@ import requests
 import re
 import io
 import docx  # Word fayllari uchun
+import random
+from datetime import datetime
 
 # --- 1. ASOSIY SOZLAMALAR ---
 MAKTAB_NOMI = "1-sonli umumta'lim maktabi"
@@ -14,15 +16,34 @@ TO_GRI_PAROL = "informatika2024"
 
 st.set_page_config(page_title=MAKTAB_NOMI, layout="wide")
 
-# --- 2. RAHBARIYAT PANELI (SIDEBAR) ---
+# --- 2. RAHBARIYAT VA MOTIVATSIYA PANELI (SIDEBAR) ---
 with st.sidebar:
     st.markdown(f"## 🏛 {MAKTAB_NOMI}")
     st.image("https://cdn-icons-png.flaticon.com/512/2859/2859706.png", width=80)
     
     st.divider()
+
+    # 🌟 KUN HIKMATI (Tasodifiy o'zgaradi)
+    hikmatlar = [
+        "Ilm — saodat kalitidir.",
+        "Ta’lim — bu dunyoni o'zgartirish uchun ishlatishingiz mumkin bo'lgan eng kuchli qurol. (Nelson Mandela)",
+        "Ustoz — otangdek ulug‘, darsing — davlatingdek aziz.",
+        "Informatika — kelajak tili, uni o'rganishdan charchamang!",
+        "Yaxshi muallim — darsni shouga aylantira oladigan ijodkordir.",
+        "Muvaffaqiyatning siri — har kuni bir qadam oldinga yurishda.",
+        "Bilim egalari — jamiyatning nurli chiroqlaridir."
+    ]
+    st.warning(f"🌟 **Kun hikmati:**\n\n*{random.choice(hikmatlar)}*")
+
+    st.divider()
     st.subheader("👨‍🏫 Rahbariyat")
+    
+    # Direktor ma'lumoti va tabrigi
     st.info(f"**Direktor:**\n\n{DIREKTOR_FIO}")
     
+    bugun = datetime.now().strftime("%d-%m-%Y")
+    st.success(f"📅 **Bugun:** {bugun}\n\n**Direktor tabrigi:**\nAssalomu alaykum, aziz hamkasblar! Bugungi darslaringiz mazmunli va qiziqarli o'tsin!")
+
     st.markdown("---")
     st.markdown("**Direktor o'rinbosarlari:**")
     
@@ -38,7 +59,7 @@ with st.sidebar:
         st.write(f"🔹 {ism}")
     
     st.divider()
-    st.caption("© 2024 Maktab AI Tizimi")
+    st.caption("© 2026 Maktab AI Tizimi")
 
 # --- 3. XAVFSIZLIK ---
 if "authenticated" not in st.session_state:
@@ -111,20 +132,20 @@ if savol := st.chat_input("Savolingizni yozing..."):
                     res.to_excel(writer, index=False)
                 
                 st.download_button(
-                    label="📥 Ro'yxatni Excelda yuklab olish",
+                    label=f"📥 {soni} ta natijani Excelda yuklab olish",
                     data=output.getvalue(),
-                    file_name=f"royxat_{soni}_ta.xlsx",
+                    file_name=f"royxat_{bugun}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
 
-        # 🚀 3. AI JAVOBINI SOZLASH (To'g'rilangan qism)
+        # 🚀 3. AI JAVOBINI SOZLASH
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
         
         system_talimoti = f"""
         Sen {MAKTAB_NOMI} maktabining eng odobli xodimisiz. 
         Suhbatdoshing - Hurmatli foydalanuvchi. 
-        VAZIFANG: Foydalanuvchiga hurmat bilan javob berish va bazadan topilgan {soni} ta ma'lumot haqida aytish.
+        VAZIFANG: Foydalanuvchiga juda katta ehtirom bilan javob berish. Bazadan {soni} ta ma'lumot topilganini chiroyli ayting.
         """
 
         payload = {
@@ -140,7 +161,7 @@ if savol := st.chat_input("Savolingizni yozing..."):
             r = requests.post(url, json=payload, headers=headers, timeout=15)
             ai_text = r.json()['choices'][0]['message']['content']
         except Exception as e:
-            ai_text = "Hurmatli foydalanuvchi, tizimda kichik uzilish bo'ldi. Ma'lumotlaringiz tayyor!"
+            ai_text = "Hurmatli foydalanuvchi, siz bilan muloqot qilishdan mamnunman. Ma'lumotlaringiz tayyor!"
 
         st.markdown(ai_text)
         st.session_state.messages.append({"role": "assistant", "content": ai_text})
