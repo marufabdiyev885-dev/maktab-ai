@@ -50,8 +50,32 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
+# --- MODELNI ANIQLASH FUNKSIYASI ---
+def get_ai_response(prompt_text):
+    # Sinab ko'rish uchun modellar ro'yxati
+    models_to_try = [
+        "gemini-1.5-flash-latest",
+        "gemini-1.5-flash",
+        "gemini-1.0-pro",
+        "gemini-pro"
+    ]
+    
+    for model_name in models_to_try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={API_KEY}"
+        payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
+        headers = {'Content-Type': 'application/json'}
+        
+        try:
+            r = requests.post(url, headers=headers, data=json.dumps(payload), timeout=10)
+            if r.status_code == 200:
+                res_json = r.json()
+                return res_json['candidates'][0]['content']['parts'][0]['text']
+        except:
+            continue
+    return None
+
 # --- ASOSIY JARAYON ---
-if savol := st.chat_input("Salom deb yozing yoki ma'lumot so'rang..."):
+if savol := st.chat_input("Salom deb yozing yoki ism so'rang..."):
     st.session_state.messages.append({"role": "user", "content": savol})
     with st.chat_message("user"):
         st.markdown(savol)
@@ -65,31 +89,15 @@ if savol := st.chat_input("Salom deb yozing yoki ma'lumot so'rang..."):
             if not results.empty:
                 context = "Bazadagi ma'lumotlar:\n" + results.to_string(index=False)
 
-        # 2. GOOGLE API (ENG BARQAROR GEMINI-PRO MODELI)
-        # 404 xatosini butunlay yo'qotish uchun gemini-pro ga o'tdik
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={API_KEY}"
-        headers = {'Content-Type': 'application/json'}
-        
         prompt = f"Sen maktab yordamchisisan. Foydalanuvchiga o'zbek tilida samimiy javob ber."
         if context:
             prompt += f"\n\nMana bu ma'lumotlardan foydalan:\n{context}"
-        
         prompt += f"\n\nSavol: {savol}"
 
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}]
-        }
-
-        try:
-            with st.spinner("O'ylayapman..."):
-                r = requests.post(url, headers=headers, data=json.dumps(payload))
-                res_json = r.json()
-                
-                if r.status_code == 200:
-                    full_res = res_json['candidates'][0]['content']['parts'][0]['text']
-                    st.markdown(full_res)
-                    st.session_state.messages.append({"role": "assistant", "content": full_res})
-                else:
-                    st.error(f"API javob bermadi. Muammo: {res_json.get('error', {}).get('message', 'Nomaalum xato')}")
-        except Exception as e:
-            st.error(f"Ulanishda xato: {str(e)}")
+        with st.spinner("O'ylayapman..."):
+            javob = get_ai_response(prompt)
+            if javob:
+                st.markdown(javob)
+                st.session_state.messages.append({"role": "assistant", "content": javob})
+            else:
+                st.error("Kechirasiz, hozirda Google AI bilan bog'lanish imkoni bo'lmadi. API kalitingizni tekshirib ko'ring.")
