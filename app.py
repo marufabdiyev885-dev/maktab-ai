@@ -4,7 +4,7 @@ import os
 import requests
 import re
 import io
-import docx
+import docx  # Word fayllari uchun
 import random
 from datetime import datetime
 
@@ -16,57 +16,55 @@ TO_GRI_PAROL = "informatika2024"
 
 st.set_page_config(page_title=MAKTAB_NOMI, layout="wide")
 
-# --- 2. ADMIN STATISTIKA (SESSION STATE) ---
-# Bu qism raqamlarni xotirada saqlab turadi
-if "stats" not in st.session_state:
-    st.session_state.stats = {
-        "o_quvchi": "1250",
-        "o_qituvchi": "85",
-        "sinflar": "42",
-        "yutuq": "18"
-    }
-
-# --- 3. RAHBARIYAT VA ADMIN PANELI (SIDEBAR) ---
+# --- 2. RAHBARIYAT VA MOTIVATSIYA PANELI (SIDEBAR) ---
 with st.sidebar:
     st.markdown(f"## 🏛 {MAKTAB_NOMI}")
     st.image("https://cdn-icons-png.flaticon.com/512/2859/2859706.png", width=80)
     
     st.divider()
 
-    # 🌟 KUN HIKMATI
+    # 🌟 KUN HIKMATI (Tasodifiy o'zgaradi)
     hikmatlar = [
         "Ilm — saodat kalitidir.",
+        "Ta’lim — bu dunyoni o'zgartirish uchun ishlatishingiz mumkin bo'lgan eng kuchli qurol. (Nelson Mandela)",
         "Ustoz — otangdek ulug‘, darsing — davlatingdek aziz.",
-        "Informatika — kelajak tili!",
-        "Muvaffaqiyatning siri — har kuni bir qadam oldinga yurishda."
+        "Informatika — kelajak tili, uni o'rganishdan charchamang!",
+        "Yaxshi muallim — darsni shouga aylantira oladigan ijodkordir.",
+        "Muvaffaqiyatning siri — har kuni bir qadam oldinga yurishda.",
+        "Bilim egalari — jamiyatning nurli chiroqlaridir."
     ]
     st.warning(f"🌟 **Kun hikmati:**\n\n*{random.choice(hikmatlar)}*")
 
     st.divider()
+    st.subheader("👨‍🏫 Rahbariyat")
     
-    # ⚙️ ADMIN PANEL (FAQAT SIZ UCHUN)
-    with st.expander("⚙️ Admin Boshqaruvi"):
-        admin_kod = st.text_input("Admin paroli:", type="password")
-        if admin_kod == TO_GRI_PAROL:
-            st.write("📊 Statistikani yangilang:")
-            st.session_state.stats["o_quvchi"] = st.text_input("O'quvchilar:", st.session_state.stats["o_quvchi"])
-            st.session_state.stats["o_qituvchi"] = st.text_input("O'qituvchilar:", st.session_state.stats["o_qituvchi"])
-            st.session_state.stats["sinflar"] = st.text_input("Sinflar:", st.session_state.stats["sinflar"])
-            st.session_state.stats["yutuq"] = st.text_input("Yutuqlar:", st.session_state.stats["yutuq"])
-            st.success("Raqamlar yangilandi!")
-        else:
-            st.caption("Raqamlarni o'zgartirish uchun admin kodini yozing.")
-
-    st.divider()
+    # Direktor ma'lumoti va tabrigi
     st.info(f"**Direktor:**\n\n{DIREKTOR_FIO}")
+    
+    bugun = datetime.now().strftime("%d-%m-%Y")
+    st.success(f"📅 **Bugun:** {bugun}\n\n**Direktor tabrigi:**\nAssalomu alaykum, aziz hamkasblar! Bugungi darslaringiz mazmunli va qiziqarli o'tsin!")
+
+    st.markdown("---")
+    st.markdown("**Direktor o'rinbosarlari:**")
+    
+    orinbosarlar = [
+        "Aslonova Ruxsora Xikmatovna",
+        "Omonova Shaxnoza Panjiyevna",
+        "Ro'zieva Mastura G'ulomovna",
+        "Tosheva Lobar Sayfullayevna",
+        "Sharopova Firuza Djalolovna"
+    ]
+    
+    for ism in orinbosarlar:
+        st.write(f"🔹 {ism}")
     
     st.divider()
     st.caption("© 2026 Maktab AI Tizimi")
 
-# --- 4. XAVFSIZLIK (KIRISH) ---
+# --- 3. XAVFSIZLIK ---
 if "authenticated" not in st.session_state:
     st.title(f"🏫 {MAKTAB_NOMI} | Tizim")
-    parol = st.text_input("Tizimga kirish parolini kiriting:", type="password")
+    parol = st.text_input("Parolni kiriting:", type="password")
     if st.button("Kirish"):
         if parol == TO_GRI_PAROL:
             st.session_state.authenticated = True
@@ -74,21 +72,7 @@ if "authenticated" not in st.session_state:
         else: st.error("❌ Parol xato!")
     st.stop()
 
-# --- 5. ASOSIY SAHIFADA STATISTIKA ---
-st.title(f"📊 {MAKTAB_NOMI} Dashboard")
-bugun = datetime.now().strftime("%d-%m-%Y")
-st.write(f"📅 Bugungi sana: **{bugun}**")
-
-# Statistikani chiroyli kartochkalar ko'rinishida chiqarish
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("👥 O'quvchilar", st.session_state.stats["o_quvchi"])
-c2.metric("👩‍🏫 O'qituvchilar", st.session_state.stats["o_qituvchi"])
-c3.metric("🏫 Sinflar", st.session_state.stats["sinflar"])
-c4.metric("🏆 Yutuqlar", st.session_state.stats["yutuq"])
-
-st.divider()
-
-# --- 6. BAZANI YUKLASH ---
+# --- 4. BAZANI YUKLASH ---
 @st.cache_data
 def yuklash():
     files = [f for f in os.listdir('.') if f.lower().endswith(('.xlsx', '.csv', '.docx')) and 'app.py' not in f]
@@ -102,17 +86,19 @@ def yuklash():
             else:
                 df_s = pd.read_excel(f, dtype=str) if f.endswith('.xlsx') else pd.read_csv(f, dtype=str)
                 df_s.columns = [str(c).strip().lower() for c in df_s.columns]
+                for col in df_s.columns:
+                    df_s[col] = df_s[col].astype(str).str.strip()
                 all_data.append(df_s)
         except: continue
     return (pd.concat(all_data, ignore_index=True) if all_data else None), word_text
 
 df, maktab_doc_content = yuklash()
 
-# --- 7. CHAT VA QIDIRUV ---
-st.subheader("🤖 AI Metodist va Qidiruv")
+# --- 5. CHAT INTERFEYSI ---
+st.title(f"🤖 {MAKTAB_NOMI} AI Yordamchisi")
 
 if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "assistant", "content": "Assalomu alaykum! Maktab bazasidan ma'lumot qidiramizmi yoki yangi dars ssenariysi kerakmi?"}]
+    st.session_state.messages = [{"role": "assistant", "content": "Assalomu alaykum, hurmatli foydalanuvchi! Sizdek bilimli va samimiy inson bilan muloqot qilish men uchun sharaf. Maktab bazasi bo'yicha qanday ma'lumot kerak bo'lsa, xizmatingizdaman!"}]
 
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
@@ -124,39 +110,58 @@ if savol := st.chat_input("Savolingizni yozing..."):
     with st.chat_message("assistant"):
         found_data = ""
         soni = 0
+        skip_search = False
         
-        # 🔵 QIDIRUV
-        if df is not None:
+        # 🟢 FAROSAT FILTRI
+        shunchaki_gap = [r"rahmat", r"ajoyib", r"yaxshi", r"zo'r", r"salom", r"assalomu alaykum", r"baraka toping"]
+        if any(re.search(rf"\b{soz}\b", savol.lower()) for soz in shunchaki_gap):
+            skip_search = True
+
+        # 🔵 QIDIRUV QISMI
+        if df is not None and not skip_search:
             keywords = [s.lower() for s in savol.split() if len(s) > 2]
             res = df[df.apply(lambda row: any(k in str(v).lower() for k in keywords for v in row), axis=1)]
             
             if not res.empty:
                 st.dataframe(res, use_container_width=True)
                 soni = len(res) 
-                found_data = res.head(30).to_string(index=False)
+                found_data = res.head(40).to_string(index=False)
                 
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                     res.to_excel(writer, index=False)
-                st.download_button(label="📥 Excelni yuklab olish", data=output.getvalue(), file_name="royxat.xlsx")
+                
+                st.download_button(
+                    label=f"📥 {soni} ta natijani Excelda yuklab olish",
+                    data=output.getvalue(),
+                    file_name=f"royxat_{bugun}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
 
-        # 🚀 AI JAVOBI
+        # 🚀 3. AI JAVOBINI SOZLASH
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
+        
+        system_talimoti = f"""
+        Sen {MAKTAB_NOMI} maktabining eng odobli xodimisiz. 
+        Suhbatdoshing - Hurmatli foydalanuvchi. 
+        VAZIFANG: Foydalanuvchiga juda katta ehtirom bilan javob berish. Bazadan {soni} ta ma'lumot topilganini chiroyli ayting.
+        """
+
         payload = {
             "model": "llama-3.3-70b-versatile",
             "messages": [
-                {"role": "system", "content": f"Sen {MAKTAB_NOMI} metodistisan. Shirin-zabon bo'l."},
-                {"role": "user", "content": f"Baza: {found_data}. Savol: {savol}"}
+                {"role": "system", "content": system_talimoti},
+                {"role": "user", "content": f"Baza ma'lumoti: {found_data}. Savol: {savol}"}
             ],
-            "temperature": 0.8
+            "temperature": 0.9 
         }
         
         try:
-            r = requests.post(url, json=payload, headers=headers)
+            r = requests.post(url, json=payload, headers=headers, timeout=15)
             ai_text = r.json()['choices'][0]['message']['content']
-        except:
-            ai_text = "Hozircha javob bera olmayman, lekin ma'lumotlar tayyor!"
+        except Exception as e:
+            ai_text = "Hurmatli foydalanuvchi, siz bilan muloqot qilishdan mamnunman. Ma'lumotlaringiz tayyor!"
 
-        st.info(ai_text)
+        st.markdown(ai_text)
         st.session_state.messages.append({"role": "assistant", "content": ai_text})
