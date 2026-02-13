@@ -5,7 +5,7 @@ import requests
 
 # 1. SOZLAMALAR
 # !!! DIQQAT: API_KEY qismiga o'zingizni kalitingizni qo'ying !!!
-API_KEY = "SIZNING_GEMINI_API_KALITINGIZ" 
+API_KEY = "AIzaSyAhOGh5sdIzXGHkoxCZsXGtwrc_232hQj4" 
 TO_GRI_PAROL = "informatika2024"
 
 st.set_page_config(page_title="Maktab AI | Mukammal", layout="wide")
@@ -91,3 +91,4 @@ if savol := st.chat_input("Ma'rufjon aka, biror nima so'rang..."):
 
         st.markdown(ai_javob)
         st.session_state.messages.append({"role": "assistant", "content": ai_javob})
+
