@@ -35,7 +35,7 @@ with st.sidebar:
             st.write(f"🔹 {ism}")
     
     st.divider()
-    st.success("💡 **Metodik Namuna Bo'limi**\n\nUstozlar, dars uchun tayyor ssenariylar va o'yin namunalarini so'rang!")
+    st.success("💡 **Kreativ Metodist**\n\nHar safar yangi o'yinlar va dars ssenariylari! Takrorlanishlardan charchadingizmi? Men yordam beraman.")
     st.caption("© 2024 Maktab AI Master")
 
 # --- 3. XAVFSIZLIK ---
@@ -49,7 +49,7 @@ if "authenticated" not in st.session_state:
         else: st.error("❌ Parol xato!")
     st.stop()
 
-# --- 4. BAZANI YUKLASH (EXCEL + WORD) ---
+# --- 4. BAZANI YUKLASH ---
 @st.cache_data
 def yuklash():
     files = [f for f in os.listdir('.') if f.lower().endswith(('.xlsx', '.csv', '.docx')) and 'app.py' not in f]
@@ -75,12 +75,12 @@ df, maktab_doc_content = yuklash()
 st.title(f"🤖 AI Konsultant & Metodist")
 
 if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "assistant", "content": "Assalomu alaykum, hurmatli foydalanuvchi! Men maktabingizning bosh metodistiman. Qanday dars ssenariysi yoki namunali metod kerak?"}]
+    st.session_state.messages = [{"role": "assistant", "content": "Assalomu alaykum, hurmatli ijodkor ustoz! Men maktabingizning yangilangan metodistiman. Bugun darsingizni qanday noyob o'yin bilan boyitamiz?"}]
 
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
-if savol := st.chat_input("Savolingizni yoki dars mavzusini yozing..."):
+if savol := st.chat_input("Dars mavzusi yoki o'yin turini yozing..."):
     st.session_state.messages.append({"role": "user", "content": savol})
     with st.chat_message("user"): st.markdown(savol)
     
@@ -94,7 +94,7 @@ if savol := st.chat_input("Savolingizni yoki dars mavzusini yozing..."):
         if any(re.search(rf"\b{soz}\b", savol.lower()) for soz in shunchaki_gap):
             skip_search = True
 
-        # 🔵 QIDIRUV QISMI (Jadvallar uchun)
+        # 🔵 QIDIRUV QISMI
         if df is not None and not skip_search:
             keywords = [s.lower() for s in savol.split() if len(s) > 2]
             res = df[df.apply(lambda row: any(k in str(v).lower() for k in keywords for v in row), axis=1)]
@@ -109,24 +109,26 @@ if savol := st.chat_input("Savolingizni yoki dars mavzusini yozing..."):
                 with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                     res.to_excel(writer, index=False)
                 st.download_button("📥 Excelda yuklab olish", output.getvalue(), "royxat.xlsx")
-                st.divider() # Jadvalni AI matnidan ajratadi
+                st.divider()
 
-        # 🚀 3. AI KONSULTANT (NAMUNA BERUVCHI)
+        # 🚀 3. AI KONSULTANT (KO'P VA TURFA O'YINLAR)
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
         
         system_talimoti = f"""
-        Sen {MAKTAB_NOMI} maktabining BOSH METODISTI va professional pedagogik kouchisiz. 
-        VAZIFANG: Faqat tavsiya berish emas, balki TAYYOR NAMUNA va SSENARIY ko'rsatish.
+        Sen {MAKTAB_NOMI} maktabining eng kreativ METODISTISIZ. 
+        VAZIFANG: O'qituvchilarga har safar TURLI XIL, yangi va takrorlanmas pedagogik o'yinlar hamda ssenariylar berish.
         
-        Agar o'qituvchi metod yoki o'yin so'rasa, javobni quyidagi tuzilmada ber:
-        1. 🎯 **Metod/O'yin nomi**: Qisqa va qiziqarli nom.
-        2. 🛠 **Kerakli asboblar**: Darsda nima kerak bo'lishi.
-        3. 📝 **Qadamba-qadam ssenariy**: O'qituvchi nima qiladi, o'quvchi nima qiladi.
-        4. 💡 **Darsdan namuna**: Masalan, Informatika yoki Matematika darsida buni qanday qo'llashni aniq misol (keys) bilan tushuntir.
+        DIQQAT: Bir xil metodlarni (masalan, faqat aqliy hujum) qaytaraverma. Quyidagi turlardan foydalan:
+        - Harakatli o'yinlar, Rolli o'yinlar, Raqamli kvestlar, Debatlar, Mantiqiy jumboqlar.
+
+        Javob formati:
+        🎯 **Noyob o'yin nomi**
+        🛠 **Kerakli asboblar**
+        📝 **Qadamba-qadam ssenariy** (O'qituvchi va o'quvchi harakati)
+        💡 **Darsdan aniq misol** (Mavzuga bog'langan keys)
         
-        MULOQOT: 'Hurmatli foydalanuvchi' deb boshla. O'qituvchini 'Sizdek fidoyi ustoz' deb ruhlantir. 
-        Ma'lumot topilgan bo'lsa ({soni} ta), jadvalga ishora qil.
+        Muloqot: 'Hurmatli foydalanuvchi' deb boshla. Ustozni 'ijodkor va fidoyi' deb ruhlantir.
         """
 
         payload = {
@@ -135,14 +137,14 @@ if savol := st.chat_input("Savolingizni yoki dars mavzusini yozing..."):
                 {"role": "system", "content": system_talimoti},
                 {"role": "user", "content": f"Baza: {found_data}. Savol: {savol}"}
             ],
-            "temperature": 0.8
+            "temperature": 1.1  # Ijodkorlik darajasi yanada oshirildi!
         }
         
         try:
             r = requests.post(url, json=payload, headers=headers, timeout=15)
             ai_text = r.json()['choices'][0]['message']['content']
         except:
-            ai_text = "Hurmatli foydalanuvchi, ulanishda xatolik bo'ldi. Iltimos, qaytadan urinib ko'ring."
+            ai_text = "Hurmatli foydalanuvchi, tizimda kichik yuklama. Iltimos, qayta urinib ko'ring."
 
-        st.info(ai_text) # AI javobi ko'k blokda, jadvaldan ajralgan holda chiqadi
+        st.info(ai_text)
         st.session_state.messages.append({"role": "assistant", "content": ai_text})
