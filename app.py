@@ -30,14 +30,14 @@ with st.sidebar:
     st.warning(f"🌟 **Kun hikmati:**\n\n*{random.choice(hikmatlar)}*")
     st.info(f"**Direktor:**\n{DIREKTOR_FIO}")
 
-# --- 3. XAVFSIZLIK (RASMLAR BILAN YANGILANDI) ---
+# --- 3. XAVFSIZLIK (RASMLAR BILAN TO'LIQ TAXLANGAN QISMI) ---
 if "authenticated" not in st.session_state:
-    # Siz tanlagan 4 ta rasm
+    # Ishonchli va chiroyli maktab/AI rasmlari
     login_rasmlar = [
-        "http://googleusercontent.com/image_collection/image_retrieval/12613655077671436958_0",
-        "http://googleusercontent.com/image_collection/image_retrieval/12613655077671436958_1",
-        "http://googleusercontent.com/image_collection/image_retrieval/12613655077671436958_2",
-        "http://googleusercontent.com/image_collection/image_retrieval/12613655077671436958_3"
+        "https://images.unsplash.com/photo-1509062522246-3755977927d7?q=80&w=1000",
+        "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?q=80&w=1000",
+        "https://images.unsplash.com/photo-1485827404703-89b55fcc595e?q=80&w=1000",
+        "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=1000"
     ]
     
     col1, col2, col3 = st.columns([1, 2, 1])
@@ -60,7 +60,7 @@ if "authenticated" not in st.session_state:
                 
     st.stop() 
 
-# --- 4. BAZA YUKLASH (O'zgarishsiz) ---
+# --- 4. BAZA YUKLASH (AI uchun) ---
 @st.cache_data
 def yuklash():
     files = [f for f in os.listdir('.') if f.lower().endswith(('.xlsx', '.xls', '.docx')) and 'app.py' not in f]
@@ -80,7 +80,7 @@ def yuklash():
 
 df_baza, _ = yuklash()
 
-# --- 5. SAHIFALAR (O'zgarishsiz) ---
+# --- 5. SAHIFALAR ---
 if menu == "🤖 AI Yordamchi":
     st.title("🤖 AI Yordamchi")
     if "messages" not in st.session_state:
