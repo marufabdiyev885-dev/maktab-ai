@@ -17,30 +17,35 @@ GURUH_ID = "-1003047388159"
 
 st.set_page_config(page_title=MAKTAB_NOMI, layout="wide")
 
-# --- 2. FON UCHUN FUNKSIYA ---
+# --- 2. FON VA LOGIN BOXNI IXCHAMLASHTIRISH ---
 def set_bg(url):
     st.markdown(
         f"""
         <style>
         .stApp {{
-            background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url("{url}");
+            background: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url("{url}");
             background-size: cover;
             background-position: center;
-            background-attachment: fixed;
         }}
-        /* Login oynasini oq va shaffof qilish */
+        /* Login oynasini kichraytirish va chiroyli qilish */
         [data-testid="stVerticalBlock"] > div:has(input) {{
-            background-color: rgba(255, 255, 255, 0.9);
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            background-color: rgba(255, 255, 255, 0.95);
+            padding: 20px 40px !important;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            max-width: 450px; /* Oynaning maksimal kengligi */
+            margin: auto;     /* O'rtaga tekislash */
+        }}
+        h1, h3 {{
+            text-align: center;
+            color: #1E1E1E;
         }}
         </style>
         """,
         unsafe_allow_html=True
     )
 
-# --- 3. XAVFSIZLIK VA FON ---
+# --- 3. XAVFSIZLIK ---
 if "authenticated" not in st.session_state:
     login_rasmlar = [
         "https://images.unsplash.com/photo-1509062522246-3755977927d7?q=80&w=1600",
@@ -49,18 +54,19 @@ if "authenticated" not in st.session_state:
         "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=1600"
     ]
     
-    # Tasodifiy fonni tanlash va o'rnatish
     if "bg_url" not in st.session_state:
         st.session_state.bg_url = random.choice(login_rasmlar)
     
     set_bg(st.session_state.bg_url)
 
-    col1, col2, col3 = st.columns([1, 1.5, 1])
+    # O'rtada bo'lishi uchun bo'sh joylar
+    st.write("<br><br><br>", unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.write("<br><br>", unsafe_allow_html=True) # Tepadan joy tashlash
         st.title(f"🏫 {MAKTAB_NOMI}")
-        st.subheader("Tizimga xush kelibsiz!")
-        parol = st.text_input("Parolni kiriting:", type="password")
+        st.subheader("Kirish")
+        parol = st.text_input("Maxfiy parolni yozing:", type="password")
         
         if st.button("Kirish 🚀", use_container_width=True):
             if parol == TO_GRI_PAROL:
@@ -70,10 +76,10 @@ if "authenticated" not in st.session_state:
                 st.error("❌ Parol noto'g'ri!")
     st.stop()
 
-# Tizimga kirgandan keyin fonni oq (oddiy) holatga qaytarish
-st.markdown("<style>.stApp {background: none;}</style>", unsafe_allow_html=True)
+# Tizimga kirgandan keyin fonni tozalash
+st.markdown("<style>.stApp {background: none !important;}</style>", unsafe_allow_html=True)
 
-# --- 4. SIDEBAR ---
+# --- 4. SIDEBAR (O'zgarishsiz) ---
 with st.sidebar:
     st.markdown(f"## 🏛 {MAKTAB_NOMI}")
     st.image("https://cdn-icons-png.flaticon.com/512/2859/2859706.png", width=80)
@@ -81,9 +87,9 @@ with st.sidebar:
     menu = st.radio("Bo'limni tanlang:", ["🤖 AI Yordamchi", "📊 Jurnal Monitoringi"])
     hikmatlar = ["Ilm — saodat kalitidir.", "Informatika — kelajak tili!", "Ustoz — otangdek ulug‘!"]
     st.warning(f"🌟 **Kun hikmati:**\n\n*{random.choice(hikmatlar)}*")
-    st.info(f"**Direktor:**\n{DIREKTOR_FIO}")
 
-# --- 5. QOLGAN FUNKSIYALAR (AI va Monitoring o'zgarishsiz) ---
+# --- 5. QOLGAN FUNKSIYALAR (AI va Monitoring) ---
+# ... (Avvalgi kodingizning qolgan qismi shu yerda davom etadi) ...
 @st.cache_data
 def yuklash():
     files = [f for f in os.listdir('.') if f.lower().endswith(('.xlsx', '.xls', '.docx')) and 'app.py' not in f]
