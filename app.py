@@ -4,6 +4,7 @@ import os
 import requests
 import io
 import random
+import re
 
 # --- 1. ASOSIY SOZLAMALAR ---
 MAKTAB_NOMI = "1-sonli umumta'lim maktabi"
@@ -54,7 +55,6 @@ with st.sidebar:
     st.divider()
     menu = st.radio("Bo'limni tanlang:", ["🤖 AI bilan muloqot", "📊 Jurnal Monitoringi"])
     st.divider()
-    # Har safar sahifa yangilanganda o'zgaradigan hikmat
     st.info(f"✨ **Kun hikmati:**\n*{random.choice(HIKMATLAR_RO_YXATI)}*")
 
 # --- 4. XAVFSIZLIK ---
@@ -85,33 +85,36 @@ if menu == "🤖 AI bilan muloqot":
         
         with st.chat_message("assistant"):
             res_df = pd.DataFrame()
+            q = savol.strip() # Bo'shliqlarni olib tashlash
             salomlar = ["salom", "assalom", "qalay", "yaxshimi"]
-            is_greeting = any(s in savol.lower() for s in salomlar)
+            is_greeting = any(s in q.lower() for s in salomlar)
 
             if is_greeting:
                 st.markdown("Vaalaykum assalom! **Hurmatli foydalanuvchi**, sizga xizmat qilishdan mamnunman.")
             elif sheets_baza:
-                is_teacher_req = any(x in savol.lower() for x in ["o'qituvchi", "pedagog", "ro'yxat", "xodim"])
+                is_teacher_req = any(x in q.lower() for x in ["o'qituvchi", "pedagog", "ro'yxat", "xodim"])
                 
                 if is_teacher_req and "Лист2" in sheets_baza:
                     res_df = sheets_baza["Лист2"]
                 else:
                     all_df = pd.concat(sheets_baza.values(), ignore_index=True, sort=False).fillna("")
-                    q = savol.lower()
-                    mask = all_df.apply(lambda row: any(q in str(v).lower() for v in row), axis=1)
+                    
+                    # --- MANA SHU YERDA 1 VA 11 MUAMMOSI HAL QILINDI ---
+                    pattern = rf"\b{re.escape(q)}\b" # Aniq so'zni qidirish
+                    mask = all_df.apply(lambda row: any(re.search(pattern, str(v), re.IGNORECASE) for v in row), axis=1)
                     res_df = all_df[mask]
 
                 if not res_df.empty:
                     st.success(f"Natija topildi ({len(res_df)} ta qator).")
                     st.dataframe(res_df, use_container_width=True)
                     
-                    # Excel yuklash tugmasi
                     output = io.BytesIO()
                     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                         res_df.to_excel(writer, index=False)
                     st.download_button("📥 Natijani Excelda yuklab olish", output.getvalue(), "natija.xlsx")
                 else:
                     st.warning("Hurmatli foydalanuvchi, bazada bunday ma'lumot topilmadi.")
+
 # --- 6. JURNAL MONITORINGI ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
@@ -160,5 +163,3 @@ elif menu == "📊 Jurnal Monitoringi":
                     
         except Exception as e:
             st.error(f"Fayl xatosi: {e}")
-
-
