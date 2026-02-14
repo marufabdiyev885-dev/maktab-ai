@@ -17,7 +17,7 @@ GURUH_ID = "-1003047388159"
 
 st.set_page_config(page_title=MAKTAB_NOMI, layout="wide")
 
-# --- 2. DIZAYN (FON VA ELEMENTLAR) ---
+# --- 2. DIZAYN SOZLAMALARI ---
 def set_bg(url):
     st.markdown(
         f"""
@@ -29,7 +29,6 @@ def set_bg(url):
             background-attachment: fixed;
         }}
         
-        /* Maktab nomi - fondasiz, rasm ustida ochiq holda */
         .school-title {{
             color: white;
             font-size: 45px;
@@ -37,24 +36,23 @@ def set_bg(url):
             text-align: center;
             text-shadow: 3px 3px 15px rgba(0,0,0,0.9);
             margin-top: 50px;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
             width: 100%;
         }}
 
-        /* Login bloki (faqat kirish qismi uchun) */
         .login-box {{
             background-color: rgba(255, 255, 255, 0.95);
-            padding: 35px;
-            border-radius: 20px;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.4);
-            max-width: 400px;
+            padding: 40px;
+            border-radius: 25px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+            max-width: 450px;
             margin: auto;
             text-align: center;
         }}
         
-        /* Input ichidagi yozuvni chiroyli qilish */
-        input::placeholder {{
-            color: #888 !important;
+        /* Input ramkasini chiroyli qilish */
+        div[data-baseweb="input"] {{
+            border-radius: 10px !important;
         }}
         </style>
         """,
@@ -75,29 +73,34 @@ if "authenticated" not in st.session_state:
     
     set_bg(st.session_state.bg_url)
 
-    # Yuqorida Maktab nomi (Fondasiz)
+    # 1. Maktab nomi (Tepada, ochiq holda)
     st.markdown(f'<div class="school-title">🏛 {MAKTAB_NOMI}</div>', unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 1.2, 1])
     with col2:
-        # Oq fonli blok faqat shu yerdan boshlanadi
+        # Oq blok boshlanishi
         st.markdown('<div class="login-box">', unsafe_allow_html=True)
-        st.markdown("<h2 style='color: #1E1E1E; margin-bottom: 25px;'>Tizimga kirish</h2>", unsafe_allow_html=True)
         
-        # label="" qilsak tashqarida so'z chiqmaydi, placeholder ichkarida ko'rsatadi
+        # 2. Sarlavha (Blok ichida)
+        st.markdown("<h2 style='color: #1E1E1E; margin-bottom: 20px; font-family: sans-serif;'>Tizimga kirish</h2>", unsafe_allow_html=True)
+        
+        # 3. Parol kiritish (Blok ichida)
         parol = st.text_input("", placeholder="Parolni kiriting...", type="password", key="login_pass")
         
-        st.write("") # Bo'sh joy
+        st.write("<br>", unsafe_allow_html=True)
+        
+        # 4. Tugma (Blok ichida)
         if st.button("Kirish 🚀", use_container_width=True):
             if parol == TO_GRI_PAROL:
                 st.session_state.authenticated = True
                 st.rerun()
             else:
                 st.error("❌ Parol noto'g'ri!")
-        st.markdown('</div>', unsafe_allow_html=True)
+        
+        st.markdown('</div>', unsafe_allow_html=True) # Oq blok tugashi
     st.stop()
 
-# Tizimga kirgandan keyin fonni tozalash
+# Fonni tozalash (Kirgandan keyin)
 st.markdown("<style>.stApp {background: none !important;}</style>", unsafe_allow_html=True)
 
 # --- 4. SIDEBAR ---
@@ -107,7 +110,7 @@ with st.sidebar:
     menu = st.radio("Bo'limni tanlang:", ["🤖 AI Yordamchi", "📊 Jurnal Monitoringi"])
     st.info(f"👤 **Direktor:**\n{DIREKTOR_FIO}")
 
-# --- 5. QOLGAN FUNKSIYALAR (O'zgarishsiz) ---
+# --- 5. BAZA YUKLASH ---
 @st.cache_data
 def yuklash():
     files = [f for f in os.listdir('.') if f.lower().endswith(('.xlsx', '.xls', '.docx')) and 'app.py' not in f]
@@ -127,6 +130,7 @@ def yuklash():
 
 df_baza, _ = yuklash()
 
+# --- 6. SAHIFALAR ---
 if menu == "🤖 AI Yordamchi":
     st.title("🤖 AI Yordamchi")
     if "messages" not in st.session_state:
