@@ -5,6 +5,7 @@ import requests
 import io
 import random
 import re
+from datetime import datetime # Vaqtni aniqlash uchun
 
 # --- 1. ASOSIY SOZLAMALAR ---
 MAKTAB_NOMI = "1-sonli umumta'lim maktabi"
@@ -60,51 +61,51 @@ if "authenticated" not in st.session_state:
         else: st.error("Parol xato!")
     st.stop()
 
-# --- 5. AI MULOQOT (SALOM-ALIK VA ISM SO'RASH) ---
+# --- 5. AI MULOQOT (FAROSAT VA VAQTGA QARAB MUOMALA) ---
 if menu == "🤖 AI Muloqot":
-    st.title("🤖 Aqlli va Odobli Muloqot")
+    st.title("🤖 Farosatli Yordamchi")
     
-    # Ismni saqlash
     if "user_name" not in st.session_state:
         st.session_state.user_name = None 
-
-    # Birinchi bo'lib salom berish va ism so'rash
     if "greeted" not in st.session_state:
         st.session_state.greeted = False
 
+    # 1. SALOM VA ISM SO'RASH
     if not st.session_state.greeted:
         with st.chat_message("assistant"):
-            st.markdown("Assalomu alaykum! Maktabimizning sun'iy intellekt tizimiga xush kelibsiz. 😊")
-            st.markdown("Kechirasiz, ismingizni bilsam bo'ladimi? Sizga qanday murojaat qilay?")
+            st.markdown("Assalomu alaykum! Maktabimiz tizimiga xush kelibsiz. 😊")
+            st.markdown("Ismingiz nima? Sizga qanday murojaat qilsam bo'ladi?")
         st.session_state.greeted = True
 
-    if savol := st.chat_input("Javobingizni yoki savolni yozing..."):
+    if savol := st.chat_input("Xabaringizni yozing..."):
         with st.chat_message("user"): st.markdown(savol)
         
         with st.chat_message("assistant"):
             q = savol.lower().strip()
-            
-            # Ismni aniqlash mantiqi
+            hozirgi_soat = datetime.now().hour # Soatni aniqlaymiz
+
+            # Ismni eslab qolish
             if st.session_state.user_name is None:
-                # Ismni ajratib olish (Ismim Ali, Men Vali va hokazo)
                 name_parts = re.search(r"(ismim|otim|men|man)\s+([a-zа-я]+)", q)
                 if name_parts:
                     st.session_state.user_name = name_parts.group(2).capitalize()
                 else:
-                    # Agar shunchaki ismini yozsa
                     st.session_state.user_name = savol.capitalize()
-                
-                st.markdown(f"Tanishganimdan juda xursandman, **{st.session_state.user_name}**! Endi men sizga maktab bazasidan istalgan ma'lumotni topishda yordam berishim mumkin. Nima qidiramiz?")
-            
-            # O'zini tanishtirish
-            elif any(x in q for x in ["o'zingni tanishtir", "kimsan", "vazifang nima"]):
-                st.markdown(f"Men maktabimizning raqamli yordamchisiman. {st.session_state.user_name}, men orqali o'qituvchilar ro'yxatini, sinflarni va monitoring natijalarini ko'rishingiz mumkin.")
+                st.markdown(f"Tanishganimdan xursandman, **{st.session_state.user_name}**! Xizmat bo'lsa aytavering.")
+
+            # --- XAYRLASHISH VA OMAD TILASH ---
+            elif any(x in q for x in ["xayr", "sog' bo'l", "mayli", "boldi", "bo'ldi", "tushunarli"]):
+                xayr_xabari = f"Xo'p bo'ladi, {st.session_state.user_name}. Ishlaringizga omad tilayman! ✨"
+                # Kechqurun (18:00 dan keyin) bo'lsa
+                if hozirgi_soat >= 18 or hozirgi_soat <= 5:
+                    xayr_xabari += " Kechasi yaxshi dam oling, tuningiz osuda o'tsin! 🌙"
+                st.markdown(xayr_xabari)
 
             # Rahmat va muloqot
-            elif any(x in q for x in ["rahmat", "zo'r", "ajoyib"]):
-                st.markdown(f"Arzimaydi, {st.session_state.user_name}! Har doim xizmatingizdaman.")
+            elif any(x in q for x in ["rahmat", "zo'r", "ajoyib", "baraka top"]):
+                st.markdown(f"Arzimaydi, {st.session_state.user_name}! Sizga yordam berganimdan xursandman. Ishlaringizga doim omad yor bo'lsin!")
 
-            # Qidiruv qismi (1 va 11 muammosi hal qilingan holda)
+            # Qidiruv qismi (Daxlsiz)
             elif sheets_baza:
                 topildi = False
                 is_teacher_req = any(x in q for x in ["o'qituvchi", "pedagog", "xodim", "ro'yxat"])
@@ -127,7 +128,7 @@ if menu == "🤖 AI Muloqot":
                         
                         res_df = df[mask]
                         if not res_df.empty:
-                            st.success(f"Topildi, {st.session_state.user_name}:")
+                            st.success(f"Mana, {st.session_state.user_name}, topildi:")
                             st.dataframe(res_df, use_container_width=True)
                             topildi = True
                 
@@ -153,7 +154,7 @@ elif menu == "📊 Jurnal Monitoringi":
                 df_j = pd.read_html(j_fayl, header=0)[0]
             df_j.columns = [str(c).replace('\n', ' ').strip() for c in df_j.columns]
             st.dataframe(df_j)
-            col_target, col_name = "Baholar qo'yilgan jurnallar somi", "O'qituvchi"
+            col_target, col_name = "Baholar qo'yilgan jurnallar soni", "O'qituvchi"
             kamchiliklar = []
             if col_target in df_j.columns:
                 for _, row in df_j.iterrows():
