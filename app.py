@@ -60,45 +60,51 @@ if "authenticated" not in st.session_state:
         else: st.error("Parol xato!")
     st.stop()
 
-# --- 5. AI MULOQOT (ISMGA MOSLASHISH VA TANISHTIRISH) ---
+# --- 5. AI MULOQOT (SALOM-ALIK VA ISM SO'RASH) ---
 if menu == "🤖 AI Muloqot":
-    st.title("🤖 Aqlli va Farosatli Muloqot")
+    st.title("🤖 Aqlli va Odobli Muloqot")
     
-    # Foydalanuvchi ismini saqlash uchun session_state
+    # Ismni saqlash
     if "user_name" not in st.session_state:
-        st.session_state.user_name = "aka" # Default
+        st.session_state.user_name = None 
 
+    # Birinchi bo'lib salom berish va ism so'rash
     if "greeted" not in st.session_state:
         st.session_state.greeted = False
+
     if not st.session_state.greeted:
         with st.chat_message("assistant"):
-            st.markdown(f"**Assalomu alaykum!** Men maktabimizning aqlli yordamchisiman. Ismingiz nima?")
+            st.markdown("Assalomu alaykum! Maktabimizning sun'iy intellekt tizimiga xush kelibsiz. 😊")
+            st.markdown("Kechirasiz, ismingizni bilsam bo'ladimi? Sizga qanday murojaat qilay?")
         st.session_state.greeted = True
 
-    if savol := st.chat_input("Savol yozing yoki ismingizni ayting..."):
+    if savol := st.chat_input("Javobingizni yoki savolni yozing..."):
         with st.chat_message("user"): st.markdown(savol)
         
         with st.chat_message("assistant"):
             q = savol.lower().strip()
             
-            # Ismni aniqlash (Farosat qismi)
-            name_match = re.search(r"(ismim|ismimni|otim|otimni)\s+([a-zа-я]+)", q)
-            if name_match:
-                st.session_state.user_name = name_match.group(2).capitalize()
-                st.markdown(f"Tanishganimdan xursandman, {st.session_state.user_name}! Endi sizga qanday yordam bera olaman?")
+            # Ismni aniqlash mantiqi
+            if st.session_state.user_name is None:
+                # Ismni ajratib olish (Ismim Ali, Men Vali va hokazo)
+                name_parts = re.search(r"(ismim|otim|men|man)\s+([a-zа-я]+)", q)
+                if name_parts:
+                    st.session_state.user_name = name_parts.group(2).capitalize()
+                else:
+                    # Agar shunchaki ismini yozsa
+                    st.session_state.user_name = savol.capitalize()
+                
+                st.markdown(f"Tanishganimdan juda xursandman, **{st.session_state.user_name}**! Endi men sizga maktab bazasidan istalgan ma'lumotni topishda yordam berishim mumkin. Nima qidiramiz?")
             
             # O'zini tanishtirish
-            elif any(x in q for x in ["o'zingni tanishtir", "kimsan", "nima qilasan", "isming nima"]):
-                st.markdown(f"Men **{MAKTAB_NOMI}** uchun maxsus yaratilgan Sun'iy Intellekt yordamchisiman. Vazifam — bazadan o'qituvchi va o'quvchilarni topish, jurnal monitoringini yuritish va siz bilan suhbatlashish. Xizmatingizdaman, {st.session_state.user_name}!")
+            elif any(x in q for x in ["o'zingni tanishtir", "kimsan", "vazifang nima"]):
+                st.markdown(f"Men maktabimizning raqamli yordamchisiman. {st.session_state.user_name}, men orqali o'qituvchilar ro'yxatini, sinflarni va monitoring natijalarini ko'rishingiz mumkin.")
 
-            # Rahmat va boshqa gaplar
-            elif any(x in q for x in ["rahmat", "zo'r", "ajoyib", "baraka top"]):
-                st.markdown(f"Arzimaydi, {st.session_state.user_name}! Sizga foydam tekkanidan xursandman. 😊")
-                
-            elif any(x in q for x in ["salom", "assalom"]):
-                st.markdown(f"Vaalaykum assalom! Sog'liklar yaxshimi, {st.session_state.user_name}?")
+            # Rahmat va muloqot
+            elif any(x in q for x in ["rahmat", "zo'r", "ajoyib"]):
+                st.markdown(f"Arzimaydi, {st.session_state.user_name}! Har doim xizmatingizdaman.")
 
-            # Qidiruv qismi (O'zgarishsiz)
+            # Qidiruv qismi (1 va 11 muammosi hal qilingan holda)
             elif sheets_baza:
                 topildi = False
                 is_teacher_req = any(x in q for x in ["o'qituvchi", "pedagog", "xodim", "ro'yxat"])
@@ -106,7 +112,7 @@ if menu == "🤖 AI Muloqot":
                 if is_teacher_req:
                     for name, df in sheets_baza.items():
                         if any("pedagog" in col for col in df.columns) or "лист2" in name.lower():
-                            st.success(f"{st.session_state.user_name}, o'qituvchilar ro'yxati topildi:")
+                            st.success(f"{st.session_state.user_name}, mana o'qituvchilar ro'yxati:")
                             st.dataframe(df, use_container_width=True)
                             topildi = True
                             break
@@ -121,12 +127,12 @@ if menu == "🤖 AI Muloqot":
                         
                         res_df = df[mask]
                         if not res_df.empty:
-                            st.success(f"Mana, {st.session_state.user_name}, topildi:")
+                            st.success(f"Topildi, {st.session_state.user_name}:")
                             st.dataframe(res_df, use_container_width=True)
                             topildi = True
                 
                 if not topildi:
-                    st.warning(f"Kechirasiz {st.session_state.user_name}, topolmadim.")
+                    st.warning(f"Kechirasiz {st.session_state.user_name}, bazadan topolmadim.")
 
 # --- MONITORING (O'ZGARISHSIZ) ---
 elif menu == "📊 Jurnal Monitoringi":
@@ -147,14 +153,14 @@ elif menu == "📊 Jurnal Monitoringi":
                 df_j = pd.read_html(j_fayl, header=0)[0]
             df_j.columns = [str(c).replace('\n', ' ').strip() for c in df_j.columns]
             st.dataframe(df_j)
-            col_target, col_name = "Baholar qo'yilgan jurnallar soni", "O'qituvchi"
+            col_target, col_name = "Baholar qo'yilgan jurnallar somi", "O'qituvchi"
             kamchiliklar = []
             if col_target in df_j.columns:
                 for _, row in df_j.iterrows():
                     nums = re.findall(r'(\d+)', str(row[col_target]))
                     if len(nums) >= 2 and int(nums[0]) < int(nums[1]):
                         kamchiliklar.append(f"❌ {row[col_name]}: {int(nums[1]) - int(nums[0])} ta jurnal chala")
-            xabar_tahlili = "✅ Barcha jurnallar to'liq!" if not kamchiliklar else "⚠️ **Kamchiliklar:**\n" + "\n".join(kamchiliklar)
+            xabar_tahlili = "✅ Hammasi to'liq!" if not kamchiliklar else "⚠️ **Kamchiliklar:**\n" + "\n".join(kamchiliklar)
             st.info(xabar_tahlili)
             if st.button("📢 Telegramga yuborish"):
                 requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={"chat_id": GURUH_ID, "text": f"<b>📊 Monitoring</b>\n\n{xabar_tahlili}", "parse_mode": "HTML"})
