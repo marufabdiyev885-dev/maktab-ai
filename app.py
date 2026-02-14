@@ -23,12 +23,8 @@ with st.sidebar:
     st.markdown(f"## 🏛 {MAKTAB_NOMI}")
     st.image("https://cdn-icons-png.flaticon.com/512/2859/2859706.png", width=80)
     st.divider()
-    
     menu = st.radio("Bo'limni tanlang:", ["🤖 AI Yordamchi", "📊 Jurnal Monitoringi"])
     st.divider()
-    
-    hikmatlar = ["Ilm — saodat kalitidir.", "Informatika — kelajak tili!", "Ustoz — otangdek ulug‘!"]
-    st.warning(f"🌟 **Kun hikmati:**\n\n*{random.choice(hikmatlar)}*")
     st.info(f"**Direktor:**\n{DIREKTOR_FIO}")
 
 # --- 3. XAVFSIZLIK ---
@@ -80,7 +76,6 @@ if menu == "🤖 AI Yordamchi":
         with st.chat_message("assistant"):
             found_data = ""
             soni = 0
-            
             if df_baza is not None:
                 keywords = [s.lower() for s in savol.split() if len(s) > 2]
                 if keywords:
@@ -90,11 +85,9 @@ if menu == "🤖 AI Yordamchi":
                         soni = len(res)
                         found_data = res.head(40).to_string(index=False)
 
-            # --- MUROJAAT QISMI O'ZGARTIRILDI ---
             system_prompt = f"""Sen {MAKTAB_NOMI} maktabining juda odobli va rasmiy yordamchisisan. 
             Suhbatdoshingga har doim 'Hurmatli foydalanuvchi' deb murojaat qil. 
-            Javoblaring aniq, metodik va juda hurmat bilan bo'lsin.
-            Agar ma'lumot topsang (soni={soni}), bu haqda ehtirom bilan xabar ber."""
+            Javoblaring aniq, metodik va juda hurmat bilan bo'lsin."""
             
             payload = {
                 "model": "llama-3.3-70b-versatile",
@@ -107,7 +100,6 @@ if menu == "🤖 AI Yordamchi":
                 r = requests.post("https://api.groq.com/openai/v1/chat/completions", json=payload, headers={"Authorization": f"Bearer {GROQ_API_KEY}"})
                 ai_text = r.json()['choices'][0]['message']['content']
             except: ai_text = "Sizga yordam berishdan xursandman, hurmatli foydalanuvchi!"
-            
             st.markdown(ai_text)
             st.session_state.messages.append({"role": "assistant", "content": ai_text})
 
@@ -116,9 +108,8 @@ elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
     
     if "m_auth" not in st.session_state: st.session_state.m_auth = False
-
     if not st.session_state.m_auth:
-        m_pass = st.text_input("Monitoring bo'limi kodini kiriting:", type="password")
+        m_pass = st.text_input("Monitoring kodi:", type="password")
         if st.button("Tasdiqlash"):
             if m_pass == MONITORING_KODI:
                 st.session_state.m_auth = True
@@ -126,17 +117,34 @@ elif menu == "📊 Jurnal Monitoringi":
             else: st.error("❌ Kod noto'g'ri!")
         st.stop()
 
-    j_fayl = st.file_uploader("Excel faylni yuklang", type=['xlsx'])
+    j_fayl = st.file_uploader("Excelni yuklang", type=['xlsx'])
     if j_fayl:
         df_j = pd.read_excel(j_fayl)
         st.dataframe(df_j.head())
         c_oqit = st.selectbox("O'qituvchi ustuni:", df_j.columns)
-        c_stat = st.selectbox("Holat ustuni:", df_j.columns)
-        
-        xatolar = df_j[df_j[c_stat].astype(str).str.contains("To'ldirilmagan", na=False)]
+        c_baho = st.selectbox("Baho ustuni (Masalan: 4 Undan 3):", df_j.columns)
         
         if st.button("📢 Telegramga yuborish"):
-            text = f"<b>🔔 Jurnal monitoringi</b>\n\nKamchiliklar aniqlandi:\n"
-            for n in xatolar[c_oqit].unique()[:20]: text += f"❌ {n}\n"
+            def tekshir(qiymat):
+                s = str(qiymat).lower()
+                if "undan" in s:
+                    try:
+                        q = s.split("undan")
+                        jami = int(''.join(filter(str.isdigit, q[0])))
+                        bor = int(''.join(filter(str.isdigit, q[1])))
+                        return bor < jami
+                    except: return False
+                return False
+
+            xatolar = df_j[df_j[c_baho].apply(tekshir)]
+            
+            if not xatolar.empty:
+                text = f"<b>⚠️ JURNAL MONITORINGI</b>\n<i>{MAKTAB_NOMI}</i>\n\nKamchiliklar:\n"
+                for _, row in xatolar.iterrows():
+                    text += f"❌ {row[c_oqit]} -> {row[c_baho]}\n"
+            else:
+                # HAMMA NARSZA TO'LIQ BO'LGANDA
+                text = f"<b>✅ JURNAL MONITORINGI</b>\n<i>{MAKTAB_NOMI}</i>\n\n✨ <b>Jurnallar 100 foiz baholangan.</b> Hamma darslarga baholar to'liq qo'yilgan!"
+
             requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={"chat_id": GURUH_ID, "text": text, "parse_mode": "HTML"})
             st.success("Hisobot guruhga yuborildi!")
