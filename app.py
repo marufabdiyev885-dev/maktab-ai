@@ -4,7 +4,6 @@ import os
 import requests
 import io
 import random
-import re
 
 # --- 1. ASOSIY SOZLAMALAR ---
 MAKTAB_NOMI = "1-sonli umumta'lim maktabi"
@@ -15,7 +14,19 @@ MONITORING_KODI = "admin777"
 BOT_TOKEN = "8524007504:AAFiMXSbXhe2M-84WlNM16wNpzhNolfQIf8"
 GURUH_ID = "-5045481739" 
 
-HIKMATLAR_RO_YXATI = ["Ilm — saodat kalitidir.", "Bilim — tuganmas xazina.", "Kitob — bilim manbai."]
+# O'zgarib turuvchi hikmatlar ro'yxati
+HIKMATLAR_RO_YXATI = [
+    "Ilm — saodat kalitidir.",
+    "Hunari yo'q kishi — mevasi yo'q daraxt.",
+    "Ilm izla, igna bilan quduq qazigandek bo'lsa ham.",
+    "O'qigan o'zini taniydi, o'qimagan — ko'zini.",
+    "Bilim — tuganmas xazina.",
+    "Kitob — bilim manbai.",
+    "Aql — yoshda emas, boshda.",
+    "Ilm — qalb chirog'i.",
+    "Vaqt — g'animat, o'tayotgan har oningni ilmga bag'ishla.",
+    "Odob — har bir kishining ziynatidir."
+]
 
 st.set_page_config(page_title=MAKTAB_NOMI, layout="wide")
 
@@ -26,24 +37,24 @@ def yuklash():
     all_sheets = {}
     for f in files:
         try:
-            # Excelning barcha varaqlarini o'qiymiz
             sheets = pd.read_excel(f, sheet_name=None, dtype=str)
             for name, df in sheets.items():
                 if not df.empty:
-                    # Qidiruv oson bo'lishi uchun ustun nomlarini saqlab qolamiz, lekin tahlil uchun tayyorlaymiz
+                    df.columns = [str(c).strip().lower() for c in df.columns]
                     all_sheets[name] = df
         except: continue
     return all_sheets
 
 sheets_baza = yuklash()
 
-# --- 3. SIDEBAR ---
+# --- 3. SIDEBAR (DIREKTOR VA O'ZGARUVCHAN HIKMAT) ---
 with st.sidebar:
     st.title(f"🏛 {MAKTAB_NOMI}")
     st.write(f"👤 **Maktab direktori:** \n{DIREKTOR_FIO}")
     st.divider()
     menu = st.radio("Bo'limni tanlang:", ["🤖 AI bilan muloqot", "📊 Jurnal Monitoringi"])
     st.divider()
+    # Har safar sahifa yangilanganda o'zgaradigan hikmat
     st.info(f"✨ **Kun hikmati:**\n*{random.choice(HIKMATLAR_RO_YXATI)}*")
 
 # --- 4. XAVFSIZLIK ---
@@ -57,7 +68,7 @@ if "authenticated" not in st.session_state:
         else: st.error("Parol noto'g'ri!")
     st.stop()
 
-# --- 5. AI BILAN MULOQOT (QIDIRUV TIKLANDI) ---
+# --- 5. MAKTAB SUN'IY INTELLEKTI BILAN MULOQOT ---
 if menu == "🤖 AI bilan muloqot":
     st.title("🤖 Maktab sun'iy intellekti bilan muloqot")
     
@@ -69,40 +80,38 @@ if menu == "🤖 AI bilan muloqot":
             st.markdown(f"**Assalomu alaykum, hurmatli foydalanuvchi!**\n\nSizga qanday ma'lumot qidirib berishim mumkin?")
         st.session_state.greeted = True
 
-    if savol := st.chat_input("Ism yoki kalit so'z kiriting..."):
+    if savol := st.chat_input("Savolingizni kiriting..."):
         with st.chat_message("user"): st.markdown(savol)
         
         with st.chat_message("assistant"):
             res_df = pd.DataFrame()
-            q = savol.lower().strip()
-            
             salomlar = ["salom", "assalom", "qalay", "yaxshimi"]
-            
-            if any(s in q for s in salomlar):
+            is_greeting = any(s in savol.lower() for s in salomlar)
+
+            if is_greeting:
                 st.markdown("Vaalaykum assalom! **Hurmatli foydalanuvchi**, sizga xizmat qilishdan mamnunman.")
             elif sheets_baza:
-                # Barcha listlarni bitta katta jadvalga birlashtirish
-                all_data_list = []
-                for sheet_df in sheets_baza.values():
-                    all_data_list.append(sheet_df)
+                is_teacher_req = any(x in savol.lower() for x in ["o'qituvchi", "pedagog", "ro'yxat", "xodim"])
                 
-                combined_df = pd.concat(all_data_list, ignore_index=True, sort=False).fillna("")
-                
-                # Qidiruv mantiqi: Har bir qatorda shu so'z borligini tekshirish
-                mask = combined_df.apply(lambda row: any(q in str(v).lower() for v in row), axis=1)
-                res_df = combined_df[mask]
+                if is_teacher_req and "Лист2" in sheets_baza:
+                    res_df = sheets_baza["Лист2"]
+                else:
+                    all_df = pd.concat(sheets_baza.values(), ignore_index=True, sort=False).fillna("")
+                    q = savol.lower()
+                    mask = all_df.apply(lambda row: any(q in str(v).lower() for v in row), axis=1)
+                    res_df = all_df[mask]
 
                 if not res_df.empty:
                     st.success(f"Natija topildi ({len(res_df)} ta qator).")
                     st.dataframe(res_df, use_container_width=True)
                     
+                    # Excel yuklash tugmasi
                     output = io.BytesIO()
                     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                         res_df.to_excel(writer, index=False)
                     st.download_button("📥 Natijani Excelda yuklab olish", output.getvalue(), "natija.xlsx")
                 else:
-                    st.warning("Hurmatli foydalanuvchi, bazadan bunday ma'lumot topilmadi.")
-
+                    st.warning("Hurmatli foydalanuvchi, bazada bunday ma'lumot topilmadi.")
 # --- 6. JURNAL MONITORINGI ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
@@ -151,3 +160,4 @@ elif menu == "📊 Jurnal Monitoringi":
                     
         except Exception as e:
             st.error(f"Fayl xatosi: {e}")
+
