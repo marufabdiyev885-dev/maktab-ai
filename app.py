@@ -17,7 +17,7 @@ GURUH_ID = "-1003047388159"
 
 st.set_page_config(page_title=MAKTAB_NOMI, layout="wide")
 
-# --- 2. DIZAYN (FON VA MATNLAR) ---
+# --- 2. DIZAYN (FON VA ELEMENTLAR) ---
 def set_bg(url):
     st.markdown(
         f"""
@@ -29,26 +29,32 @@ def set_bg(url):
             background-attachment: fixed;
         }}
         
-        /* Maktab nomi uchun maxsus uslub */
+        /* Maktab nomi - fondasiz, rasm ustida ochiq holda */
         .school-title {{
             color: white;
-            font-size: 50px;
+            font-size: 45px;
             font-weight: bold;
             text-align: center;
-            text-shadow: 2px 2px 10px rgba(0,0,0,0.8);
-            margin-bottom: 20px;
-            padding: 10px;
+            text-shadow: 3px 3px 15px rgba(0,0,0,0.9);
+            margin-top: 50px;
+            margin-bottom: 30px;
             width: 100%;
         }}
 
-        /* Parol qismi uchun ixcham blok */
+        /* Login bloki (faqat kirish qismi uchun) */
         .login-box {{
-            background-color: rgba(255, 255, 255, 0.9);
-            padding: 25px;
-            border-radius: 15px;
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            background-color: rgba(255, 255, 255, 0.95);
+            padding: 35px;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.4);
             max-width: 400px;
             margin: auto;
+            text-align: center;
+        }}
+        
+        /* Input ichidagi yozuvni chiroyli qilish */
+        input::placeholder {{
+            color: #888 !important;
         }}
         </style>
         """,
@@ -69,25 +75,29 @@ if "authenticated" not in st.session_state:
     
     set_bg(st.session_state.bg_url)
 
-    # Ekranning yuqori qismida maktab nomi uzun bo'lib turadi
+    # Yuqorida Maktab nomi (Fondasiz)
     st.markdown(f'<div class="school-title">🏛 {MAKTAB_NOMI}</div>', unsafe_allow_html=True)
     
-    # O'rtada parol qismi
     col1, col2, col3 = st.columns([1, 1.2, 1])
     with col2:
+        # Oq fonli blok faqat shu yerdan boshlanadi
         st.markdown('<div class="login-box">', unsafe_allow_html=True)
-        st.markdown("<h3 style='text-align: center; color: black;'>Tizimga kirish</h3>", unsafe_allow_html=True)
-        parol = st.text_input("Parolni kiriting:", type="password", key="login_pass")
+        st.markdown("<h2 style='color: #1E1E1E; margin-bottom: 25px;'>Tizimga kirish</h2>", unsafe_allow_html=True)
+        
+        # label="" qilsak tashqarida so'z chiqmaydi, placeholder ichkarida ko'rsatadi
+        parol = st.text_input("", placeholder="Parolni kiriting...", type="password", key="login_pass")
+        
+        st.write("") # Bo'sh joy
         if st.button("Kirish 🚀", use_container_width=True):
             if parol == TO_GRI_PAROL:
                 st.session_state.authenticated = True
                 st.rerun()
             else:
-                st.error("❌ Xato!")
+                st.error("❌ Parol noto'g'ri!")
         st.markdown('</div>', unsafe_allow_html=True)
     st.stop()
 
-# Fonni tozalash
+# Tizimga kirgandan keyin fonni tozalash
 st.markdown("<style>.stApp {background: none !important;}</style>", unsafe_allow_html=True)
 
 # --- 4. SIDEBAR ---
@@ -97,8 +107,7 @@ with st.sidebar:
     menu = st.radio("Bo'limni tanlang:", ["🤖 AI Yordamchi", "📊 Jurnal Monitoringi"])
     st.info(f"👤 **Direktor:**\n{DIREKTOR_FIO}")
 
-# --- 5. QOLGAN FUNKSIYALAR (AI VA MONITORING) ---
-# (Pastdagi kodlar o'zgarishsiz qoladi)
+# --- 5. QOLGAN FUNKSIYALAR (O'zgarishsiz) ---
 @st.cache_data
 def yuklash():
     files = [f for f in os.listdir('.') if f.lower().endswith(('.xlsx', '.xls', '.docx')) and 'app.py' not in f]
@@ -148,7 +157,7 @@ elif menu == "📊 Jurnal Monitoringi":
                 st.rerun()
             else: st.error("❌ Xato!")
         st.stop()
-    j_fayl = st.file_uploader("Faylni yuklang", type=['xlsx', 'xls'])
+    j_fayl = st.file_uploader("eMaktab faylini yuklang", type=['xlsx', 'xls'])
     if j_fayl:
         try:
             try: df_j = pd.read_excel(j_fayl, header=[0, 1])
