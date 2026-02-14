@@ -66,7 +66,7 @@ if "authenticated" not in st.session_state:
         else: st.error("Parol xato-ku, aka!")
     st.stop()
 
-# --- 5. MAKTAB SUN'IY INTELLEKTI BILAN MULOQOT ---
+# --- 5. AI MULOQOT (QIDIRUV TUZATILDI) ---
 if menu == "🤖 AI Muloqot":
     st.title("🤖 Aqlli muloqot tizimi")
     
@@ -77,35 +77,39 @@ if menu == "🤖 AI Muloqot":
             st.markdown(f"**Assalomu alaykum, Ma'rufjon aka!** Nima yordam kerak?")
         st.session_state.greeted = True
 
-    if savol := st.chat_input("Savolingizni yoki ismni yozing..."):
+    if savol := st.chat_input("Sinf (1-A) yoki ismni yozing..."):
         with st.chat_message("user"): st.markdown(savol)
         
         with st.chat_message("assistant"):
             q = savol.lower().strip()
             
-            # 1. Insoniy muloqot
-            if q in ["rahmat", "katta rahmat", "tashakkur", "rahmat AI"]:
-                st.markdown("Arziydi, aka! Sizga xizmat qilish — men uchun sharaf. 😊")
+            # Insoniy muloqot
+            if q in ["rahmat", "katta rahmat", "tashakkur"]:
+                st.markdown("Arziydi, aka! Xizmat bo'lsa aytaverasiz. 😊")
             elif q in ["salom", "assalom", "assalomu alaykum"]:
-                st.markdown("Vaalaykum assalom, aka! Yaxshimisiz? Qanday ma'lumot qidiramiz?")
+                st.markdown("Vaalaykum assalom, aka! Charchamayapsizmi? Nima qidiramiz?")
             
-            # 2. Bazadan qidirish
+            # Bazadan qidirish
             elif sheets_baza:
-                combined_df = pd.concat(sheets_baza.values(), ignore_index=True, sort=False).fillna("")
+                all_df = pd.concat(sheets_baza.values(), ignore_index=True, sort=False).fillna("")
                 
-                # Aniq qidiruv (1-A va 11-A muammosini hal qiluvchi regex)
-                pattern = rf"\b{re.escape(q)}\b"
-                mask = combined_df.apply(lambda row: any(re.search(pattern, str(v), re.IGNORECASE) for v in row), axis=1)
-                res_df = combined_df[mask]
+                # SINF UCHUN ANIQ, ISM UCHUN ODDIY QIDIRUV
+                if re.match(r'^\d{1,2}-[a-zа-я]$', q): # Agar 1-A kabi sinf yozilsa
+                    pattern = rf"\b{re.escape(q)}\b"
+                    mask = all_df.apply(lambda row: any(re.search(pattern, str(v).lower()) for v in row), axis=1)
+                else: # Ism yoki boshqa so'z yozilsa
+                    mask = all_df.apply(lambda row: any(q in str(v).lower() for v in row), axis=1)
+                
+                res_df = all_df[mask]
 
                 if not res_df.empty:
-                    st.success(f"Ma'rufjon aka, bazadan {len(res_df)} ta ma'lumot topdim:")
+                    st.success(f"Ma'rufjon aka, {len(res_df)} ta ma'lumot topdim:")
                     st.dataframe(res_df, use_container_width=True)
                 else:
-                    st.warning("Aka, bazadan topolmadim. Balki ismni boshqacharoq yozib ko'rarsiz?")
+                    st.warning("Aka, topolmadim. Ismni to'liqroq yozib ko'ring-chi?")
                     st.info(f"💡 [Google orqali qidirish](https://www.google.com/search?q={savol})")
 
-# --- 6. JURNAL MONITORINGI ---
+# --- 6. JURNAL MONITORINGI (TELEGRAMGA TEGMADIM) ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
     
@@ -119,7 +123,7 @@ elif menu == "📊 Jurnal Monitoringi":
             else: st.error("Kod xato!")
         st.stop()
 
-    j_fayl = st.file_uploader("eMaktab Excel faylini yuklang", type=['xlsx', 'xls', 'html'])
+    j_fayl = st.file_uploader("Excel faylni yuklang", type=['xlsx', 'xls', 'html'])
     if j_fayl:
         try:
             try: df_j = pd.read_excel(j_fayl)
