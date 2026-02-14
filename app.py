@@ -7,17 +7,15 @@ import random
 
 # --- 1. ASOSIY SOZLAMALAR ---
 MAKTAB_NOMI = "1-sonli umumta'lim maktabi"
-DIREKTOR_FIO = "Mahmudov Matyoqub Narzulloyevich" # Direktor ism-familiyasi
+DIREKTOR_FIO = "Mahmudov Matyoqub Narzulloyevich"
 GROQ_API_KEY = "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"
 TO_GRI_PAROL = "informatika2024"
 MONITORING_KODI = "admin777" 
 BOT_TOKEN = "8524007504:AAFiMXSbXhe2M-84WlNM16wNpzhNolfQIf8"
 GURUH_ID = "-5045481739" 
 
-st.set_page_config(page_title=MAKTAB_NOMI, layout="wide")
-
-# Hikmatli so'zlar ro'yxati
-HIKMATLAR = [
+# O'zgarib turuvchi hikmatlar ro'yxati
+HIKMATLAR_RO_YXATI = [
     "Ilm — saodat kalitidir.",
     "Hunari yo'q kishi — mevasi yo'q daraxt.",
     "Ilm izla, igna bilan quduq qazigandek bo'lsa ham.",
@@ -25,8 +23,12 @@ HIKMATLAR = [
     "Bilim — tuganmas xazina.",
     "Kitob — bilim manbai.",
     "Aql — yoshda emas, boshda.",
-    "Ilm — qalb chirog'i."
+    "Ilm — qalb chirog'i.",
+    "Vaqt — g'animat, o'tayotgan har oningni ilmga bag'ishla.",
+    "Odob — har bir kishining ziynatidir."
 ]
+
+st.set_page_config(page_title=MAKTAB_NOMI, layout="wide")
 
 # --- 2. BAZANI YUKLASH ---
 @st.cache_data
@@ -45,14 +47,15 @@ def yuklash():
 
 sheets_baza = yuklash()
 
-# --- 3. SIDEBAR (DIREKTOR QAYTIB KELDI) ---
+# --- 3. SIDEBAR (DIREKTOR VA O'ZGARUVCHAN HIKMAT) ---
 with st.sidebar:
     st.title(f"🏛 {MAKTAB_NOMI}")
-    st.write(f"👤 **Maktab direktori:** \n{DIREKTOR_FIO}") # Direktor nomi ekranda
+    st.write(f"👤 **Maktab direktori:** \n{DIREKTOR_FIO}")
     st.divider()
     menu = st.radio("Bo'limni tanlang:", ["🤖 AI bilan muloqot", "📊 Jurnal Monitoringi"])
     st.divider()
-    st.info(f"✨ **Kun hikmati:**\n*{random.choice(HIKMATLAR)}*")
+    # Har safar sahifa yangilanganda o'zgaradigan hikmat
+    st.info(f"✨ **Kun hikmati:**\n*{random.choice(HIKMATLAR_RO_YXATI)}*")
 
 # --- 4. XAVFSIZLIK ---
 if "authenticated" not in st.session_state:
@@ -74,7 +77,7 @@ if menu == "🤖 AI bilan muloqot":
 
     if not st.session_state.greeted:
         with st.chat_message("assistant"):
-            st.markdown(f"**Assalomu alaykum, hurmatli foydalanuvchi!**\n\n{random.choice(HIKMATLAR)}\n\nSizga qanday ma'lumot qidirib berishim mumkin?")
+            st.markdown(f"**Assalomu alaykum, hurmatli foydalanuvchi!**\n\nSizga qanday ma'lumot qidirib berishim mumkin?")
         st.session_state.greeted = True
 
     if savol := st.chat_input("Savolingizni kiriting..."):
@@ -82,12 +85,11 @@ if menu == "🤖 AI bilan muloqot":
         
         with st.chat_message("assistant"):
             res_df = pd.DataFrame()
-            
             salomlar = ["salom", "assalom", "qalay", "yaxshimi"]
             is_greeting = any(s in savol.lower() for s in salomlar)
 
             if is_greeting:
-                st.markdown(f"Vaalaykum assalom! **Hurmatli foydalanuvchi**, sizga xizmat qilishdan mamnunman.\n\n*Hikmat:* {random.choice(HIKMATLAR)}")
+                st.markdown("Vaalaykum assalom! **Hurmatli foydalanuvchi**, sizga xizmat qilishdan mamnunman.")
             elif sheets_baza:
                 is_teacher_req = any(x in savol.lower() for x in ["o'qituvchi", "pedagog", "ro'yxat", "xodim"])
                 
@@ -103,7 +105,7 @@ if menu == "🤖 AI bilan muloqot":
                     st.success(f"Natija topildi ({len(res_df)} ta qator).")
                     st.dataframe(res_df, use_container_width=True)
                     
-                    # EXCEL YUKLASH TUGMASI
+                    # Excel yuklash tugmasi
                     output = io.BytesIO()
                     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                         res_df.to_excel(writer, index=False)
@@ -111,7 +113,7 @@ if menu == "🤖 AI bilan muloqot":
                 else:
                     st.warning("Hurmatli foydalanuvchi, bazada bunday ma'lumot topilmadi.")
 
-# --- 6. MONITORING (TELEGRAM QISMI O'ZGARMADI) ---
+# --- 6. MONITORING (TELEGRAM QISMI) ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi (Telegram)")
     if "m_auth" not in st.session_state: st.session_state.m_auth = False
@@ -133,7 +135,6 @@ elif menu == "📊 Jurnal Monitoringi":
                 df_j = pd.read_html(j_fayl, header=0)[0]
             st.dataframe(df_j.head())
             if st.button("📢 Telegramga yuborish"):
-                # Telegramga yuborish kodi o'z joyida
                 requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
                              json={"chat_id": GURUH_ID, "text": f"📊 {MAKTAB_NOMI}\nMonitoring hisoboti yuborildi.", "parse_mode": "HTML"})
                 st.success("✅ Telegramga yuborildi!")
