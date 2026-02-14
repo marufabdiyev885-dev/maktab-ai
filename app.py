@@ -7,7 +7,7 @@ import random
 
 # --- 1. ASOSIY SOZLAMALAR ---
 MAKTAB_NOMI = "1-sonli umumta'lim maktabi"
-DIREKTOR_FIO = "Mahmudov Matyoqub Narzulloyevich"
+DIREKTOR_FIO = "Mahmudov Matyoqub Narzulloyevich" # Direktor ism-familiyasi
 GROQ_API_KEY = "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"
 TO_GRI_PAROL = "informatika2024"
 MONITORING_KODI = "admin777" 
@@ -45,10 +45,12 @@ def yuklash():
 
 sheets_baza = yuklash()
 
-# --- 3. SIDEBAR ---
+# --- 3. SIDEBAR (DIREKTOR QAYTIB KELDI) ---
 with st.sidebar:
     st.title(f"🏛 {MAKTAB_NOMI}")
-    menu = st.radio("Bo'lim:", ["🤖 AI Yordamchi", "📊 Jurnal Monitoringi"])
+    st.write(f"👤 **Maktab direktori:** \n{DIREKTOR_FIO}") # Direktor nomi ekranda
+    st.divider()
+    menu = st.radio("Bo'limni tanlang:", ["🤖 AI bilan muloqot", "📊 Jurnal Monitoringi"])
     st.divider()
     st.info(f"✨ **Kun hikmati:**\n*{random.choice(HIKMATLAR)}*")
 
@@ -63,9 +65,9 @@ if "authenticated" not in st.session_state:
         else: st.error("Parol noto'g'ri!")
     st.stop()
 
-# --- 5. AI YORDAMCHI (FAQAT JADVAL VA HIKMATLAR) ---
-if menu == "🤖 AI Yordamchi":
-    st.title("🤖 Aqlli Qidiruv Tizimi")
+# --- 5. MAKTAB SUN'IY INTELLEKTI BILAN MULOQOT ---
+if menu == "🤖 AI bilan muloqot":
+    st.title("🤖 Maktab sun'iy intellekti bilan muloqot")
     
     if "greeted" not in st.session_state:
         st.session_state.greeted = False
@@ -75,7 +77,7 @@ if menu == "🤖 AI Yordamchi":
             st.markdown(f"**Assalomu alaykum, hurmatli foydalanuvchi!**\n\n{random.choice(HIKMATLAR)}\n\nSizga qanday ma'lumot qidirib berishim mumkin?")
         st.session_state.greeted = True
 
-    if savol := st.chat_input("Qidiruv uchun matn kiring..."):
+    if savol := st.chat_input("Savolingizni kiriting..."):
         with st.chat_message("user"): st.markdown(savol)
         
         with st.chat_message("assistant"):
@@ -99,20 +101,19 @@ if menu == "🤖 AI Yordamchi":
 
                 if not res_df.empty:
                     st.success(f"Natija topildi ({len(res_df)} ta qator).")
-                    # FAQAT JADVAL
                     st.dataframe(res_df, use_container_width=True)
                     
                     # EXCEL YUKLASH TUGMASI
                     output = io.BytesIO()
                     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                         res_df.to_excel(writer, index=False)
-                    st.download_button("📥 Natijani Excelda yuklab olish", output.getvalue(), "qidiruv_natijasi.xlsx")
+                    st.download_button("📥 Natijani Excelda yuklab olish", output.getvalue(), "natija.xlsx")
                 else:
                     st.warning("Hurmatli foydalanuvchi, bazada bunday ma'lumot topilmadi.")
 
-# --- 6. MONITORING (TELEGRAM ISHLAYDI) ---
+# --- 6. MONITORING (TELEGRAM QISMI O'ZGARMADI) ---
 elif menu == "📊 Jurnal Monitoringi":
-    st.title("📊 Telegram Monitoring")
+    st.title("📊 Jurnal Monitoringi (Telegram)")
     if "m_auth" not in st.session_state: st.session_state.m_auth = False
     if not st.session_state.m_auth:
         m_pass = st.text_input("Monitoring kodi:", type="password")
@@ -123,7 +124,7 @@ elif menu == "📊 Jurnal Monitoringi":
             else: st.error("Xato!")
         st.stop()
 
-    j_fayl = st.file_uploader("Fayl yuklang", type=['xlsx', 'xls'])
+    j_fayl = st.file_uploader("Faylni tanlang", type=['xlsx', 'xls'])
     if j_fayl:
         try:
             try: df_j = pd.read_excel(j_fayl, header=[0, 1])
@@ -132,7 +133,8 @@ elif menu == "📊 Jurnal Monitoringi":
                 df_j = pd.read_html(j_fayl, header=0)[0]
             st.dataframe(df_j.head())
             if st.button("📢 Telegramga yuborish"):
+                # Telegramga yuborish kodi o'z joyida
                 requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
-                             json={"chat_id": GURUH_ID, "text": f"📊 {MAKTAB_NOMI}\nMonitoring yakunlandi.", "parse_mode": "HTML"})
+                             json={"chat_id": GURUH_ID, "text": f"📊 {MAKTAB_NOMI}\nMonitoring hisoboti yuborildi.", "parse_mode": "HTML"})
                 st.success("✅ Telegramga yuborildi!")
         except Exception as e: st.error(f"Xato: {e}")
