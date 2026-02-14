@@ -12,9 +12,9 @@ MAKTAB_NOMI = "1-sonli umumta'lim maktabi"
 DIREKTOR_FIO = "Mahmudov Matyoqub Narzulloyevich"
 GROQ_API_KEY = "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"
 TO_GRI_PAROL = "informatika2024"
-MONITORING_KODI = "admin777" # Jurnal bo'limi uchun kod
+MONITORING_KODI = "admin777" 
 BOT_TOKEN = "8524007504:AAFiMXSbXhe2M-84WlNM16wNpzhNolfQIf8"
-GURUH_ID = "-5045481739" # Siz topgan probniy guruh ID
+GURUH_ID = "-5045481739" 
 
 st.set_page_config(page_title=MAKTAB_NOMI, layout="wide")
 
@@ -31,18 +31,18 @@ with st.sidebar:
     st.warning(f"🌟 **Kun hikmati:**\n\n*{random.choice(hikmatlar)}*")
     st.info(f"**Direktor:**\n{DIREKTOR_FIO}")
 
-# --- 3. UMUMIY TIZIMGA KIRISH ---
+# --- 3. XAVFSIZLIK ---
 if "authenticated" not in st.session_state:
     st.title(f"🏫 {MAKTAB_NOMI} | Tizim")
-    parol = st.text_input("Asosiy parolni kiriting:", type="password")
+    parol = st.text_input("Parolni kiriting:", type="password")
     if st.button("Kirish"):
         if parol == TO_GRI_PAROL:
             st.session_state.authenticated = True
             st.rerun()
-        else: st.error("❌ Xato!")
+        else: st.error("❌ Parol xato!")
     st.stop()
 
-# --- 4. BAZANI YUKLASH FUNKSIYASI ---
+# --- 4. BAZANI YUKLASH ---
 @st.cache_data
 def yuklash():
     files = [f for f in os.listdir('.') if f.lower().endswith(('.xlsx', '.csv', '.docx')) and 'app.py' not in f]
@@ -68,7 +68,7 @@ df_baza, maktab_doc_content = yuklash()
 if menu == "🤖 AI Yordamchi":
     st.title(f"🤖 {MAKTAB_NOMI} AI Yordamchisi")
     if "messages" not in st.session_state:
-        st.session_state.messages = [{"role": "assistant", "content": "Assalomu alaykum, Ma'rufjon aka! Maktabimiz bazasi bo'yicha xizmatingizdaman."}]
+        st.session_state.messages = [{"role": "assistant", "content": "Assalomu alaykum! Hurmatli foydalanuvchi, maktab bazasi bo'yicha qanday yordam bera olaman?"}]
 
     for m in st.session_state.messages:
         with st.chat_message(m["role"]): st.markdown(m["content"])
@@ -80,6 +80,7 @@ if menu == "🤖 AI Yordamchi":
         with st.chat_message("assistant"):
             found_data = ""
             soni = 0
+            
             if df_baza is not None:
                 keywords = [s.lower() for s in savol.split() if len(s) > 2]
                 if keywords:
@@ -87,55 +88,55 @@ if menu == "🤖 AI Yordamchi":
                     if not res.empty:
                         st.dataframe(res, use_container_width=True)
                         soni = len(res)
-                        found_data = res.head(20).to_string(index=False)
+                        found_data = res.head(40).to_string(index=False)
 
-            system_prompt = f"""Sen {MAKTAB_NOMI} maktabining farosatli AI yordamchisisan. 
-            Suhbatdoshing Ma'rufjon aka (Ustoz). Doimo ehtirom bilan gapir. 
-            Ma'lumot topilsa: {soni} ta topildi deb ayt."""
+            # --- MUROJAAT QISMI O'ZGARTIRILDI ---
+            system_prompt = f"""Sen {MAKTAB_NOMI} maktabining juda odobli va rasmiy yordamchisisan. 
+            Suhbatdoshingga har doim 'Hurmatli foydalanuvchi' deb murojaat qil. 
+            Javoblaring aniq, metodik va juda hurmat bilan bo'lsin.
+            Agar ma'lumot topsang (soni={soni}), bu haqda ehtirom bilan xabar ber."""
             
             payload = {
                 "model": "llama-3.3-70b-versatile",
-                "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": f"Baza: {found_data}. Savol: {savol}"}]
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": f"Baza ma'lumoti: {found_data}. Savol: {savol}"}
+                ]
             }
             try:
                 r = requests.post("https://api.groq.com/openai/v1/chat/completions", json=payload, headers={"Authorization": f"Bearer {GROQ_API_KEY}"})
                 ai_text = r.json()['choices'][0]['message']['content']
-            except: ai_text = "Xizmatingizga tayyorman, Ustoz!"
+            except: ai_text = "Sizga yordam berishdan xursandman, hurmatli foydalanuvchi!"
             
             st.markdown(ai_text)
             st.session_state.messages.append({"role": "assistant", "content": ai_text})
 
-# B) JURNAL MONITORINGI (MAXSUS KOD BILAN)
+# B) JURNAL MONITORINGI
 elif menu == "📊 Jurnal Monitoringi":
-    st.title("📊 Jurnal Monitoringi Tizimi")
+    st.title("📊 Jurnal Monitoringi")
     
-    if "monitoring_auth" not in st.session_state:
-        st.session_state.monitoring_auth = False
+    if "m_auth" not in st.session_state: st.session_state.m_auth = False
 
-    if not st.session_state.monitoring_auth:
+    if not st.session_state.m_auth:
         m_pass = st.text_input("Monitoring bo'limi kodini kiriting:", type="password")
         if st.button("Tasdiqlash"):
             if m_pass == MONITORING_KODI:
-                st.session_state.monitoring_auth = True
+                st.session_state.m_auth = True
                 st.rerun()
-            else: st.error("❌ Kod xato!")
+            else: st.error("❌ Kod noto'g'ri!")
         st.stop()
 
-    # Agar kod to'g'ri bo'lsa:
-    st.success("✅ Kirish tasdiqlandi. Jurnal faylini yuklashingiz mumkin.")
-    j_fayl = st.file_uploader("Excelni yuklang", type=['xlsx'])
+    j_fayl = st.file_uploader("Excel faylni yuklang", type=['xlsx'])
     if j_fayl:
         df_j = pd.read_excel(j_fayl)
         st.dataframe(df_j.head())
-        col_oqit = st.selectbox("O'qituvchi ustuni:", df_j.columns)
-        col_stat = st.selectbox("Holat ustuni:", df_j.columns)
+        c_oqit = st.selectbox("O'qituvchi ustuni:", df_j.columns)
+        c_stat = st.selectbox("Holat ustuni:", df_j.columns)
         
-        xatolar = df_j[df_j[col_stat].astype(str).str.contains("To'ldirilmagan", na=False)]
+        xatolar = df_j[df_j[c_stat].astype(str).str.contains("To'ldirilmagan", na=False)]
         
-        if st.button("📢 Guruhga ogohlantirish yuborish"):
-            text = f"<b>🔔 Jurnal monitoringi ({MAKTAB_NOMI})</b>\n\nKamchiliklar aniqlandi:\n"
-            for name in xatolar[col_oqit].unique()[:20]:
-                text += f"❌ {name}\n"
-            text += "\n<i>Iltimos, darslarni o'z vaqtida to'ldiring!</i>"
+        if st.button("📢 Telegramga yuborish"):
+            text = f"<b>🔔 Jurnal monitoringi</b>\n\nKamchiliklar aniqlandi:\n"
+            for n in xatolar[c_oqit].unique()[:20]: text += f"❌ {n}\n"
             requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={"chat_id": GURUH_ID, "text": text, "parse_mode": "HTML"})
-            st.success("Xabar guruhga yuborildi!")
+            st.success("Hisobot guruhga yuborildi!")
