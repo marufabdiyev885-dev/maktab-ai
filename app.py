@@ -26,12 +26,11 @@ def yuklash():
     all_sheets = {}
     for f in files:
         try:
-            # Excelning hamma listlarini o'qiymiz
+            # Excelning barcha varaqlarini o'qiymiz
             sheets = pd.read_excel(f, sheet_name=None, dtype=str)
             for name, df in sheets.items():
                 if not df.empty:
-                    # Ustun nomlarini tozalaymiz
-                    df.columns = [str(c).strip().lower() for c in df.columns]
+                    # Qidiruv oson bo'lishi uchun ustun nomlarini saqlab qolamiz, lekin tahlil uchun tayyorlaymiz
                     all_sheets[name] = df
         except: continue
     return all_sheets
@@ -58,7 +57,7 @@ if "authenticated" not in st.session_state:
         else: st.error("Parol noto'g'ri!")
     st.stop()
 
-# --- 5. AI BILAN MULOQOT (QIDIRUV TUZATILDI) ---
+# --- 5. AI BILAN MULOQOT (QIDIRUV TIKLANDI) ---
 if menu == "🤖 AI bilan muloqot":
     st.title("🤖 Maktab sun'iy intellekti bilan muloqot")
     
@@ -70,7 +69,7 @@ if menu == "🤖 AI bilan muloqot":
             st.markdown(f"**Assalomu alaykum, hurmatli foydalanuvchi!**\n\nSizga qanday ma'lumot qidirib berishim mumkin?")
         st.session_state.greeted = True
 
-    if savol := st.chat_input("Ism yoki kalit so'z yozing..."):
+    if savol := st.chat_input("Ism yoki kalit so'z kiriting..."):
         with st.chat_message("user"): st.markdown(savol)
         
         with st.chat_message("assistant"):
@@ -82,10 +81,14 @@ if menu == "🤖 AI bilan muloqot":
             if any(s in q for s in salomlar):
                 st.markdown("Vaalaykum assalom! **Hurmatli foydalanuvchi**, sizga xizmat qilishdan mamnunman.")
             elif sheets_baza:
-                # Barcha listlardagi ma'lumotni bitta jadvalga yig'amiz
-                combined_df = pd.concat(sheets_baza.values(), ignore_index=True, sort=False).fillna("")
+                # Barcha listlarni bitta katta jadvalga birlashtirish
+                all_data_list = []
+                for sheet_df in sheets_baza.values():
+                    all_data_list.append(sheet_df)
                 
-                # Qidiruv: Har bir qatorda shu so'z bormi yoki yo'qligini tekshirish
+                combined_df = pd.concat(all_data_list, ignore_index=True, sort=False).fillna("")
+                
+                # Qidiruv mantiqi: Har bir qatorda shu so'z borligini tekshirish
                 mask = combined_df.apply(lambda row: any(q in str(v).lower() for v in row), axis=1)
                 res_df = combined_df[mask]
 
