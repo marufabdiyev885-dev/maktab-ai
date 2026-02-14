@@ -41,7 +41,8 @@ if "authenticated" not in st.session_state:
 # --- 4. BAZANI YUKLASH ---
 @st.cache_data
 def yuklash():
-    files = [f for f in os.listdir('.') if f.lower().endswith(('.xlsx', '.csv', '.docx')) and 'app.py' not in f]
+    # .xls formatini ham qo'shdik
+    files = [f for f in os.listdir('.') if f.lower().endswith(('.xlsx', '.xls', '.csv', '.docx')) and 'app.py' not in f]
     all_data = []
     word_text = ""
     for f in files:
@@ -49,8 +50,13 @@ def yuklash():
             if f.endswith('.docx'):
                 doc = docx.Document(f)
                 word_text += "\n".join([para.text for para in doc.paragraphs])
+            elif f.endswith('.xls') or f.endswith('.xlsx'):
+                # engine='xlrd' eski xls fayllar uchun kerak bo'ladi
+                df_s = pd.read_excel(f, dtype=str)
+                df_s.columns = [str(c).strip().lower() for c in df_s.columns]
+                all_data.append(df_s)
             else:
-                df_s = pd.read_excel(f, dtype=str) if f.endswith('.xlsx') else pd.read_csv(f, dtype=str)
+                df_s = pd.read_csv(f, dtype=str)
                 df_s.columns = [str(c).strip().lower() for c in df_s.columns]
                 all_data.append(df_s)
         except: continue
@@ -75,26 +81,18 @@ if menu == "🤖 AI Yordamchi":
         
         with st.chat_message("assistant"):
             found_data = ""
-            soni = 0
             if df_baza is not None:
                 keywords = [s.lower() for s in savol.split() if len(s) > 2]
                 if keywords:
                     res = df_baza[df_baza.apply(lambda row: any(k in str(v).lower() for k in keywords for v in row), axis=1)]
                     if not res.empty:
                         st.dataframe(res, use_container_width=True)
-                        soni = len(res)
                         found_data = res.head(40).to_string(index=False)
 
-            system_prompt = f"""Sen {MAKTAB_NOMI} maktabining juda odobli va rasmiy yordamchisisan. 
-            Suhbatdoshingga har doim 'Hurmatli foydalanuvchi' deb murojaat qil. 
-            Javoblaring aniq, metodik va juda hurmat bilan bo'lsin."""
-            
+            system_prompt = f"Sen {MAKTAB_NOMI} maktabining rasmiy yordamchisisan. Suhbatdoshingga 'Hurmatli foydalanuvchi' deb murojaat qil."
             payload = {
                 "model": "llama-3.3-70b-versatile",
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": f"Baza ma'lumoti: {found_data}. Savol: {savol}"}
-                ]
+                "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": f"Baza: {found_data}. Savol: {savol}"}]
             }
             try:
                 r = requests.post("https://api.groq.com/openai/v1/chat/completions", json=payload, headers={"Authorization": f"Bearer {GROQ_API_KEY}"})
@@ -103,7 +101,7 @@ if menu == "🤖 AI Yordamchi":
             st.markdown(ai_text)
             st.session_state.messages.append({"role": "assistant", "content": ai_text})
 
-# B) JURNAL MONITORINGI
+# B) JURNAL MONITORINGI ( XLS VA XLSX UCHUN )
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
     
@@ -117,8 +115,10 @@ elif menu == "📊 Jurnal Monitoringi":
             else: st.error("❌ Kod noto'g'ri!")
         st.stop()
 
-    j_fayl = st.file_uploader("Excelni yuklang", type=['xlsx'])
+    # Fayl tanlashda ham .xls qo'shildi
+    j_fayl = st.file_uploader("Excelni yuklang (.xlsx yoki .xls)", type=['xlsx', 'xls'])
     if j_fayl:
+        # Har qanday Excel formatini o'qish
         df_j = pd.read_excel(j_fayl)
         st.dataframe(df_j.head())
         c_oqit = st.selectbox("O'qituvchi ustuni:", df_j.columns)
@@ -143,7 +143,6 @@ elif menu == "📊 Jurnal Monitoringi":
                 for _, row in xatolar.iterrows():
                     text += f"❌ {row[c_oqit]} -> {row[c_baho]}\n"
             else:
-                # HAMMA NARSZA TO'LIQ BO'LGANDA
                 text = f"<b>✅ JURNAL MONITORINGI</b>\n<i>{MAKTAB_NOMI}</i>\n\n✨ <b>Jurnallar 100 foiz baholangan.</b> Hamma darslarga baholar to'liq qo'yilgan!"
 
             requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={"chat_id": GURUH_ID, "text": text, "parse_mode": "HTML"})
