@@ -2,9 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import requests
-import re
 import docx
-import random
 
 # --- 1. ASOSIY SOZLAMALAR ---
 MAKTAB_NOMI = "1-sonli umumiy o'rta ta'lim maktabi"
@@ -15,135 +13,121 @@ MONITORING_KODI = "admin777"
 BOT_TOKEN = "8524007504:AAFiMXSbXhe2M-84WlNM16wNpzhNolfQIf8"
 GURUH_ID = "-1003047388159"
 
-st.set_page_config(page_title=MAKTAB_NOMI, layout="wide")
+st.set_page_config(page_title=MAKTAB_NOMI)
 
-# --- 2. UMUMIY DIZAYN (CSS) ---
-def apply_custom_design():
-    st.markdown(
-        """
-        <style>
-        /* Sidebar dizayni */
-        [data-testid="stSidebar"] {
-            background-color: #f8f9fa;
-            border-right: 1px solid #e0e0e0;
-        }
-        
-        /* Tugmalarni chiroyli qilish */
-        .stButton>button {
-            border-radius: 8px;
-            background-color: #007bff;
-            color: white;
-            font-weight: bold;
-            transition: 0.3s;
-        }
-        .stButton>button:hover {
-            background-color: #0056b3;
-            border-color: #0056b3;
-        }
+# --- 2. BAZANI YUKLASH FUNKSIYASI ---
+@st.cache_data
+def yuklash():
+    # Papkadagi Excel va Word fayllarni qidirish
+    files = [f for f in os.listdir('.') if f.lower().endswith(('.xlsx', '.xls', '.docx')) and f != 'app.py']
+    all_data = []
+    word_text = ""
+    
+    for f in files:
+        try:
+            if f.endswith('.docx'):
+                doc = docx.Document(f)
+                word_text += "\n".join([para.text for para in doc.paragraphs])
+            else:
+                try:
+                    df_s = pd.read_excel(f, dtype=str)
+                except:
+                    df_s = pd.read_html(f)[0]
+                all_data.append(df_s)
+        except Exception as e:
+            print(f"Faylni o'qishda xato ({f}): {e}")
+            
+    combined_df = pd.concat(all_data, ignore_index=True) if all_data else None
+    return combined_df, word_text
 
-        /* Sahifa sarlavhalari */
-        .main-header {
-            color: #2c3e50;
-            font-size: 32px;
-            font-weight: bold;
-            border-left: 5px solid #007bff;
-            padding-left: 15px;
-            margin-bottom: 25px;
-        }
-        
-        /* Chat xabarlari uchun maxsus qoliplar */
-        .stChatMessage {
-            border-radius: 15px;
-            padding: 10px;
-            margin-bottom: 10px;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
-def set_login_bg(url):
-    st.markdown(
-        f"""
-        <style>
-        .stApp {{
-            background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url("{url}");
-            background-size: cover; background-position: center; background-attachment: fixed;
-        }}
-        header {{visibility: hidden;}}
-        .main .block-container {{padding-top: 0rem;}}
-        .white-text {{color: white; text-align: center; text-shadow: 2px 2px 10px black; width: 100%;}}
-        .school-title {{font-size: 42px; font-weight: bold; padding-top: 80px;}}
-        .login-title {{font-size: 28px; margin-top: 20px;}}
-        div[data-baseweb="input"] {{background-color: rgba(255, 255, 255, 0.9) !important; border-radius: 12px !important;}}
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
-# --- 3. XAVFSIZLIK (LOGIN) ---
+# --- 3. LOGIN TIZIMI ---
 if "authenticated" not in st.session_state:
-    set_login_bg("https://images.unsplash.com/photo-1509062522246-3755977927d7?q=80&w=1600")
-    st.markdown(f'<div class="white-text school-title">🏛 {MAKTAB_NOMI}</div>', unsafe_allow_html=True)
-    st.markdown('<div class="white-text login-title">Tizimga kirish</div>', unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([1, 1, 1])
-    with col2:
-        parol = st.text_input("", placeholder="Parolni kiriting...", type="password", label_visibility="collapsed")
-        if st.button("Kirish 🚀", use_container_width=True):
-            if parol == TO_GRI_PAROL:
-                st.session_state.authenticated = True
-                st.rerun()
-            else: st.error("❌ Xato!")
+    st.title(MAKTAB_NOMI)
+    st.subheader("Tizimga kirish")
+    parol = st.text_input("Parolni kiriting:", type="password")
+    
+    if st.button("Kirish"):
+        if parol == TO_GRI_PAROL:
+            st.session_state.authenticated = True
+            st.rerun()
+        else:
+            st.error("Xato parol kiritildi!")
     st.stop()
 
-# --- 4. ASOSIY TIZIM ---
-apply_custom_design()
+# --- 4. ASOSIY PANEL ---
+df_baza, word_baza = yuklash()
 
 with st.sidebar:
-    st.markdown(f"## 🏛 Maktab Paneli")
-    st.info(f"👤 **Direktor:**\n{DIREKTOR_FIO}")
+    st.title(MAKTAB_NOMI)
+    st.write(f"Direktor: {DIREKTOR_FIO}")
     st.divider()
-    menu = st.radio("Bo'limlar:", ["🤖 AI Assistant", "📊 Monitoring"], index=0)
-    if st.button("Chiqish 🚪"):
+    menu = st.radio("Bo'limni tanlang:", ["🤖 AI Yordamchi", "📊 Jurnal Monitoringi"])
+    
+    if st.button("Chiqish"):
         del st.session_state.authenticated
         st.rerun()
 
 # --- 5. SAHIFALAR ---
 
-if menu == "🤖 AI Assistant":
-    st.markdown('<div class="main-header">🤖 Sun\'iy Intellekt Yordamchisi</div>', unsafe_allow_html=True)
-    st.caption("Maktab bazasi asosida savollarga javob beradi")
+# 1-Sahifa: AI Yordamchi
+if menu == "🤖 AI Yordamchi":
+    st.header("🤖 AI Yordamchi")
     
-    # Chat dizayni
     if "messages" not in st.session_state:
-        st.session_state.messages = [{"role": "assistant", "content": "Assalomu alaykum! Maktab hujjatlari bo'yicha nima yordam bera olaman?"}]
+        st.session_state.messages = [{"role": "assistant", "content": "Assalomu alaykum! Maktab bazasi bo'yicha savol bera olasiz."}]
     
     for m in st.session_state.messages:
         with st.chat_message(m["role"]):
             st.markdown(m["content"])
-
-    if savol := st.chat_input("Savolingizni bu yerga yozing..."):
+    
+    if savol := st.chat_input("Savolingizni yozing..."):
         st.session_state.messages.append({"role": "user", "content": savol})
-        with st.chat_message("user"): st.markdown(savol)
+        with st.chat_message("user"):
+            st.markdown(savol)
+        
         with st.chat_message("assistant"):
-            st.spinner("O'ylayapman...")
-            # AI logic (bu yerga GROQ payload-ni qo'yasiz)
-            ai_text = "Hozircha men test rejimida ishlayapman." 
-            st.markdown(ai_text)
-            st.session_state.messages.append({"role": "assistant", "content": ai_text})
+            # Bazadan ma'lumot tayyorlash
+            found_data = df_baza.head(20).to_string() if df_baza is not None else "Baza bo'sh"
+            
+            payload = {
+                "model": "llama-3.3-70b-versatile",
+                "messages": [
+                    {"role": "system", "content": f"Sen {MAKTAB_NOMI} maktabining AI yordamchisisan. Quyidagi baza ma'lumotlaridan foydalanib javob ber: {found_data} {word_baza[:1000]}"},
+                    {"role": "user", "content": savol}
+                ]
+            }
+            
+            headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
+            
+            try:
+                r = requests.post("https://api.groq.com/openai/v1/chat/completions", json=payload, headers=headers)
+                ai_response = r.json()['choices'][0]['message']['content']
+            except:
+                ai_response = "Xatolik: API ga ulanib bo'lmadi yoki kalit xato."
+                
+            st.markdown(ai_response)
+            st.session_state.messages.append({"role": "assistant", "content": ai_response})
 
-elif menu == "📊 Monitoring":
-    st.markdown('<div class="main-header">📊 Jurnal Monitoringi</div>', unsafe_allow_html=True)
+# 2-Sahifa: Monitoring
+elif menu == "📊 Jurnal Monitoringi":
+    st.header("📊 Jurnal Monitoringi")
     
-    tab1, tab2 = st.tabs(["📁 Fayl Yuklash", "📈 Hisobot"])
+    if "m_auth" not in st.session_state:
+        st.session_state.m_auth = False
     
-    with tab1:
-        st.markdown("#### eMaktab faylini tanlang")
-        uploaded_file = st.file_uploader("", type=["xlsx", "xls"])
-        if uploaded_file:
-            st.success("Fayl qabul qilindi!")
-            df = pd.read_excel(uploaded_file)
-            st.dataframe(df.style.highlight_max(axis=0), use_container_width=True)
-    
-    with tab2:
-        st.warning("Hisobot shakllanishi uchun fayl yuklang.")
+    if not st.session_state.m_auth:
+        m_pass = st.text_input("Monitoring kodini kiriting:", type="password")
+        if st.button("Tasdiqlash"):
+            if m_pass == MONITORING_KODI:
+                st.session_state.m_auth = True
+                st.rerun()
+            else:
+                st.error("Maxsus kod xato!")
+        st.stop()
+        
+    st.info("eMaktabdan yuklangan Excel faylni tahlil qilish bo'limi.")
+    fayl = st.file_uploader("Faylni tanlang", type=['xlsx', 'xls'])
+    if fayl:
+        st.success("Fayl yuklandi!")
+        df_j = pd.read_excel(fayl)
+        st.dataframe(df_j.head())
