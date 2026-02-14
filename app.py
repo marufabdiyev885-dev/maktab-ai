@@ -161,3 +161,4 @@ elif menu == "📊 Jurnal Monitoringi":
         except Exception as e:
             st.error(f"Fayl xatosi: {e}")
 
+
