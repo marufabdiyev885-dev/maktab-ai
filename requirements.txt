@@ -4,5 +4,6 @@ xlsxwriter
 python-docx
 requests
 openpyxl
-requests
 xlrd
+lxml
+html5lib
