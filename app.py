@@ -17,61 +17,58 @@ GURUH_ID = "-1003047388159"
 
 st.set_page_config(page_title=MAKTAB_NOMI, layout="wide")
 
-# --- 2. DIZAYN (CSS) ---
+# --- 2. DIZAYN (FON VA MATN) ---
 def set_bg(url):
     st.markdown(
         f"""
         <style>
         .stApp {{
-            background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url("{url}");
+            background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url("{url}");
             background-size: cover;
             background-position: center;
             background-attachment: fixed;
         }}
         
-        /* Maktab nomi */
-        .school-title {{
+        /* Oq rangdagi sarlavhalar uchun umumiy uslub */
+        .white-text {{
             color: white;
-            font-size: 40px;
-            font-weight: bold;
             text-align: center;
             text-shadow: 2px 2px 10px rgba(0,0,0,0.9);
-            margin-top: 50px;
-            margin-bottom: 10px;
-        }}
-
-        /* OQ BLOK (Login Card) */
-        .login-box {{
-            background-color: rgba(255, 255, 255, 0.95);
-            padding: 25px 35px;
-            border-radius: 20px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            max-width: 400px;
-            margin: auto;
-            text-align: center;
-            min-height: 250px; /* Blok balandligini saqlash uchun */
-        }}
-
-        /* "Tizimga kirish" sarlavhasini oq blok ustiga chiqarish */
-        .login-text {{
-            color: #1E1E1E;
-            font-size: 26px;
-            font-weight: bold;
-            margin-top: -10px; /* Blok ichida yuqoriga surish */
-            margin-bottom: 20px;
-            display: block;
+            font-family: sans-serif;
+            width: 100%;
         }}
         
-        /* Input ichidagi ortiqcha joylarni olish */
+        .school-title {{
+            font-size: 45px;
+            font-weight: bold;
+            margin-top: 50px;
+            margin-bottom: 20px;
+        }}
+
+        .login-title {{
+            font-size: 30px;
+            font-weight: bold;
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }}
+
+        /* Input va tugmani markazlashtirish va chiroyli qilish */
+        .stTextInput, .stButton {{
+            max-width: 400px;
+            margin: auto;
+        }}
+        
+        /* Input ichini biroz shaffof va chiroyli qilish */
         div[data-baseweb="input"] {{
-            margin-top: -10px !important;
+            background-color: rgba(255, 255, 255, 0.9) !important;
+            border-radius: 10px !important;
         }}
         </style>
         """,
         unsafe_allow_html=True
     )
 
-# --- 3. LOGIN EKRANI ---
+# --- 3. XAVFSIZLIK (LOGIN EKRANI) ---
 if "authenticated" not in st.session_state:
     login_rasmlar = [
         "https://images.unsplash.com/photo-1509062522246-3755977927d7?q=80&w=1600",
@@ -83,21 +80,21 @@ if "authenticated" not in st.session_state:
     
     set_bg(st.session_state.bg_url)
 
-    # 1. Maktab nomi (Tepada)
-    st.markdown(f'<div class="school-title">🏛 {MAKTAB_NOMI}</div>', unsafe_allow_html=True)
+    # 1. Maktab nomi (Oq rangda)
+    st.markdown(f'<div class="white-text school-title">🏛 {MAKTAB_NOMI}</div>', unsafe_allow_html=True)
     
-    col1, col2, col3 = st.columns([1, 1.3, 1])
+    # Bo'sh joy tashlash
+    st.write("<br><br>", unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
-        # --- OQ BLOK BOSHLANISHI ---
-        st.markdown('<div class="login-box">', unsafe_allow_html=True)
+        # 2. Tizimga kirish so'zi (Oq rangda, fonsiz)
+        st.markdown('<div class="white-text login-title">Tizimga kirish</div>', unsafe_allow_html=True)
         
-        # 2. Tizimga kirish (Blokning ichida, eng tepada)
-        st.markdown('<span class="login-text">Tizimga kirish</span>', unsafe_allow_html=True)
-        
-        # 3. Parol kiritish
+        # 3. Parol kiritish (Ichida placeholder bilan)
         parol = st.text_input("", placeholder="Parolni kiriting...", type="password", key="login_pass", label_visibility="collapsed")
         
-        st.write("<br>", unsafe_allow_html=True)
+        st.write("") # Kichik bo'shliq
         
         # 4. Tugma
         if st.button("Kirish 🚀", use_container_width=True):
@@ -106,18 +103,9 @@ if "authenticated" not in st.session_state:
                 st.rerun()
             else:
                 st.error("❌ Parol noto'g'ri!")
-        
-        st.markdown('</div>', unsafe_allow_html=True) 
-        # --- OQ BLOK TUGASHI ---
     st.stop()
 
-# --- 4. TIZIMGA KIRGANDAN KEYINGI QISM ---
+# --- QOLGAN FUNKSIYALAR (O'zgarishsiz qoladi) ---
 st.markdown("<style>.stApp {background: none !important;}</style>", unsafe_allow_html=True)
-
-with st.sidebar:
-    st.markdown(f"### 🏛 {MAKTAB_NOMI}")
-    st.divider()
-    menu = st.radio("Bo'limni tanlang:", ["🤖 AI Yordamchi", "📊 Jurnal Monitoringi"])
-
-st.title(f"Xush kelibsiz! {menu}")
-# (Qolgan AI va Monitoring kodlarini shu yerga davom ettirasiz...)
+st.success("Tizimga xush kelibsiz!")
+# ... (AI va Monitoring kodlari shu yerdan davom etadi)
