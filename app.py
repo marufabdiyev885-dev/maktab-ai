@@ -15,7 +15,7 @@ GURUH_ID = "-5045481739"
 
 st.set_page_config(page_title=MAKTAB_NOMI, layout="wide")
 
-# --- 2. BAZANI YUKLASH (HAMMA VARAQLARNI O'QISH) ---
+# --- 2. BAZANI YUKLASH ---
 @st.cache_data
 def yuklash():
     files = [f for f in os.listdir('.') if f.lower().endswith(('.xlsx', '.xls', '.csv')) and 'app.py' not in f]
@@ -48,56 +48,47 @@ if "authenticated" not in st.session_state:
         else: st.error("Xato!")
     st.stop()
 
-# --- 5. AI YORDAMCHI (RO'YXATNI ANIQU CHIQARISH) ---
+# --- 5. AI YORDAMCHI (FAQAT JADVAL VA EXCEL) ---
 if menu == "🤖 AI Yordamchi":
-    st.title("🤖 Maktab AI")
+    st.title("🤖 Maktab AI Qidiruv Tizimi")
     
-    if savol := st.chat_input("Savol yozing (masalan: O'qituvchilar ro'yxati)"):
+    if savol := st.chat_input("Kimni yoki qaysi fanni qidiramiz?"):
         with st.chat_message("user"): st.markdown(savol)
         
         with st.chat_message("assistant"):
-            found_context = ""
-            
-            # Agar o'qituvchi/pedagog so'ralsa, Лист2 ma'lumotlarini to'liq beramiz
-            is_teacher_req = any(x in savol.lower() for x in ["o'qituvchi", "pedagog", "ro'yxat", "list"])
+            res_df = pd.DataFrame()
+            is_teacher_req = any(x in savol.lower() for x in ["o'qituvchi", "pedagog", "ro'yxat", "list", "xodim"])
             
             if sheets_baza:
                 if is_teacher_req and "Лист2" in sheets_baza:
-                    res = sheets_baza["Лист2"]
-                    st.dataframe(res)
-                    found_context = res.to_string(index=False)
+                    res_df = sheets_baza["Лист2"]
                 else:
-                    # Umumiy qidiruv (o'quvchi yoki boshqa narsa so'ralsa)
                     all_df = pd.concat(sheets_baza.values(), ignore_index=True, sort=False).fillna("")
                     q = savol.lower()
                     mask = all_df.apply(lambda row: any(q in str(v).lower() for v in row), axis=1)
-                    res = all_df[mask]
-                    if not res.empty:
-                        st.dataframe(res)
-                        found_context = res.to_string(index=False)
+                    res_df = all_df[mask]
 
-            # AI uchun qat'iy ko'rsatma
-            prompt = f"""Sen faqat berilgan bazadagi ma'lumotdan foydalanasan.
-            Agar Baza bo'sh bo'lmasa, undagi ismlarni chiroyli ro'yxat qilib foydalanuvchiga ber.
-            Agar Baza bo'sh bo'lsa, 'Kechirasiz, topilmadi' degin.
-            O'zingdan ism to'qima!
-            
-            Baza: {found_context if found_context else 'BO`SH'}
-            Savol: {savol}"""
+            if not res_df.empty:
+                # 1. Jadvalni ko'rsatish
+                st.success(f"Topildi: {len(res_df)} ta ma'lumot")
+                st.dataframe(res_df, use_container_width=True)
+                
+                # 2. Excelga yuklash tugmasi
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                    res_df.to_excel(writer, index=False, sheet_name='Qidiruv_natijasi')
+                
+                st.download_button(
+                    label="📥 Natijalarni Excelda yuklab olish",
+                    data=output.getvalue(),
+                    file_name="maktab_qidiruv_natijasi.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+                st.info("Yuqoridagi jadvaldan kerakli ma'lumotlarni ko'rishingiz mumkin.")
+            else:
+                st.warning("Kechirasiz, bazada bunday ma'lumot topilmadi.")
 
-            payload = {
-                "model": "llama-3.3-70b-versatile",
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.0 # To'qimasligi uchun
-            }
-            
-            try:
-                r = requests.post("https://api.groq.com/openai/v1/chat/completions", 
-                                 json=payload, headers={"Authorization": f"Bearer {GROQ_API_KEY}"})
-                st.markdown(r.json()['choices'][0]['message']['content'])
-            except: st.error("AI ulanmadi.")
-
-# --- 6. MONITORING (TELEGRAM QISMI) ---
+# --- 6. MONITORING (TELEGRAM QISMI O'ZGARISHSIZ) ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
-    # Telegram yuborish kodingiz o'z holida (BOT_TOKEN va GURUH_ID bilan) turibdi...
+    # ... (Sizning Telegram token va guruh ID bilan ishlaydigan kodingiz bu yerda turibdi)
