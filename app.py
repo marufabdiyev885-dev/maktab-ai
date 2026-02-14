@@ -59,7 +59,7 @@ def set_bg(url):
             font-weight: bold;
             margin-top: 0px; /* Tepaga yopishtirish */
             margin-bottom: 25px;
-            font-family: sans-serif;*/
+            font-family: sans-serif;
         }}
         
         /* Input maydonchasi */
@@ -196,4 +196,3 @@ elif menu == "📊 Jurnal Monitoringi":
                 requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={"chat_id": GURUH_ID, "text": text, "parse_mode": "HTML"})
                 st.success("Yuborildi!")
         except Exception as e: st.error(f"Xato: {e}")
-
