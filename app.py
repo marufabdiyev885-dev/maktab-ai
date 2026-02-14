@@ -40,6 +40,7 @@ def yuklash():
 
 sheets_baza = yuklash()
 
+# --- SIDEBAR ---
 with st.sidebar:
     st.title(f"🏛 {MAKTAB_NOMI}")
     st.write(f"👤 **Direktor:** \n{DIREKTOR_FIO}")
@@ -48,6 +49,7 @@ with st.sidebar:
     st.divider()
     st.info(f"✨ **Kun hikmati:**\n*{random.choice(HIKMATLAR_RO_YXATI)}*")
 
+# --- XAVFSIZLIK ---
 if "authenticated" not in st.session_state:
     st.title(f"🏫 {MAKTAB_NOMI}")
     parol = st.text_input("Kirish paroli:", type="password")
@@ -55,80 +57,76 @@ if "authenticated" not in st.session_state:
         if parol == TO_GRI_PAROL:
             st.session_state.authenticated = True
             st.rerun()
-        else: st.error("Parol xato-ku, aka!")
+        else: st.error("Parol xato!")
     st.stop()
 
-# --- 5. AI MULOQOT (FAROSATLI QISMI) ---
+# --- 5. AI MULOQOT (ISMGA MOSLASHISH VA TANISHTIRISH) ---
 if menu == "🤖 AI Muloqot":
     st.title("🤖 Aqlli va Farosatli Muloqot")
     
+    # Foydalanuvchi ismini saqlash uchun session_state
+    if "user_name" not in st.session_state:
+        st.session_state.user_name = "aka" # Default
+
     if "greeted" not in st.session_state:
         st.session_state.greeted = False
     if not st.session_state.greeted:
         with st.chat_message("assistant"):
-            st.markdown(f"**Assalomu alaykum, Ma'rufjon aka!** Bugun qaysi ma'lumotni titib chiqamiz?")
+            st.markdown(f"**Assalomu alaykum!** Men maktabimizning aqlli yordamchisiman. Ismingiz nima?")
         st.session_state.greeted = True
 
-    if savol := st.chat_input("Sinf (1-A) yoki ismni yozing..."):
+    if savol := st.chat_input("Savol yozing yoki ismingizni ayting..."):
         with st.chat_message("user"): st.markdown(savol)
         
         with st.chat_message("assistant"):
             q = savol.lower().strip()
             
-            # --- FAROSAT VA O'ZARO HURMAT QISMI ---
-            rahmat_gaplar = ["rahmat", "zo'r", "ajoyib", "gap yo'q", "baraka top", "ishlaringga omad", "super"]
-            salom_gaplar = ["salom", "assalom", "qalaysan", "yaxshimisan", "ishlar yaxshimi"]
-            xayr_gaplar = ["xayr", "sog' bo'l", "mayli", "tushunarli"]
+            # Ismni aniqlash (Farosat qismi)
+            name_match = re.search(r"(ismim|ismimni|otim|otimni)\s+([a-zа-я]+)", q)
+            if name_match:
+                st.session_state.user_name = name_match.group(2).capitalize()
+                st.markdown(f"Tanishganimdan xursandman, {st.session_state.user_name}! Endi sizga qanday yordam bera olaman?")
+            
+            # O'zini tanishtirish
+            elif any(x in q for x in ["o'zingni tanishtir", "kimsan", "nima qilasan", "isming nima"]):
+                st.markdown(f"Men **{MAKTAB_NOMI}** uchun maxsus yaratilgan Sun'iy Intellekt yordamchisiman. Vazifam — bazadan o'qituvchi va o'quvchilarni topish, jurnal monitoringini yuritish va siz bilan suhbatlashish. Xizmatingizdaman, {st.session_state.user_name}!")
 
-            if any(x in q for x in rahmat_gaplar):
-                javoblar = [
-                    "Arzimaydi, Ma'rufjon aka! Sizga xizmat qilish — men uchun zavq.",
-                    "Siz ham sog' bo'ling aka! Doim xizmatingizdaman.",
-                    "Xursandman aka! Yana biror nima kerak bo'lsa, tortinmang.",
-                    "Harakat qilyapmiz-da aka, sizdek odamga yordam berish bizga sharaf!"
-                ]
-                st.markdown(random.choice(javoblar))
+            # Rahmat va boshqa gaplar
+            elif any(x in q for x in ["rahmat", "zo'r", "ajoyib", "baraka top"]):
+                st.markdown(f"Arzimaydi, {st.session_state.user_name}! Sizga foydam tekkanidan xursandman. 😊")
                 
-            elif any(x in q for x in salom_gaplar):
-                st.markdown("Vaalaykum assalom! Ma'rufjon aka, o'zingiz charchamayapsizmi? Qaysi sinf yoki o'qituvchini qidirib beray?")
+            elif any(x in q for x in ["salom", "assalom"]):
+                st.markdown(f"Vaalaykum assalom! Sog'liklar yaxshimi, {st.session_state.user_name}?")
 
-            elif any(x in q for x in xayr_gaplar):
-                st.markdown("Xo'p bo'ladi aka, sog' bo'ling! Ishlaringizga omad!")
-
-            # --- QIDIRUV MANTIQI ---
+            # Qidiruv qismi (O'zgarishsiz)
             elif sheets_baza:
                 topildi = False
-                
-                # O'qituvchilar bo'limi (pedagog so'zi bo'yicha)
                 is_teacher_req = any(x in q for x in ["o'qituvchi", "pedagog", "xodim", "ro'yxat"])
+                
                 if is_teacher_req:
                     for name, df in sheets_baza.items():
                         if any("pedagog" in col for col in df.columns) or "лист2" in name.lower():
-                            st.success(f"Ma'rufjon aka, o'qituvchilar ro'yxati topildi:")
+                            st.success(f"{st.session_state.user_name}, o'qituvchilar ro'yxati topildi:")
                             st.dataframe(df, use_container_width=True)
                             topildi = True
                             break
-
-                # Sinf va Ism qidiruv
+                
                 if not topildi:
                     for name, df in sheets_baza.items():
-                        # Sinf (regex)
                         if re.match(r'^\d{1,2}-[a-zа-я]$', q):
                             pattern = rf"\b{re.escape(q)}\b"
                             mask = df.apply(lambda row: any(re.search(pattern, str(v).lower()) for v in row), axis=1)
-                        # Ism (oddi qidiruv)
                         else:
                             mask = df.apply(lambda row: q in str(v).lower() for v in row)
                         
                         res_df = df[mask]
                         if not res_df.empty:
-                            st.success(f"Mana, aka, '{name}' varag'idan topilgan natijalar:")
+                            st.success(f"Mana, {st.session_state.user_name}, topildi:")
                             st.dataframe(res_df, use_container_width=True)
                             topildi = True
-
+                
                 if not topildi:
-                    st.warning("Aka, topolmadim. Balki ismni qisqaroq yozarmiz?")
-                    st.info(f"💡 [Google qidiruv](https://www.google.com/search?q={savol})")
+                    st.warning(f"Kechirasiz {st.session_state.user_name}, topolmadim.")
 
 # --- MONITORING (O'ZGARISHSIZ) ---
 elif menu == "📊 Jurnal Monitoringi":
