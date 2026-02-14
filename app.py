@@ -56,15 +56,50 @@ if "authenticated" not in st.session_state:
         else: st.error("Parol noto'g'ri!")
     st.stop()
 
-# --- 5. AI BILAN MULOQOT ---
+# --- 5. AI BILAN MULOQOT (QIDIRUV TIKLANDI) ---
 if menu == "🤖 AI bilan muloqot":
     st.title("🤖 Maktab sun'iy intellekti bilan muloqot")
+    
+    if "greeted" not in st.session_state:
+        st.session_state.greeted = False
+
+    if not st.session_state.greeted:
+        with st.chat_message("assistant"):
+            st.markdown(f"**Assalomu alaykum, hurmatli foydalanuvchi!**\n\nSizga qanday ma'lumot qidirib berishim mumkin?")
+        st.session_state.greeted = True
+
     if savol := st.chat_input("Savolingizni kiriting..."):
         with st.chat_message("user"): st.markdown(savol)
+        
         with st.chat_message("assistant"):
-            st.markdown("**Hurmatli foydalanuvchi**, natijalar jadvalda ko'rsatiladi.")
+            res_df = pd.DataFrame()
+            salomlar = ["salom", "assalom", "qalay", "yaxshimi"]
+            
+            if any(s in savol.lower() for s in salomlar):
+                st.markdown("Vaalaykum assalom! **Hurmatli foydalanuvchi**, sizga xizmat qilishdan mamnunman.")
+            elif sheets_baza:
+                # Qidiruv mantiqi
+                is_teacher_req = any(x in savol.lower() for x in ["o'qituvchi", "pedagog", "ro'yxat", "xodim"])
+                if is_teacher_req and "лист2" in sheets_baza:
+                    res_df = sheets_baza["лист2"]
+                else:
+                    all_df = pd.concat(sheets_baza.values(), ignore_index=True, sort=False).fillna("")
+                    q = savol.lower()
+                    mask = all_df.apply(lambda row: any(q in str(v).lower() for v in row), axis=1)
+                    res_df = all_df[mask]
 
-# --- 6. JURNAL MONITORINGI (SIZ AYTGAN ANIQ MANTIQ) ---
+                if not res_df.empty:
+                    st.success(f"Natija topildi ({len(res_df)} ta qator).")
+                    st.dataframe(res_df, use_container_width=True)
+                    
+                    output = io.BytesIO()
+                    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                        res_df.to_excel(writer, index=False)
+                    st.download_button("📥 Natijani Excelda yuklab olish", output.getvalue(), "natija.xlsx")
+                else:
+                    st.warning("Hurmatli foydalanuvchi, bazada bunday ma'lumot topilmadi.")
+
+# --- 6. JURNAL MONITORINGI (SIZ AYTGAN TAHLIL BILAN) ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
     
@@ -93,19 +128,15 @@ elif menu == "📊 Jurnal Monitoringi":
             col_target = "Baholar qo'yilgan jurnallar soni"
             col_name = "O'qituvchi"
             
-            # --- MONITORING HISOB-KITOBI ---
             kamchiliklar = []
             if col_target in df_j.columns:
                 for _, row in df_j.iterrows():
                     val = str(row[col_target])
                     nums = re.findall(r'(\d+)', val)
                     if len(nums) >= 2:
-                        qoyilgan = int(nums[0])
-                        jami = int(nums[1])
-                        if qoyilgan < jami:
-                            kamchiliklar.append(f"❌ {row[col_name]}: {jami - qoyilgan} ta jurnal yozilmagan")
+                        if int(nums[0]) < int(nums[1]):
+                            kamchiliklar.append(f"❌ {row[col_name]}: {int(nums[1]) - int(nums[0])} ta jurnal yozilmagan")
             
-            # Xabarni shakllantirish
             if not kamchiliklar:
                 xabar_tahlili = "✅ Barcha jurnallar to'liq baholangan!"
             else:
@@ -113,20 +144,11 @@ elif menu == "📊 Jurnal Monitoringi":
 
             st.info(xabar_tahlili)
 
-            # --- TELEGRAMGA YUBORISH ---
             if st.button("📢 Telegramga hisobotni yuborish"):
-                try:
-                    full_msg = f"<b>📊 {MAKTAB_NOMI} Monitoringi</b>\n\n{xabar_tahlili}"
-                    res = requests.post(
-                        f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
-                        json={"chat_id": GURUH_ID, "text": full_msg, "parse_mode": "HTML"}
-                    )
-                    if res.status_code == 200:
-                        st.success("✅ Telegramga yuborildi!")
-                    else:
-                        st.error("❌ Xatolik yuz berdi!")
-                except Exception as e:
-                    st.error(f"Xato: {e}")
+                full_msg = f"<b>📊 {MAKTAB_NOMI} Monitoringi</b>\n\n{xabar_tahlili}"
+                requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
+                             json={"chat_id": GURUH_ID, "text": full_msg, "parse_mode": "HTML"})
+                st.success("✅ Telegramga yuborildi!")
                     
         except Exception as e:
-            st.error(f"Faylni o'qishda xato: {e}")
+            st.error(f"Fayl xatosi: {e}")
