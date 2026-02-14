@@ -13,7 +13,7 @@ DIREKTOR_FIO = "Mahmudov Matyoqub Narzulloyevich"
 GROQ_API_KEY = "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"
 TO_GRI_PAROL = "informatika2024"
 BOT_TOKEN = "8524007504:AAFiMXSbXhe2M-84WlNM16wNpzhNolfQIf8"
-GURUH_ID = "-1002345678901" # O'zingizning guruh ID-ni shu yerga yozing
+GURUH_ID = "-5045481739" # O'zingizning guruh ID-ni shu yerga yozing
 
 st.set_page_config(page_title=MAKTAB_NOMI, layout="wide")
 
@@ -157,3 +157,4 @@ elif menu == "📊 Jurnal Monitoringi":
                 else: st.error("Xatolik yuz berdi!")
         else:
             st.success("Hamma jurnallar to'liq! Baran-baraka, Ustoz!")
+
