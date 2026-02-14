@@ -4,3 +4,4 @@ xlsxwriter
 python-docx
 requests
 openpyxl
+requests
