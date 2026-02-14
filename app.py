@@ -9,7 +9,6 @@ import re
 # --- 1. ASOSIY SOZLAMALAR ---
 MAKTAB_NOMI = "1-sonli umumta'lim maktabi"
 DIREKTOR_FIO = "Mahmudov Matyoqub Narzulloyevich"
-GROQ_API_KEY = "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"
 TO_GRI_PAROL = "informatika2024"
 MONITORING_KODI = "admin777" 
 BOT_TOKEN = "8524007504:AAFiMXSbXhe2M-84WlNM16wNpzhNolfQIf8"
@@ -19,12 +18,8 @@ HIKMATLAR_RO_YXATI = [
     "Ilm — saodat kalitidir.",
     "Hunari yo'q kishi — mevasi yo'q daraxt.",
     "Ilm izla, igna bilan quduq qazigandek bo'lsa ham.",
-    "O'qigan o'zini taniydi, o'qimagan — ko'zini.",
     "Bilim — tuganmas xazina.",
     "Kitob — bilim manbai.",
-    "Aql — yoshda emas, boshda.",
-    "Ilm — qalb chirog'i.",
-    "Vaqt — g'animat, o'tayotgan har oningni ilmga bag'ishla.",
     "Odob — har bir kishining ziynatidir."
 ]
 
@@ -39,6 +34,7 @@ def yuklash():
             sheets = pd.read_excel(f, sheet_name=None, dtype=str)
             for name, df in sheets.items():
                 if not df.empty:
+                    # Ustun nomlarini tozalaymiz
                     df.columns = [str(c).strip().lower() for c in df.columns]
                     all_sheets[name] = df
         except: continue
@@ -48,7 +44,7 @@ sheets_baza = yuklash()
 
 with st.sidebar:
     st.title(f"🏛 {MAKTAB_NOMI}")
-    st.write(f"👤 **Maktab direktori:** \n{DIREKTOR_FIO}")
+    st.write(f"👤 **Direktor:** \n{DIREKTOR_FIO}")
     st.divider()
     menu = st.radio("Bo'limni tanlang:", ["🤖 AI Muloqot", "📊 Jurnal Monitoringi"])
     st.divider()
@@ -69,7 +65,7 @@ if menu == "🤖 AI Muloqot":
     if "greeted" not in st.session_state: st.session_state.greeted = False
     if not st.session_state.greeted:
         with st.chat_message("assistant"):
-            st.markdown(f"**Assalomu alaykum, Ma'rufjon aka!** Nima yordam kerak?")
+            st.markdown(f"**Assalomu alaykum, Ma'rufjon aka!** Qanday ma'lumot qidiramiz?")
         st.session_state.greeted = True
 
     if savol := st.chat_input("Sinf (1-A) yoki ismni yozing..."):
@@ -77,50 +73,55 @@ if menu == "🤖 AI Muloqot":
         with st.chat_message("assistant"):
             q = savol.lower().strip()
             
-            # Salom va rahmatlar uchun muloqot
+            # Insoniy muloqot
             if q in ["rahmat", "katta rahmat", "tashakkur"]:
-                st.markdown("Arziydi, aka! Xizmat bo'lsa aytaverasiz. 😊")
+                st.markdown("Arziydi, aka! Xizmatingizdaman. 😊")
             elif q in ["salom", "assalom", "assalomu alaykum"]:
-                st.markdown("Vaalaykum assalom, aka! Charchamayapsizmi? Nima qidiramiz?")
+                st.markdown("Vaalaykum assalom! Ma'lumot qidirishga tayyorman.")
             
-            # Qidiruv qismi
             elif sheets_baza:
-                # O'qituvchilar ro'yxati so'ralsa ham, ism yozilsa ham barcha listlarni birlashtirib qidiradi
-                combined_df = pd.concat(sheets_baza.values(), ignore_index=True, sort=False).fillna("")
+                topildi = False
                 
-                is_teacher_req = any(x in q for x in ["o'qituvchi", "pedagog", "ro'yxat", "xodim"])
+                # 1. O'qituvchi so'ralganda (Rasmda ko'ringan ustun nomi bo'yicha)
+                if any(x in q for x in ["o'qituvchi", "pedagog", "xodim", "ro'yxat"]):
+                    for name, df in sheets_baza.items():
+                        if any("pedagog" in col for col in df.columns) or "лист2" in name.lower():
+                            st.success(f"O'qituvchilar ro'yxati ({name}):")
+                            st.dataframe(df, use_container_width=True)
+                            topildi = True
+                            break
                 
-                if is_teacher_req:
-                    # Agar "o'qituvchilar" deb so'rasa, hamma listni chiqaradi (yoki birinchi listni)
-                    res_df = combined_df
-                else:
-                    # Sinf yoki ism uchun qidiruv
-                    if re.match(r'^\d{1,2}-[a-zа-я]$', q):
-                        pattern = rf"\b{re.escape(q)}\b"
-                        mask = combined_df.apply(lambda row: any(re.search(pattern, str(v).lower()) for v in row), axis=1)
-                    else:
-                        mask = combined_df.apply(lambda row: any(q in str(v).lower() for v in row), axis=1)
-                    res_df = combined_df[mask]
-
-                if not res_df.empty:
-                    st.success(f"Ma'rufjon aka, topdim!")
-                    st.dataframe(res_df, use_container_width=True)
-                else:
-                    st.warning("Aka, topolmadim. Excel faylda bormi o'sha ma'lumot?")
+                # 2. Aniq qidiruv (Ism yoki Sinf uchun)
+                if not topildi:
+                    for name, df in sheets_baza.items():
+                        # Sinf bo'lsa (1-A, 11-A)
+                        if re.match(r'^\d{1,2}-[a-zа-я]$', q):
+                            pattern = rf"\b{re.escape(q)}\b"
+                            mask = df.apply(lambda row: any(re.search(pattern, str(v).lower()) for v in row), axis=1)
+                        # Ism yoki boshqa so'z bo'lsa
+                        else:
+                            mask = df.apply(lambda row: any(q in str(v).lower() for v in row), axis=1)
+                        
+                        res_df = df[mask]
+                        if not res_df.empty:
+                            st.success(f"'{name}' varag'idan topildi:")
+                            st.dataframe(res_df, use_container_width=True)
+                            topildi = True
+                
+                if not topildi:
+                    st.warning("Aka, topolmadim. Ism yoki sinf to'g'riligini tekshiring.")
 
 # --- MONITORING QISMI O'ZGARIShSIZ ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
     if "m_auth" not in st.session_state: st.session_state.m_auth = False
     if not st.session_state.m_auth:
-        m_pass = st.text_input("Monitoring kodi:", type="password")
-        if st.button("Kirish"):
-            if m_pass == MONITORING_KODI:
+        if st.text_input("Monitoring kodi:", type="password") == MONITORING_KODI:
+            if st.button("Kirish"):
                 st.session_state.m_auth = True
                 st.rerun()
-            else: st.error("Kod xato!")
         st.stop()
-    j_fayl = st.file_uploader("Excel faylni yuklang", type=['xlsx', 'xls', 'html'])
+    j_fayl = st.file_uploader("Excel yuklang", type=['xlsx', 'xls', 'html'])
     if j_fayl:
         try:
             try: df_j = pd.read_excel(j_fayl)
