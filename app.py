@@ -26,23 +26,41 @@ with st.sidebar:
     menu = st.radio("Bo'limni tanlang:", ["🤖 AI Yordamchi", "📊 Jurnal Monitoringi"])
     st.divider()
     
-    # Siz aytgan ibratli so'zlar
     hikmatlar = ["Ilm — saodat kalitidir.", "Informatika — kelajak tili!", "Ustoz — otangdek ulug‘!"]
     st.warning(f"🌟 **Kun hikmati:**\n\n*{random.choice(hikmatlar)}*")
     st.info(f"**Direktor:**\n{DIREKTOR_FIO}")
 
-# --- 3. XAVFSIZLIK ---
+# --- 3. XAVFSIZLIK (RASMLAR BILAN YANGILANDI) ---
 if "authenticated" not in st.session_state:
-    st.title(f"🏫 {MAKTAB_NOMI} | Tizim")
-    parol = st.text_input("Parolni kiriting:", type="password")
-    if st.button("Kirish"):
-        if parol == TO_GRI_PAROL:
-            st.session_state.authenticated = True
-            st.rerun()
-        else: st.error("❌ Xato!")
-    st.stop()
+    # Siz tanlagan 4 ta rasm
+    login_rasmlar = [
+        "http://googleusercontent.com/image_collection/image_retrieval/12613655077671436958_0",
+        "http://googleusercontent.com/image_collection/image_retrieval/12613655077671436958_1",
+        "http://googleusercontent.com/image_collection/image_retrieval/12613655077671436958_2",
+        "http://googleusercontent.com/image_collection/image_retrieval/12613655077671436958_3"
+    ]
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    with col2:
+        st.title(f"🏫 {MAKTAB_NOMI}")
+        
+        # Har safar kirganda rasmni almashtirish
+        st.image(random.choice(login_rasmlar), use_container_width=True, caption="Maktab AI Tizimi")
+        
+        st.subheader("Tizimga kirish")
+        parol = st.text_input("Parolni kiriting:", type="password")
+        
+        if st.button("Kirish 🚀", use_container_width=True):
+            if parol == TO_GRI_PAROL:
+                st.session_state.authenticated = True
+                st.rerun()
+            else:
+                st.error("❌ Parol noto'g'ri!")
+                
+    st.stop() 
 
-# --- 4. BAZA YUKLASH (AI uchun) ---
+# --- 4. BAZA YUKLASH (O'zgarishsiz) ---
 @st.cache_data
 def yuklash():
     files = [f for f in os.listdir('.') if f.lower().endswith(('.xlsx', '.xls', '.docx')) and 'app.py' not in f]
@@ -62,7 +80,7 @@ def yuklash():
 
 df_baza, _ = yuklash()
 
-# --- 5. SAHIFALAR ---
+# --- 5. SAHIFALAR (O'zgarishsiz) ---
 if menu == "🤖 AI Yordamchi":
     st.title("🤖 AI Yordamchi")
     if "messages" not in st.session_state:
@@ -97,24 +115,18 @@ elif menu == "📊 Jurnal Monitoringi":
     j_fayl = st.file_uploader("eMaktab faylini yuklang (.xls, .xlsx)", type=['xlsx', 'xls'])
     if j_fayl:
         try:
-            # Faylni o'qish (HTML-Excel yoki haqiqiy Excel)
             try:
-                # eMaktab fayllari sarlavhasi ko'pincha 1- yoki 2-qatorda bo'ladi
                 df_j = pd.read_excel(j_fayl, header=[0, 1]) 
             except:
                 j_fayl.seek(0)
                 df_j = pd.read_html(j_fayl, header=0)[0]
 
-            # Sarlavhalarni soddalashtiramiz (faqat matn qismini olamiz)
             df_j.columns = [' '.join([str(i) for i in col]).strip() if isinstance(col, tuple) else str(col) for col in df_j.columns]
-            
-            # Keraksiz "Unnamed" yozuvlarini tozalash
             df_j.columns = [re.sub(r'Unnamed: \d+_level_\d+', '', c).strip() for c in df_j.columns]
             
             st.write("📊 Jadval namunasi:")
             st.dataframe(df_j.head())
             
-            # FAQAT SHU IKKI USTUNNI TANLASH
             c_oqit = st.selectbox("O'qituvchi ustunini tanlang:", df_j.columns)
             c_baho = st.selectbox("Baho ustunini tanlang (Baholar qo'yilgan jurnallar soni):", df_j.columns)
             
@@ -124,13 +136,10 @@ elif menu == "📊 Jurnal Monitoringi":
                     if "undan" in s:
                         nums = re.findall(r'\d+', s)
                         if len(nums) >= 2:
-                            # Agar o'ngdagi son (qo'yilgan baho) chapdagidan (jami dars) kichik bo'lsa
                             return int(nums[1]) < int(nums[0])
                     return False
 
-                # Faqat o'qituvchilar qatorini olamiz (umumiy maktab qatorini tashlab ketamiz)
                 df_filtir = df_j[df_j[c_oqit].notna() & ~df_j[c_oqit].str.contains('maktab|tuman', case=False, na=False)]
-                
                 xatolar = df_filtir[df_filtir[c_baho].apply(tahlil)]
                 
                 if not xatolar.empty:
@@ -139,11 +148,10 @@ elif menu == "📊 Jurnal Monitoringi":
                         text += f"❌ <b>{r[c_oqit]}</b> -> {r[c_baho]}\n"
                     text += "\n❗ Iltimos, baholarni yakunlang!"
                 else:
-                    text = f"<b>✅ JURNAL MONITORINGI</b>\n<i>{MAKTAB_NOMI}</i>\n\n✨ <b>Barcha jurnallar 100% baholangan!</b> Baraka topinglar, ustozlar."
+                    text = f"<b>✅ JURNAL MONITORINGI</b>\n<i>{MAKTAB_NOMI}</i>\n\n✨ <b>Barcha jurnallar 100% baholangan!</b>"
 
                 requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
                               json={"chat_id": GURUH_ID, "text": text, "parse_mode": "HTML"})
                 st.success("Hisobot yuborildi!")
         except Exception as e:
             st.error(f"Faylni tahlil qilishda xato: {e}")
-
