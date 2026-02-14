@@ -38,10 +38,9 @@ if "authenticated" not in st.session_state:
         else: st.error("❌ Parol xato!")
     st.stop()
 
-# --- 4. BAZANI YUKLASH ---
+# --- 4. BAZANI YUKLASH (AI uchun) ---
 @st.cache_data
 def yuklash():
-    # .xls formatini ham qo'shdik
     files = [f for f in os.listdir('.') if f.lower().endswith(('.xlsx', '.xls', '.csv', '.docx')) and 'app.py' not in f]
     all_data = []
     word_text = ""
@@ -50,13 +49,12 @@ def yuklash():
             if f.endswith('.docx'):
                 doc = docx.Document(f)
                 word_text += "\n".join([para.text for para in doc.paragraphs])
-            elif f.endswith('.xls') or f.endswith('.xlsx'):
-                # engine='xlrd' eski xls fayllar uchun kerak bo'ladi
-                df_s = pd.read_excel(f, dtype=str)
+            elif f.endswith('.xls'):
+                df_s = pd.read_excel(f, engine='xlrd', dtype=str)
                 df_s.columns = [str(c).strip().lower() for c in df_s.columns]
                 all_data.append(df_s)
             else:
-                df_s = pd.read_csv(f, dtype=str)
+                df_s = pd.read_excel(f, engine='openpyxl', dtype=str) if f.endswith('.xlsx') else pd.read_csv(f, dtype=str)
                 df_s.columns = [str(c).strip().lower() for c in df_s.columns]
                 all_data.append(df_s)
         except: continue
@@ -101,7 +99,7 @@ if menu == "🤖 AI Yordamchi":
             st.markdown(ai_text)
             st.session_state.messages.append({"role": "assistant", "content": ai_text})
 
-# B) JURNAL MONITORINGI ( XLS VA XLSX UCHUN )
+# B) JURNAL MONITORINGI ( XLS VA XLSX UCHUN TO'LIQ )
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
     
@@ -115,35 +113,48 @@ elif menu == "📊 Jurnal Monitoringi":
             else: st.error("❌ Kod noto'g'ri!")
         st.stop()
 
-    # Fayl tanlashda ham .xls qo'shildi
     j_fayl = st.file_uploader("Excelni yuklang (.xlsx yoki .xls)", type=['xlsx', 'xls'])
     if j_fayl:
-        # Har qanday Excel formatini o'qish
-        df_j = pd.read_excel(j_fayl)
-        st.dataframe(df_j.head())
-        c_oqit = st.selectbox("O'qituvchi ustuni:", df_j.columns)
-        c_baho = st.selectbox("Baho ustuni (Masalan: 4 Undan 3):", df_j.columns)
-        
-        if st.button("📢 Telegramga yuborish"):
-            def tekshir(qiymat):
-                s = str(qiymat).lower()
-                if "undan" in s:
-                    try:
-                        q = s.split("undan")
-                        jami = int(''.join(filter(str.isdigit, q[0])))
-                        bor = int(''.join(filter(str.isdigit, q[1])))
-                        return bor < jami
-                    except: return False
-                return False
-
-            xatolar = df_j[df_j[c_baho].apply(tekshir)]
-            
-            if not xatolar.empty:
-                text = f"<b>⚠️ JURNAL MONITORINGI</b>\n<i>{MAKTAB_NOMI}</i>\n\nKamchiliklar:\n"
-                for _, row in xatolar.iterrows():
-                    text += f"❌ {row[c_oqit]} -> {row[c_baho]}\n"
+        try:
+            # Fayl kengaytmasini aniqlash va mos engine bilan o'qish
+            file_extension = j_fayl.name.split('.')[-1].lower()
+            if file_extension == 'xls':
+                df_j = pd.read_excel(j_fayl, engine='xlrd')
             else:
-                text = f"<b>✅ JURNAL MONITORINGI</b>\n<i>{MAKTAB_NOMI}</i>\n\n✨ <b>Jurnallar 100 foiz baholangan.</b> Hamma darslarga baholar to'liq qo'yilgan!"
+                df_j = pd.read_excel(j_fayl, engine='openpyxl')
+                
+            st.write("📊 Yuklangan ma'lumotlar:")
+            st.dataframe(df_j.head())
+            
+            c_oqit = st.selectbox("O'qituvchi ustuni:", df_j.columns)
+            c_baho = st.selectbox("Baho ustuni (Masalan: 4 Undan 3):", df_j.columns)
+            
+            if st.button("📢 Telegramga yuborish"):
+                def tekshir(qiymat):
+                    s = str(qiymat).lower()
+                    if "undan" in s:
+                        try:
+                            q = s.split("undan")
+                            # Raqamlarni ajratib olish
+                            jami = int(re.search(r'\d+', q[0]).group())
+                            bor = int(re.search(r'\d+', q[1]).group())
+                            return bor < jami
+                        except: return False
+                    return False
 
-            requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={"chat_id": GURUH_ID, "text": text, "parse_mode": "HTML"})
-            st.success("Hisobot guruhga yuborildi!")
+                xatolar = df_j[df_j[c_baho].apply(tekshir)]
+                
+                if not xatolar.empty:
+                    text = f"<b>⚠️ JURNAL MONITORINGI</b>\n<i>{MAKTAB_NOMI}</i>\n\nKamchiliklar:\n"
+                    for _, row in xatolar.iterrows():
+                        text += f"❌ {row[c_oqit]} -> {row[c_baho]}\n"
+                else:
+                    text = f"<b>✅ JURNAL MONITORINGI</b>\n<i>{MAKTAB_NOMI}</i>\n\n✨ <b>Jurnallar 100 foiz baholangan.</b> Hamma darslarga baholar to'liq qo'yilgan!"
+
+                requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
+                              json={"chat_id": GURUH_ID, "text": text, "parse_mode": "HTML"})
+                st.success("Hisobot guruhga yuborildi!")
+
+        except Exception as e:
+            st.error(f"Faylni o'qishda xatolik: {e}")
+            st.info("Iltimos, requirements.txt faylida 'xlrd' borligini tekshiring.")
