@@ -26,7 +26,6 @@ with st.sidebar:
     menu = st.radio("Bo'limni tanlang:", ["🤖 AI Yordamchi", "📊 Jurnal Monitoringi"])
     st.divider()
     
-    # Siz aytgan ibratli so'zlar
     hikmatlar = ["Ilm — saodat kalitidir.", "Informatika — kelajak tili!", "Ustoz — otangdek ulug‘!"]
     st.warning(f"🌟 **Kun hikmati:**\n\n*{random.choice(hikmatlar)}*")
     st.info(f"**Direktor:**\n{DIREKTOR_FIO}")
@@ -60,7 +59,7 @@ def yuklash():
         except: continue
     return (pd.concat(all_data, ignore_index=True) if all_data else None), word_text
 
-df_baza, _ = yuklash()
+df_baza, word_baza = yuklash()
 
 # --- 5. SAHIFALAR ---
 if menu == "🤖 AI Yordamchi":
@@ -73,12 +72,24 @@ if menu == "🤖 AI Yordamchi":
         st.session_state.messages.append({"role": "user", "content": savol})
         with st.chat_message("user"): st.markdown(savol)
         with st.chat_message("assistant"):
-            found_data = df_baza.head(15).to_string() if df_baza is not None else "Baza bo'sh"
-            payload = {"model": "llama-3.3-70b-versatile", "messages": [{"role": "system", "content": f"Sen {MAKTAB_NOMI} AI yordamchisisan. 'Hurmatli foydalanuvchi' deb murojaat qil."}, {"role": "user", "content": f"Baza: {found_data}. Savol: {savol}"}]}
+            # O'quvchilarni topish uchun head(15) olib tashlandi, to_string() ishlatildi
+            found_data = df_baza.to_string() if df_baza is not None else "Baza bo'sh"
+            
+            payload = {
+                "model": "llama-3.3-70b-versatile", 
+                "messages": [
+                    {
+                        "role": "system", 
+                        "content": f"Sen {MAKTAB_NOMI} AI yordamchisisan. 'Hurmatli foydalanuvchi' deb murojaat qil. Quyidagi maktab bazasidagi ma'lumotlarga qat'iy tayanib javob ber: {found_data[:7000]} {word_baza[:1000]}"
+                    }, 
+                    {"role": "user", "content": savol}
+                ],
+                "temperature": 0.1
+            }
             try:
                 r = requests.post("https://api.groq.com/openai/v1/chat/completions", json=payload, headers={"Authorization": f"Bearer {GROQ_API_KEY}"})
                 ai_text = r.json()['choices'][0]['message']['content']
-            except: ai_text = "Tizimda xatolik."
+            except: ai_text = "Tizimda xatolik yuz berdi."
             st.markdown(ai_text)
             st.session_state.messages.append({"role": "assistant", "content": ai_text})
 
@@ -97,24 +108,18 @@ elif menu == "📊 Jurnal Monitoringi":
     j_fayl = st.file_uploader("eMaktab faylini yuklang (.xls, .xlsx)", type=['xlsx', 'xls'])
     if j_fayl:
         try:
-            # Faylni o'qish (HTML-Excel yoki haqiqiy Excel)
             try:
-                # eMaktab fayllari sarlavhasi ko'pincha 1- yoki 2-qatorda bo'ladi
                 df_j = pd.read_excel(j_fayl, header=[0, 1]) 
             except:
                 j_fayl.seek(0)
                 df_j = pd.read_html(j_fayl, header=0)[0]
 
-            # Sarlavhalarni soddalashtiramiz (faqat matn qismini olamiz)
             df_j.columns = [' '.join([str(i) for i in col]).strip() if isinstance(col, tuple) else str(col) for col in df_j.columns]
-            
-            # Keraksiz "Unnamed" yozuvlarini tozalash
             df_j.columns = [re.sub(r'Unnamed: \d+_level_\d+', '', c).strip() for c in df_j.columns]
             
             st.write("📊 Jadval namunasi:")
             st.dataframe(df_j.head())
             
-            # FAQAT SHU IKKI USTUNNI TANLASH
             c_oqit = st.selectbox("O'qituvchi ustunini tanlang:", df_j.columns)
             c_baho = st.selectbox("Baho ustunini tanlang (Baholar qo'yilgan jurnallar soni):", df_j.columns)
             
@@ -124,13 +129,10 @@ elif menu == "📊 Jurnal Monitoringi":
                     if "undan" in s:
                         nums = re.findall(r'\d+', s)
                         if len(nums) >= 2:
-                            # Agar o'ngdagi son (qo'yilgan baho) chapdagidan (jami dars) kichik bo'lsa
                             return int(nums[1]) < int(nums[0])
                     return False
 
-                # Faqat o'qituvchilar qatorini olamiz (umumiy maktab qatorini tashlab ketamiz)
                 df_filtir = df_j[df_j[c_oqit].notna() & ~df_j[c_oqit].str.contains('maktab|tuman', case=False, na=False)]
-                
                 xatolar = df_filtir[df_filtir[c_baho].apply(tahlil)]
                 
                 if not xatolar.empty:
