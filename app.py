@@ -15,26 +15,22 @@ GURUH_ID = "-5045481739"
 
 st.set_page_config(page_title=MAKTAB_NOMI, layout="wide")
 
-# --- 2. BAZANI YUKLASH (HAMMA LISTLARNI TO'LIQ O'QISH) ---
+# --- 2. BAZANI YUKLASH (HAMMA VARAQLARNI O'QISH) ---
 @st.cache_data
 def yuklash():
     files = [f for f in os.listdir('.') if f.lower().endswith(('.xlsx', '.xls', '.csv')) and 'app.py' not in f]
-    all_data = []
+    all_sheets = {}
     for f in files:
         try:
-            # sheet_name=None hamma varaqlarni (Лист1, Лист2) o'qiydi
             sheets = pd.read_excel(f, sheet_name=None, dtype=str)
             for name, df in sheets.items():
                 if not df.empty:
                     df.columns = [str(c).strip().lower() for c in df.columns]
-                    all_data.append(df)
+                    all_sheets[name] = df
         except: continue
-    if all_data:
-        full_df = pd.concat(all_data, ignore_index=True, sort=False)
-        return full_df.fillna("")
-    return None
+    return all_sheets
 
-df_baza = yuklash()
+sheets_baza = yuklash()
 
 # --- 3. SIDEBAR ---
 with st.sidebar:
@@ -44,7 +40,7 @@ with st.sidebar:
 # --- 4. XAVFSIZLIK ---
 if "authenticated" not in st.session_state:
     st.title(f"🏫 {MAKTAB_NOMI}")
-    parol = st.text_input("Kirish paroli:", type="password")
+    parol = st.text_input("Parol:", type="password")
     if st.button("Kirish"):
         if parol == TO_GRI_PAROL:
             st.session_state.authenticated = True
@@ -52,51 +48,56 @@ if "authenticated" not in st.session_state:
         else: st.error("Xato!")
     st.stop()
 
-# --- 5. AI YORDAMCHI (TO'QISH TAQIQLANGAN) ---
+# --- 5. AI YORDAMCHI (RO'YXATNI ANIQU CHIQARISH) ---
 if menu == "🤖 AI Yordamchi":
-    st.title("🤖 Maktab AI (Faqat faktlar)")
+    st.title("🤖 Maktab AI")
     
-    if savol := st.chat_input("Savol bering (masalan: Matematika o'qituvchilari)"):
+    if savol := st.chat_input("Savol yozing (masalan: O'qituvchilar ro'yxati)"):
         with st.chat_message("user"): st.markdown(savol)
         
         with st.chat_message("assistant"):
-            # 1. QIDIRUV MANTIQI
             found_context = ""
-            if df_baza is not None:
-                q = savol.lower()
-                # Rasmdagi ustunlar bo'yicha qidiruv
-                mask = df_baza.apply(lambda row: any(q in str(v).lower() for v in row), axis=1)
-                res = df_baza[mask]
-                
-                if not res.empty:
-                    st.dataframe(res) # Topilganini jadvalda ko'rsatadi
+            
+            # Agar o'qituvchi/pedagog so'ralsa, Лист2 ma'lumotlarini to'liq beramiz
+            is_teacher_req = any(x in savol.lower() for x in ["o'qituvchi", "pedagog", "ro'yxat", "list"])
+            
+            if sheets_baza:
+                if is_teacher_req and "Лист2" in sheets_baza:
+                    res = sheets_baza["Лист2"]
+                    st.dataframe(res)
                     found_context = res.to_string(index=False)
                 else:
-                    found_context = "BAZADA MA'LUMOT YO'Q"
+                    # Umumiy qidiruv (o'quvchi yoki boshqa narsa so'ralsa)
+                    all_df = pd.concat(sheets_baza.values(), ignore_index=True, sort=False).fillna("")
+                    q = savol.lower()
+                    mask = all_df.apply(lambda row: any(q in str(v).lower() for v in row), axis=1)
+                    res = all_df[mask]
+                    if not res.empty:
+                        st.dataframe(res)
+                        found_context = res.to_string(index=False)
 
-            # 2. AI JAVOBI (Qat'iy rejim)
-            # Temperature 0.0 qilinganda AI to'qishni to'xtatadi
-            prompt = f"""Sen faqat berilgan bazadagi ma'lumotga tayangan holda javob berasan.
-            Agar ma'lumot topilmasa, FAQAT 'Kechirasiz, bazada bunday ma'lumot yo'q' deb javob ber.
-            ASLO o'zingdan ism yoki fan qo'shma!
+            # AI uchun qat'iy ko'rsatma
+            prompt = f"""Sen faqat berilgan bazadagi ma'lumotdan foydalanasan.
+            Agar Baza bo'sh bo'lmasa, undagi ismlarni chiroyli ro'yxat qilib foydalanuvchiga ber.
+            Agar Baza bo'sh bo'lsa, 'Kechirasiz, topilmadi' degin.
+            O'zingdan ism to'qima!
             
-            Baza: {found_context}
+            Baza: {found_context if found_context else 'BO`SH'}
             Savol: {savol}"""
 
             payload = {
                 "model": "llama-3.3-70b-versatile",
                 "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.0 
+                "temperature": 0.0 # To'qimasligi uchun
             }
             
             try:
                 r = requests.post("https://api.groq.com/openai/v1/chat/completions", 
                                  json=payload, headers={"Authorization": f"Bearer {GROQ_API_KEY}"})
                 st.markdown(r.json()['choices'][0]['message']['content'])
-            except: st.error("AI bilan bog'lanishda xato.")
+            except: st.error("AI ulanmadi.")
 
 # --- 6. MONITORING (TELEGRAM QISMI) ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
-    # Telegram yuborish kodingiz o'zgarishsiz qoldi...
-    # (Bu yerda sizning BOT_TOKEN va GURUH_ID ishlatilgan monitoring kodi turibdi)
+    # Telegram yuborish kodingiz o'z holida (BOT_TOKEN va GURUH_ID bilan) turibdi...
