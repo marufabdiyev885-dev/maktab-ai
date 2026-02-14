@@ -113,29 +113,20 @@ if menu == "🤖 AI bilan muloqot":
                 else:
                     st.warning("Hurmatli foydalanuvchi, bazada bunday ma'lumot topilmadi.")
 
-# --- 6. MONITORING (TELEGRAM QISMI) ---
-elif menu == "📊 Jurnal Monitoringi":
-    st.title("📊 Jurnal Monitoringi (Telegram)")
-    if "m_auth" not in st.session_state: st.session_state.m_auth = False
-    if not st.session_state.m_auth:
-        m_pass = st.text_input("Monitoring kodi:", type="password")
-        if st.button("Kirish"):
-            if m_pass == MONITORING_KODI:
-                st.session_state.m_auth = True
-                st.rerun()
-            else: st.error("Xato!")
-        st.stop()
+# --- TELEGRAMGA YUBORISH (SIZNING ASL KODINGIZ) ---
+            if st.button("📢 Telegramga hisobotni yuborish"):
+                # Bu yerda aynan sizning botingiz va xabar yuborish usulingiz
+                xabar_matni = f"<b>📊 {MAKTAB_NOMI} Monitoringi</b>\n\n{tahlil_natijasi}"
+                
+                res = requests.post(
+                    f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
+                    json={"chat_id": GURUH_ID, "text": xabar_matni, "parse_mode": "HTML"}
+                )
+                
+                if res.status_code == 200:
+                    st.success("✅ Telegramga yuborildi!")
+                else:
+                    st.error("❌ Xato yuz berdi!")
+        except Exception as e:
+            st.error(f"Faylda xato: {e}")
 
-    j_fayl = st.file_uploader("Faylni tanlang", type=['xlsx', 'xls'])
-    if j_fayl:
-        try:
-            try: df_j = pd.read_excel(j_fayl, header=[0, 1])
-            except: 
-                j_fayl.seek(0)
-                df_j = pd.read_html(j_fayl, header=0)[0]
-            st.dataframe(df_j.head())
-            if st.button("📢 Telegramga yuborish"):
-                requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
-                             json={"chat_id": GURUH_ID, "text": f"📊 {MAKTAB_NOMI}\nMonitoring hisoboti yuborildi.", "parse_mode": "HTML"})
-                st.success("✅ Telegramga yuborildi!")
-        except Exception as e: st.error(f"Xato: {e}")
