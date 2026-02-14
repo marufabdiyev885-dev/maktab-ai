@@ -99,3 +99,58 @@ if "authenticated" not in st.session_state:
         parol = st.text_input("", placeholder="Parolni kiriting...", type="password", label_visibility="collapsed")
         if st.button("Kirish 🚀", use_container_width=True):
             if parol == TO_GRI_PAROL:
+                st.session_state.authenticated = True
+                st.rerun()
+            else:
+                st.error("❌ Parol noto'g'ri!")
+    st.stop()
+
+# --- 4. ASOSIY PANAL ---
+apply_custom_design()
+
+with st.sidebar:
+    st.markdown(f"### 🏫 {MAKTAB_NOMI}")
+    st.write(f"👤 **Direktor:**\n{DIREKTOR_FIO}")
+    st.divider()
+    menu = st.radio("Bo'limni tanlang:", ["🤖 AI Assistant", "📊 Monitoring"])
+    
+    if st.sidebar.button("Tizimdan chiqish 🚪"):
+        del st.session_state.authenticated
+        st.rerun()
+
+# --- 5. SAHIFALAR ---
+if menu == "🤖 AI Assistant":
+    st.markdown('<div class="main-header">🤖 Sun\'iy Intellekt Yordamchisi</div>', unsafe_allow_html=True)
+    
+    # Chat tarixi
+    if "messages" not in st.session_state:
+        st.session_state.messages = [{"role": "assistant", "content": "Assalomu alaykum! Maktab bazasi bo'yicha qanday savolingiz bor?"}]
+
+    for m in st.session_state.messages:
+        with st.chat_message(m["role"]):
+            st.markdown(m["content"])
+
+    if savol := st.chat_input("Savolingizni yozing..."):
+        st.session_state.messages.append({"role": "user", "content": savol})
+        with st.chat_message("user"): st.markdown(savol)
+        
+        with st.chat_message("assistant"):
+            with st.spinner("O'ylayapman..."):
+                # Bu yerga o'zingizning Groq API kodingizni ulab qo'yishingiz mumkin
+                st.markdown("Hozircha baza tahlil qilinmoqda...")
+
+elif menu == "📊 Monitoring":
+    st.markdown('<div class="main-header">📊 Jurnal Monitoringi</div>', unsafe_allow_html=True)
+    
+    t1, t2 = st.tabs(["📥 Fayl yuklash", "📜 Hisobotlar"])
+    
+    with t1:
+        st.info("eMaktab tizimidan yuklab olingan Excel faylni kiriting.")
+        fayl = st.file_uploader("", type=["xlsx", "xls"])
+        if fayl:
+            st.success("Fayl muvaffaqiyatli yuklandi!")
+            df = pd.read_excel(fayl)
+            st.dataframe(df, use_container_width=True)
+    
+    with t2:
+        st.write("Bu yerda yuborilgan oxirgi monitoring natijalari ko'rinadi.")
