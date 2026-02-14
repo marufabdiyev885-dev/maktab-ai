@@ -108,18 +108,25 @@ elif menu == "📊 Jurnal Monitoringi":
                 st.info(tahlil_natijasi)
 
             # --- TELEGRAMGA YUBORISH (SIZNING ASL KODINGIZ) ---
+           # --- TELEGRAMGA YUBORISH (FAQAT SHU QISMI O'ZGARTIRILDI) ---
             if st.button("📢 Telegramga hisobotni yuborish"):
-                # Bu yerda aynan sizning botingiz va xabar yuborish usulingiz
-                xabar_matni = f"<b>📊 {MAKTAB_NOMI} Monitoringi</b>\n\n{tahlil_natijasi}"
+                # Tahlil natijasini chiroyli xabar ko'rinishiga keltiramiz
+                if tahlil_natijasi:
+                    xabar_matni = f"<b>📊 {MAKTAB_NOMI} Monitoringi</b>\n\n{tahlil_natijasi}"
+                else:
+                    xabar_matni = f"<b>📊 {MAKTAB_NOMI}</b>\n\n✅ Monitoring yakunlandi, kamchiliklar topilmadi."
                 
+                # Telegramga yuborish
                 res = requests.post(
                     f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
-                    json={"chat_id": GURUH_ID, "text": xabar_matni, "parse_mode": "HTML"}
+                    json={
+                        "chat_id": GURUH_ID, 
+                        "text": xabar_matni, 
+                        "parse_mode": "HTML"
+                    }
                 )
                 
                 if res.status_code == 200:
-                    st.success("✅ Telegramga yuborildi!")
+                    st.success("✅ Tahlil guruhingizga yuborildi!")
                 else:
-                    st.error("❌ Xato yuz berdi!")
-        except Exception as e:
-            st.error(f"Faylda xato: {e}")
+                    st.error("❌ Telegramga yuborishda xato! Token yoki Guruh IDni tekshiring.")
