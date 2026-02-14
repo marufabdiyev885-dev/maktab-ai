@@ -26,9 +26,11 @@ def yuklash():
     all_sheets = {}
     for f in files:
         try:
+            # Excelning hamma listlarini o'qiymiz
             sheets = pd.read_excel(f, sheet_name=None, dtype=str)
             for name, df in sheets.items():
                 if not df.empty:
+                    # Ustun nomlarini tozalaymiz
                     df.columns = [str(c).strip().lower() for c in df.columns]
                     all_sheets[name] = df
         except: continue
@@ -56,7 +58,7 @@ if "authenticated" not in st.session_state:
         else: st.error("Parol noto'g'ri!")
     st.stop()
 
-# --- 5. AI BILAN MULOQOT (QIDIRUV TIKLANDI) ---
+# --- 5. AI BILAN MULOQOT (QIDIRUV TUZATILDI) ---
 if menu == "🤖 AI bilan muloqot":
     st.title("🤖 Maktab sun'iy intellekti bilan muloqot")
     
@@ -68,25 +70,24 @@ if menu == "🤖 AI bilan muloqot":
             st.markdown(f"**Assalomu alaykum, hurmatli foydalanuvchi!**\n\nSizga qanday ma'lumot qidirib berishim mumkin?")
         st.session_state.greeted = True
 
-    if savol := st.chat_input("Savolingizni kiriting..."):
+    if savol := st.chat_input("Ism yoki kalit so'z yozing..."):
         with st.chat_message("user"): st.markdown(savol)
         
         with st.chat_message("assistant"):
             res_df = pd.DataFrame()
+            q = savol.lower().strip()
+            
             salomlar = ["salom", "assalom", "qalay", "yaxshimi"]
             
-            if any(s in savol.lower() for s in salomlar):
+            if any(s in q for s in salomlar):
                 st.markdown("Vaalaykum assalom! **Hurmatli foydalanuvchi**, sizga xizmat qilishdan mamnunman.")
             elif sheets_baza:
-                # Qidiruv mantiqi
-                is_teacher_req = any(x in savol.lower() for x in ["o'qituvchi", "pedagog", "ro'yxat", "xodim"])
-                if is_teacher_req and "лист2" in sheets_baza:
-                    res_df = sheets_baza["лист2"]
-                else:
-                    all_df = pd.concat(sheets_baza.values(), ignore_index=True, sort=False).fillna("")
-                    q = savol.lower()
-                    mask = all_df.apply(lambda row: any(q in str(v).lower() for v in row), axis=1)
-                    res_df = all_df[mask]
+                # Barcha listlardagi ma'lumotni bitta jadvalga yig'amiz
+                combined_df = pd.concat(sheets_baza.values(), ignore_index=True, sort=False).fillna("")
+                
+                # Qidiruv: Har bir qatorda shu so'z bormi yoki yo'qligini tekshirish
+                mask = combined_df.apply(lambda row: any(q in str(v).lower() for v in row), axis=1)
+                res_df = combined_df[mask]
 
                 if not res_df.empty:
                     st.success(f"Natija topildi ({len(res_df)} ta qator).")
@@ -97,9 +98,9 @@ if menu == "🤖 AI bilan muloqot":
                         res_df.to_excel(writer, index=False)
                     st.download_button("📥 Natijani Excelda yuklab olish", output.getvalue(), "natija.xlsx")
                 else:
-                    st.warning("Hurmatli foydalanuvchi, bazada bunday ma'lumot topilmadi.")
+                    st.warning("Hurmatli foydalanuvchi, bazadan bunday ma'lumot topilmadi.")
 
-# --- 6. JURNAL MONITORINGI (SIZ AYTGAN TAHLIL BILAN) ---
+# --- 6. JURNAL MONITORINGI ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
     
@@ -137,17 +138,12 @@ elif menu == "📊 Jurnal Monitoringi":
                         if int(nums[0]) < int(nums[1]):
                             kamchiliklar.append(f"❌ {row[col_name]}: {int(nums[1]) - int(nums[0])} ta jurnal yozilmagan")
             
-            if not kamchiliklar:
-                xabar_tahlili = "✅ Barcha jurnallar to'liq baholangan!"
-            else:
-                xabar_tahlili = "⚠️ **Kamchiliklar aniqlandi:**\n" + "\n".join(kamchiliklar)
-
+            xabar_tahlili = "✅ Barcha jurnallar to'liq baholangan!" if not kamchiliklar else "⚠️ **Kamchiliklar aniqlandi:**\n" + "\n".join(kamchiliklar)
             st.info(xabar_tahlili)
 
             if st.button("📢 Telegramga hisobotni yuborish"):
-                full_msg = f"<b>📊 {MAKTAB_NOMI} Monitoringi</b>\n\n{xabar_tahlili}"
                 requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
-                             json={"chat_id": GURUH_ID, "text": full_msg, "parse_mode": "HTML"})
+                             json={"chat_id": GURUH_ID, "text": f"<b>📊 {MAKTAB_NOMI} Monitoringi</b>\n\n{xabar_tahlili}", "parse_mode": "HTML"})
                 st.success("✅ Telegramga yuborildi!")
                     
         except Exception as e:
