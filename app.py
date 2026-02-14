@@ -13,7 +13,7 @@ GROQ_API_KEY = "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"
 TO_GRI_PAROL = "informatika2024"
 MONITORING_KODI = "admin777" 
 BOT_TOKEN = "8524007504:AAFiMXSbXhe2M-84WlNM16wNpzhNolfQIf8"
-GURUH_ID = "-5045481739" 
+GURUH_ID = "-1003047388159" 
 
 st.set_page_config(page_title=MAKTAB_NOMI, layout="wide")
 
@@ -146,3 +146,4 @@ elif menu == "📊 Jurnal Monitoringi":
                 st.success("Hisobot yuborildi!")
         except Exception as e:
             st.error(f"Faylni tahlil qilishda xato: {e}")
+
