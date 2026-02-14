@@ -4,7 +4,7 @@ import os
 import requests
 import re
 import io
-import docx  # Word fayllari uchun
+import docx
 import random
 
 # --- 1. ASOSIY SOZLAMALAR ---
@@ -18,7 +18,7 @@ GURUH_ID = "-5045481739"
 
 st.set_page_config(page_title=MAKTAB_NOMI, layout="wide")
 
-# --- 2. BAZANI YUKLASH (XATOLARGA MUTLAQ CHIDAMLI) ---
+# --- 2. BAZANI YUKLASH (DUPLICATE USTUNLAR TUZATILGAN) ---
 @st.cache_data
 def yuklash():
     files = [f for f in os.listdir('.') if f.lower().endswith(('.xlsx', '.xls', '.csv', '.docx')) and 'app.py' not in f]
@@ -31,13 +31,11 @@ def yuklash():
                 word_text += "\n".join([para.text for para in doc.paragraphs])
             elif f.endswith(('.xlsx', '.xls')):
                 try:
-                    # Barcha varaqlarni o'qish
                     excel_sheets = pd.read_excel(f, sheet_name=None, dtype=str)
                     for name, sheet_df in excel_sheets.items():
                         if not sheet_df.empty:
                             all_data.append(sheet_df)
                 except:
-                    # eMaktab HTML-Excel bo'lsa
                     df_html_list = pd.read_html(f)
                     if df_html_list:
                         all_data.append(df_html_list[0].astype(str))
@@ -49,12 +47,17 @@ def yuklash():
     
     if all_data:
         full_df = pd.concat(all_data, ignore_index=True)
-        # Ustun nomlarini xavfsiz tozalash
-        full_df.columns = [str(c).strip().lower() for c in full_df.columns]
         
-        # XATONI TUZATISH: .str.strip() o'rniga apply ishlatamiz (xavfsizroq)
+        # XATONI TUZATISH: Bir xil nomli ustunlarni raqamlash
+        cols = pd.Series(full_df.columns).astype(str).str.strip().str.lower()
+        for i, col in enumerate(cols):
+            count = cols[:i].tolist().count(col)
+            if count > 0:
+                cols[i] = f"{col}.{count}"
+        full_df.columns = cols
+        
+        # Ma'lumotlarni tozalash
         full_df = full_df.applymap(lambda x: str(x).strip() if pd.notnull(x) else "")
-        
         return full_df, word_text
     return None, word_text
 
@@ -67,8 +70,6 @@ with st.sidebar:
     st.divider()
     menu = st.radio("Bo'limni tanlang:", ["🤖 AI Yordamchi", "📊 Jurnal Monitoringi"])
     st.divider()
-    hikmatlar = ["Ilm — saodat kalitidir.", "Informatika — kelajak tili!", "Ustoz — otangdek ulug‘!"]
-    st.warning(f"🌟 **Kun hikmati:**\n\n*{random.choice(hikmatlar)}*")
     st.info(f"**Direktor:**\n\n{DIREKTOR_FIO}")
 
 # --- 4. XAVFSIZLIK ---
@@ -82,7 +83,7 @@ if "authenticated" not in st.session_state:
         else: st.error("❌ Xato!")
     st.stop()
 
-# --- 5. AI YORDAMCHI (Farosat filtri va Telegramsiz qism) ---
+# --- 5. AI YORDAMCHI SAHIFASI ---
 if menu == "🤖 AI Yordamchi":
     st.title(f"🤖 {MAKTAB_NOMI} AI Yordamchisi")
     if "messages" not in st.session_state:
@@ -98,7 +99,7 @@ if menu == "🤖 AI Yordamchi":
         with st.chat_message("assistant"):
             found_data = ""
             soni = 0
-            shunchaki_gap = [r"rahmat", r"ajoyib", r"yaxshi", r"zo'r", r"salom", r"assalomu alaykum", r"baraka toping"]
+            shunchaki_gap = [r"rahmat", r"ajoyib", r"yaxshi", r"zo'r", r"salom", r"assalomu alaykum"]
             is_greeting = any(re.search(rf"\b{soz}\b", savol.lower()) for soz in shunchaki_gap)
 
             if df_baza is not None and not is_greeting:
@@ -106,6 +107,7 @@ if menu == "🤖 AI Yordamchi":
                 if keywords:
                     res = df_baza[df_baza.apply(lambda row: any(k in str(v).lower() for k in keywords for v in row), axis=1)]
                     if not res.empty:
+                        # Dublikat ustunlardan tozalangan jadvalni ko'rsatish
                         st.dataframe(res, use_container_width=True)
                         soni = len(res)
                         found_data = res.head(50).to_string(index=False)
@@ -113,24 +115,24 @@ if menu == "🤖 AI Yordamchi":
                         output = io.BytesIO()
                         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                             res.to_excel(writer, index=False)
-                        st.download_button(label=f"📥 {soni} ta natijani yuklab olish", data=output.getvalue(), file_name="natija.xlsx")
+                        st.download_button(label=f"📥 {soni} ta natijani yuklab olish", data=output.getvalue(), file_name="royxat.xlsx")
 
             payload = {
                 "model": "llama-3.3-70b-versatile",
                 "messages": [
-                    {"role": "system", "content": f"Sen {MAKTAB_NOMI} AI yordamchisisan. Jami baza: {len(df_baza) if df_baza is not None else 0} ta. Samimiy o'zbek tilida javob ber."},
+                    {"role": "system", "content": f"Sen {MAKTAB_NOMI} AI yordamchisisan. Jami baza: {len(df_baza) if df_baza is not None else 0}. Samimiy javob ber."},
                     {"role": "user", "content": f"Baza: {found_data}. Savol: {savol}"}
                 ], "temperature": 0.4
             }
             try:
                 r = requests.post("https://api.groq.com/openai/v1/chat/completions", json=payload, headers={"Authorization": f"Bearer {GROQ_API_KEY}"})
                 ai_text = r.json()['choices'][0]['message']['content']
-            except: ai_text = "Xizmatizga doim tayyorman!"
+            except: ai_text = "Sizga yordam berishdan xursandman!"
             
             st.markdown(ai_text)
             st.session_state.messages.append({"role": "assistant", "content": ai_text})
 
-# --- 6. MONITORING VA TELEGRAM ---
+# --- 6. JURNAL MONITORINGI ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
     if "m_auth" not in st.session_state: st.session_state.m_auth = False
@@ -171,14 +173,14 @@ elif menu == "📊 Jurnal Monitoringi":
                 df_filtir = df_j[df_j[c_oqit].notna() & ~df_j[c_oqit].str.contains('maktab|tuman', case=False, na=False)]
                 xatolar = df_filtir[df_filtir[c_baho].apply(tahlil)]
                 
+                text = f"<b>⚠️ JURNAL MONITORINGI</b>\n\n"
                 if not xatolar.empty:
-                    text = f"<b>⚠️ JURNAL MONITORINGI</b>\n<i>{MAKTAB_NOMI}</i>\n\n"
                     for _, r in xatolar.iterrows():
                         text += f"❌ <b>{r[c_oqit]}</b> -> {r[c_baho]}\n"
                 else:
-                    text = f"<b>✅ JURNAL MONITORINGI</b>\n<i>{MAKTAB_NOMI}</i>\n\n✨ Barcha jurnallar to'liq!"
+                    text += "✅ Hamma jurnallar to'liq!"
 
                 requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
                               json={"chat_id": GURUH_ID, "text": text, "parse_mode": "HTML"})
-                st.success("Telegramga yuborildi!")
+                st.success("Yuborildi!")
         except Exception as e: st.error(f"Xato: {e}")
