@@ -18,7 +18,7 @@ GURUH_ID = "-5045481739"
 
 st.set_page_config(page_title=MAKTAB_NOMI, layout="wide")
 
-# --- 2. BAZANI YUKLASH (1200 TA O'QUVCHI UCHUN TO'LIQ VARIANT) ---
+# --- 2. BAZANI YUKLASH (XATOLIKLAR TUZATILGAN VARIANT) ---
 @st.cache_data
 def yuklash():
     files = [f for f in os.listdir('.') if f.lower().endswith(('.xlsx', '.xls', '.csv', '.docx')) and 'app.py' not in f]
@@ -31,22 +31,29 @@ def yuklash():
                 word_text += "\n".join([para.text for para in doc.paragraphs])
             elif f.endswith(('.xlsx', '.xls')):
                 try:
+                    # Barcha varaqlarni o'qish
                     excel_sheets = pd.read_excel(f, sheet_name=None, dtype=str)
                     for name, sheet_df in excel_sheets.items():
-                        all_data.append(sheet_df)
+                        if not sheet_df.empty:
+                            all_data.append(sheet_df)
                 except:
-                    df_html = pd.read_html(f, header=0)[0]
-                    all_data.append(df_html.astype(str))
+                    # eMaktab HTML-Excel bo'lsa
+                    df_html_list = pd.read_html(f)
+                    if df_html_list:
+                        all_data.append(df_html_list[0].astype(str))
             elif f.endswith('.csv'):
                 df_s = pd.read_csv(f, dtype=str)
-                all_data.append(df_s)
+                if not df_s.empty:
+                    all_data.append(df_s)
         except: continue
     
     if all_data:
         full_df = pd.concat(all_data, ignore_index=True)
+        # Ustun nomlarini tozalash
         full_df.columns = [str(c).strip().lower() for c in full_df.columns]
+        # Xatolikni oldini olish: NaN qiymatlarni tozalash va matnga o'girish
         for col in full_df.columns:
-            full_df[col] = full_df[col].astype(str).str.strip()
+            full_df[col] = full_df[col].fillna("").astype(str).str.strip()
         return full_df, word_text
     return None, word_text
 
@@ -74,11 +81,12 @@ if "authenticated" not in st.session_state:
         else: st.error("❌ Xato!")
     st.stop()
 
-# --- 5. SAHIFALAR ---
+# --- 5. AI YORDAMCHI SAHIFASI ---
 if menu == "🤖 AI Yordamchi":
     st.title(f"🤖 {MAKTAB_NOMI} AI Yordamchisi")
     if "messages" not in st.session_state:
         st.session_state.messages = [{"role": "assistant", "content": "Assalomu alaykum! Maktab bazasi bo'yicha qanday yordam bera olaman?"}]
+    
     for m in st.session_state.messages:
         with st.chat_message(m["role"]): st.markdown(m["content"])
 
@@ -105,21 +113,23 @@ if menu == "🤖 AI Yordamchi":
                             res.to_excel(writer, index=False)
                         st.download_button(label=f"📥 {soni} ta natijani yuklab olish", data=output.getvalue(), file_name="natija.xlsx")
 
+            system_prompt = f"Sen {MAKTAB_NOMI} AI yordamchisisan. Jami ma'lumotlar soni: {len(df) if df is not None else 0}. Foydalanuvchi bilan o'zbekona lutf bilan gaplash."
             payload = {
                 "model": "llama-3.3-70b-versatile",
                 "messages": [
-                    {"role": "system", "content": f"Sen {MAKTAB_NOMI} AI yordamchisisan. Jami ma'lumot: {len(df) if df is not None else 0}. O'zbekona lutf bilan javob ber."},
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": f"Baza: {found_data}. Savol: {savol}"}
-                ], "temperature": 0.5
+                ], "temperature": 0.4
             }
             try:
                 r = requests.post("https://api.groq.com/openai/v1/chat/completions", json=payload, headers={"Authorization": f"Bearer {GROQ_API_KEY}"})
                 ai_text = r.json()['choices'][0]['message']['content']
-            except: ai_text = "Yordam berishdan hamisha xursandman!"
+            except: ai_text = "Sizga yordam berishdan hamisha xursandman!"
+            
             st.markdown(ai_text)
             st.session_state.messages.append({"role": "assistant", "content": ai_text})
 
-# --- 6. JURNAL MONITORINGI (TELEGRAM BILAN) ---
+# --- 6. JURNAL MONITORINGI (TELEGRAM) ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
     if "m_auth" not in st.session_state: st.session_state.m_auth = False
@@ -161,13 +171,12 @@ elif menu == "📊 Jurnal Monitoringi":
                 xatolar = df_filtir[df_filtir[c_baho].apply(tahlil)]
                 
                 if not xatolar.empty:
-                    text = f"<b>⚠️ JURNAL MONITORINGI</b>\n<i>{MAKTAB_NOMI}</i>\n\n"
+                    text = f"<b>⚠️ JURNAL MONITORINGI</b>\n<i>{MAKTAB_NOMI}</i>\n\nKamchiliklar:\n"
                     for _, r in xatolar.iterrows():
                         text += f"❌ <b>{r[c_oqit]}</b> -> {r[c_baho]}\n"
                 else:
                     text = f"<b>✅ JURNAL MONITORINGI</b>\n<i>{MAKTAB_NOMI}</i>\n\n✨ Hamma jurnallar baholangan!"
 
-                # TELEGRAMGA YUBORISH
                 requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
                               json={"chat_id": GURUH_ID, "text": text, "parse_mode": "HTML"})
                 st.success("Hisobot Telegramga yuborildi!")
