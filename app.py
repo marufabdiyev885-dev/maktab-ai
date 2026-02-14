@@ -18,7 +18,7 @@ GURUH_ID = "-5045481739"
 
 st.set_page_config(page_title=MAKTAB_NOMI, layout="wide")
 
-# --- 2. BAZANI YUKLASH (USTUNLARNI TO'LIQ TANISH) ---
+# --- 2. BAZANI YUKLASH ---
 @st.cache_data
 def yuklash():
     files = [f for f in os.listdir('.') if f.lower().endswith(('.xlsx', '.xls', '.csv', '.docx')) and 'app.py' not in f]
@@ -31,7 +31,6 @@ def yuklash():
                 word_text += "\n".join([para.text for para in doc.paragraphs])
             elif f.endswith(('.xlsx', '.xls')):
                 try:
-                    # Barcha varaqlarni o'qish
                     excel_sheets = pd.read_excel(f, sheet_name=None, dtype=str)
                     for name, sheet_df in excel_sheets.items():
                         if not sheet_df.empty:
@@ -48,10 +47,10 @@ def yuklash():
     
     if all_data:
         full_df = pd.concat(all_data, ignore_index=True)
-        # Ustun nomlarini tozalash (kichik harf va bo'shliqsiz)
+        # Ustun nomlarini tozalash
         full_df.columns = [str(c).strip().lower() for c in full_df.columns]
         
-        # Duplikat ustun nomlarini raqamlash (masalan: maktab, maktab.1)
+        # Takrorlangan ustunlarni raqamlash
         cols = pd.Series(full_df.columns)
         for i, col in enumerate(cols):
             count = cols[:i].tolist().count(col)
@@ -85,11 +84,11 @@ if "authenticated" not in st.session_state:
         else: st.error("❌ Xato!")
     st.stop()
 
-# --- 5. AI YORDAMCHI (O'QITUVCHINI USTUNI BO'YICHA TANISH) ---
+# --- 5. AI YORDAMCHI (ANIQ FILTR BILAN) ---
 if menu == "🤖 AI Yordamchi":
     st.title(f"🤖 {MAKTAB_NOMI} AI Yordamchisi")
     if "messages" not in st.session_state:
-        st.session_state.messages = [{"role": "assistant", "content": "Assalomu alaykum! O'qituvchilar yoki o'quvchilar haqida nima qidiramiz?"}]
+        st.session_state.messages = [{"role": "assistant", "content": "Assalomu alaykum! O'qituvchilar yoki o'quvchilar ro'yxati kerakmi?"}]
     
     for m in st.session_state.messages:
         with st.chat_message(m["role"]): st.markdown(m["content"])
@@ -105,24 +104,21 @@ if menu == "🤖 AI Yordamchi":
             if df_baza is not None:
                 qidiruv_sozlari = [s.lower() for s in savol.split() if len(s) > 2]
                 
-                # Excelingizdagi ustunlarga qarab filtr:
-                is_teacher_req = any(x in savol.lower() for x in ["o'qituvchi", "ustoz", "muallim", "pedagog", "xodim"])
-                is_student_req = any(x in savol.lower() for x in ["o'quvchi", "bola", "shogird", "sinf"])
+                # Savol mazmunini aniqlash
+                is_teacher_req = any(x in savol.lower() for x in ["o'qituvchi", "pedagog", "xodim", "toifasi", "ustoz"])
+                is_student_req = any(x in savol.lower() for x in ["o'quvchi", "sinf", "bola"])
 
                 temp_df = df_baza.copy()
 
-                # --- FILTRLASH MANTIQI ---
-                # Jadvalda "toifasi" yoki "mutaxassisligi" bo'lsa, bu o'qituvchi
+                # --- ANIQ FILTRLASH ---
+                # Agar o'qituvchi so'ralsa, faqat "mutaxassisligi" bor qatorlarni qoldiramiz
                 if is_teacher_req:
-                    for col in ["toifasi", "mutaxassisligi", "pedagogning ismi familiyasi"]:
+                    for col in ["mutaxassisligi", "toifasi", "pedagogning ismi familiyasi"]:
                         if col in temp_df.columns:
                             temp_df = temp_df[temp_df[col] != ""]
-                
-                # Agar o'quvchi so'ralsa va jadvalda "sinfi" ustuni bo'lsa
-                if is_student_req and "sinfi" in temp_df.columns:
-                    temp_df = temp_df[temp_df["sinfi"] != ""]
 
                 if qidiruv_sozlari:
+                    # Qidiruv so'zi qaysi ustunda bo'lishidan qat'i nazar topadi
                     res = temp_df[temp_df.apply(lambda row: any(k in str(v).lower() for k in qidiruv_sozlari for v in row), axis=1)]
                     
                     if not res.empty:
@@ -133,15 +129,15 @@ if menu == "🤖 AI Yordamchi":
                         output = io.BytesIO()
                         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                             res.to_excel(writer, index=False)
-                        st.download_button(label=f"📥 {soni} ta natijani yuklab olish", data=output.getvalue(), file_name="natija.xlsx")
+                        st.download_button(label=f"📥 {soni} ta natijani yuklab olish", data=output.getvalue(), file_name="royxat.xlsx")
             
             # AI JAVOBI
             payload = {
                 "model": "llama-3.3-70b-versatile",
                 "messages": [
-                    {"role": "system", "content": f"Sen {MAKTAB_NOMI} yordamchisisan. Ma'lumotlar {len(df_baza)} ta. O'qituvchi so'ralsa pedagoglar jadvalidan, o'quvchi so'ralsa o'quvchilar jadvalidan ma'lumot ber."},
+                    {"role": "system", "content": f"Sen {MAKTAB_NOMI} yordamchisisan. Jami ma'lumot: {len(df_baza)}. Faqat bazadagi aniq ma'lumotga tayan."},
                     {"role": "user", "content": f"Baza: {found_data}. Savol: {savol}"}
-                ], "temperature": 0.3
+                ], "temperature": 0.2
             }
             try:
                 r = requests.post("https://api.groq.com/openai/v1/chat/completions", json=payload, headers={"Authorization": f"Bearer {GROQ_API_KEY}"})
@@ -154,4 +150,4 @@ if menu == "🤖 AI Yordamchi":
 # --- 6. MONITORING ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
-    # ... (Monitoring kodi o'zgarishsiz qoladi)
+    # ... (monitoring kodi)
