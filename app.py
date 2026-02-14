@@ -11,9 +11,9 @@ MAKTAB_NOMI = "1-sonli umumiy o'rta ta'lim maktabi"
 DIREKTOR_FIO = "Mahmudov Matyoqub Narzulloyevich"
 GROQ_API_KEY = "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"
 TO_GRI_PAROL = "informatika2024"
-MONITORING_KODI = "admin777" 
+MONITORING_KODI = "admin777"
 BOT_TOKEN = "8524007504:AAFiMXSbXhe2M-84WlNM16wNpzhNolfQIf8"
-GURUH_ID = "-1003047388159" 
+GURUH_ID = "-1003047388159"
 
 st.set_page_config(page_title=MAKTAB_NOMI, layout="wide")
 
@@ -36,25 +36,23 @@ def set_bg(url):
             text-align: center;
             text-shadow: 3px 3px 15px rgba(0,0,0,0.9);
             margin-top: 50px;
-            margin-bottom: 10px;
+            margin-bottom: 20px;
             width: 100%;
         }}
 
-        /* Login bloki - hamma narsa shu ichida bo'ladi */
         .login-box {{
             background-color: rgba(255, 255, 255, 0.95);
-            padding: 30px 40px;
-            border-radius: 20px;
+            padding: 40px;
+            border-radius: 25px;
             box-shadow: 0 15px 35px rgba(0,0,0,0.5);
             max-width: 450px;
             margin: auto;
             text-align: center;
-            border: 1px solid #ddd;
         }}
         
-        /* Streamlitning standart paddinglarini kamaytirish */
-        .block-container {{
-            padding-top: 2rem;
+        /* Input ramkasini chiroyli qilish */
+        div[data-baseweb="input"] {{
+            border-radius: 10px !important;
         }}
         </style>
         """,
@@ -75,23 +73,23 @@ if "authenticated" not in st.session_state:
     
     set_bg(st.session_state.bg_url)
 
-    # Maktab nomi tepada ochiq holda
+    # 1. Maktab nomi (Tepada, ochiq holda)
     st.markdown(f'<div class="school-title">🏛 {MAKTAB_NOMI}</div>', unsafe_allow_html=True)
     
-    col1, col2, col3 = st.columns([1, 1.5, 1])
+    col1, col2, col3 = st.columns([1, 1.2, 1])
     with col2:
         # OQ BLOK BOSHLANISHI
         st.markdown('<div class="login-box">', unsafe_allow_html=True)
         
-        # 1. "Tizimga kirish" so'zi blok ichida
-        st.markdown("<h2 style='color: #1E1E1E; margin-bottom: 20px; margin-top: 0;'>Tizimga kirish</h2>", unsafe_allow_html=True)
+        # 2. Sarlavha (Blok ichiga kirdi!)
+        st.markdown("<h2 style='color: #1E1E1E; margin-bottom: 25px; font-family: sans-serif;'>Tizimga kirish</h2>", unsafe_allow_html=True)
         
-        # 2. Parol kiritish joyi blok ichida
-        parol = st.text_input("Parol:", placeholder="Maxfiy kodni yozing...", type="password", label_visibility="collapsed", key="login_pass")
+        # 3. Parol kiritish
+        parol = st.text_input("", placeholder="Parolni kiriting...", type="password", key="login_pass", label_visibility="collapsed")
         
-        st.markdown("<br>", unsafe_allow_html=True)
+        st.write("<br>", unsafe_allow_html=True)
         
-        # 3. Kirish tugmasi blok ichida
+        # 4. Tugma
         if st.button("Kirish 🚀", use_container_width=True):
             if parol == TO_GRI_PAROL:
                 st.session_state.authenticated = True
@@ -99,10 +97,10 @@ if "authenticated" not in st.session_state:
             else:
                 st.error("❌ Parol noto'g'ri!")
         
-        st.markdown('</div>', unsafe_allow_html=True) # OQ BLOK TUGASHI
+        st.markdown('</div>', unsafe_allow_html=True) # Oq blok tugashi
     st.stop()
 
-# Fonni tozalash
+# Fonni tozalash (Kirgandan keyin)
 st.markdown("<style>.stApp {background: none !important;}</style>", unsafe_allow_html=True)
 
 # --- 4. SIDEBAR ---
@@ -112,7 +110,7 @@ with st.sidebar:
     menu = st.radio("Bo'limni tanlang:", ["🤖 AI Yordamchi", "📊 Jurnal Monitoringi"])
     st.info(f"👤 **Direktor:**\n{DIREKTOR_FIO}")
 
-# --- 5. BAZA YUKLASH VA QOLGAN QISMLAR ---
+# --- 5. BAZA YUKLASH ---
 @st.cache_data
 def yuklash():
     files = [f for f in os.listdir('.') if f.lower().endswith(('.xlsx', '.xls', '.docx')) and 'app.py' not in f]
@@ -132,6 +130,7 @@ def yuklash():
 
 df_baza, _ = yuklash()
 
+# --- 6. SAHIFALAR ---
 if menu == "🤖 AI Yordamchi":
     st.title("🤖 AI Yordamchi")
     if "messages" not in st.session_state:
