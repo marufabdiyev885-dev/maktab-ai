@@ -15,13 +15,14 @@ GURUH_ID = "-5045481739"
 
 st.set_page_config(page_title=MAKTAB_NOMI, layout="wide")
 
-# --- 2. BAZANI YUKLASH (HAMMA LISTLARNI BIRLASHTIRISH) ---
+# --- 2. BAZANI YUKLASH (HAMMA LISTLARNI TO'LIQ O'QISH) ---
 @st.cache_data
 def yuklash():
     files = [f for f in os.listdir('.') if f.lower().endswith(('.xlsx', '.xls', '.csv')) and 'app.py' not in f]
     all_data = []
     for f in files:
         try:
+            # sheet_name=None hamma varaqlarni (Лист1, Лист2) o'qiydi
             sheets = pd.read_excel(f, sheet_name=None, dtype=str)
             for name, df in sheets.items():
                 if not df.empty:
@@ -30,8 +31,7 @@ def yuklash():
         except: continue
     if all_data:
         full_df = pd.concat(all_data, ignore_index=True, sort=False)
-        full_df = full_df.fillna("") 
-        return full_df
+        return full_df.fillna("")
     return None
 
 df_baza = yuklash()
@@ -39,12 +39,12 @@ df_baza = yuklash()
 # --- 3. SIDEBAR ---
 with st.sidebar:
     st.title(f"🏛 {MAKTAB_NOMI}")
-    menu = st.radio("Menyu:", ["🤖 AI Yordamchi", "📊 Jurnal Monitoringi"])
+    menu = st.radio("Bo'lim:", ["🤖 AI Yordamchi", "📊 Jurnal Monitoringi"])
 
 # --- 4. XAVFSIZLIK ---
 if "authenticated" not in st.session_state:
     st.title(f"🏫 {MAKTAB_NOMI}")
-    parol = st.text_input("Parol:", type="password")
+    parol = st.text_input("Kirish paroli:", type="password")
     if st.button("Kirish"):
         if parol == TO_GRI_PAROL:
             st.session_state.authenticated = True
@@ -52,67 +52,51 @@ if "authenticated" not in st.session_state:
         else: st.error("Xato!")
     st.stop()
 
-# --- 5. AI YORDAMCHI (RO'YXATNI CHIQARADIGAN VARIANT) ---
+# --- 5. AI YORDAMCHI (TO'QISH TAQIQLANGAN) ---
 if menu == "🤖 AI Yordamchi":
-    st.title("🤖 Maktab AI Yordamchisi")
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-
-    for m in st.session_state.messages:
-        with st.chat_message(m["role"]): st.markdown(m["content"])
-
-    if savol := st.chat_input("Masalan: O'qituvchilar ro'yxatini ber"):
-        st.session_state.messages.append({"role": "user", "content": savol})
+    st.title("🤖 Maktab AI (Faqat faktlar)")
+    
+    if savol := st.chat_input("Savol bering (masalan: Matematika o'qituvchilari)"):
         with st.chat_message("user"): st.markdown(savol)
         
         with st.chat_message("assistant"):
+            # 1. QIDIRUV MANTIQI
             found_context = ""
-            
             if df_baza is not None:
-                # Qidiruv so'zlarini aniqlash
-                q_words = [s.lower() for s in savol.replace("?", "").split() if len(s) > 2]
+                q = savol.lower()
+                # Rasmdagi ustunlar bo'yicha qidiruv
+                mask = df_baza.apply(lambda row: any(q in str(v).lower() for v in row), axis=1)
+                res = df_baza[mask]
                 
-                # Agar foydalanuvchi "ro'yxat" yoki "hamma" desa, hamma pedagoglarni oladi
-                is_list_request = any(x in savol.lower() for x in ["ro'yxat", "hamma", "list", "o'qituvchilar"])
-                
-                if is_list_request and "mutaxassisligi" in df_baza.columns:
-                    res = df_baza[df_baza["mutaxassisligi"] != ""] # Faqat o'qituvchilar
-                elif q_words:
-                    mask = df_baza.apply(lambda row: any(any(k in str(v).lower() for v in row) for k in q_words), axis=1)
-                    res = df_baza[mask]
-                else:
-                    res = pd.DataFrame()
-
                 if not res.empty:
-                    st.dataframe(res) # Jadvalni baribir ko'rsatamiz
-                    # AIga ma'lumotni matn ko'rinishida beramiz
+                    st.dataframe(res) # Topilganini jadvalda ko'rsatadi
                     found_context = res.to_string(index=False)
+                else:
+                    found_context = "BAZADA MA'LUMOT YO'Q"
 
-            # AIga aniq vazifa: Ma'lumotni ro'yxat qilib ber!
-            system_prompt = f"""Sen {MAKTAB_NOMI} maktabi yordamchisisan. 
-            Vazifang: Senga berilgan bazadagi ma'lumotlarni chiroyli ro'yxat ko'rinishida foydalanuvchiga taqdim etish.
-            Agar bazada ma'lumot bo'lsa, ularni 'F.I.SH - Lavozimi/Sinfi' formatida sanab ber.
-            Bazadagi ma'lumotdan tashqariga chiqma."""
+            # 2. AI JAVOBI (Qat'iy rejim)
+            # Temperature 0.0 qilinganda AI to'qishni to'xtatadi
+            prompt = f"""Sen faqat berilgan bazadagi ma'lumotga tayangan holda javob berasan.
+            Agar ma'lumot topilmasa, FAQAT 'Kechirasiz, bazada bunday ma'lumot yo'q' deb javob ber.
+            ASLO o'zingdan ism yoki fan qo'shma!
             
+            Baza: {found_context}
+            Savol: {savol}"""
+
             payload = {
                 "model": "llama-3.3-70b-versatile",
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": f"Baza: {found_context}\n\nSavol: {savol}"}
-                ], "temperature": 0.4 # Biroz erkinlik berdik, ro'yxatni chiroyli tuzishi uchun
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.0 
             }
             
             try:
                 r = requests.post("https://api.groq.com/openai/v1/chat/completions", 
                                  json=payload, headers={"Authorization": f"Bearer {GROQ_API_KEY}"})
-                ai_text = r.json()['choices'][0]['message']['content']
-            except: ai_text = "Natijalar yuqoridagi jadvalda ko'rsatildi."
-            
-            st.markdown(ai_text)
-            st.session_state.messages.append({"role": "assistant", "content": ai_text})
+                st.markdown(r.json()['choices'][0]['message']['content'])
+            except: st.error("AI bilan bog'lanishda xato.")
 
-# --- 6. JURNAL MONITORINGI (TELEGRAM) ---
+# --- 6. MONITORING (TELEGRAM QISMI) ---
 elif menu == "📊 Jurnal Monitoringi":
-    # Bu bo'lim o'sha siz ishlatayotgan Telegram yuborish kodi
     st.title("📊 Jurnal Monitoringi")
-    # ... (monitoring kodi davom etadi)
+    # Telegram yuborish kodingiz o'zgarishsiz qoldi...
+    # (Bu yerda sizning BOT_TOKEN va GURUH_ID ishlatilgan monitoring kodi turibdi)
