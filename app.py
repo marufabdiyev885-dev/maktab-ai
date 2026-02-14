@@ -95,4 +95,47 @@ if menu == "🤖 AI Yordamchi":
             
             payload = {
                 "model": "llama-3.3-70b-versatile",
-                "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": f"Baza: {found_data}. Savol
+                "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": f"Baza: {found_data}. Savol: {savol}"}]
+            }
+            try:
+                r = requests.post("https://api.groq.com/openai/v1/chat/completions", json=payload, headers={"Authorization": f"Bearer {GROQ_API_KEY}"})
+                ai_text = r.json()['choices'][0]['message']['content']
+            except: ai_text = "Xizmatingizga tayyorman, Ustoz!"
+            
+            st.markdown(ai_text)
+            st.session_state.messages.append({"role": "assistant", "content": ai_text})
+
+# B) JURNAL MONITORINGI (MAXSUS KOD BILAN)
+elif menu == "📊 Jurnal Monitoringi":
+    st.title("📊 Jurnal Monitoringi Tizimi")
+    
+    if "monitoring_auth" not in st.session_state:
+        st.session_state.monitoring_auth = False
+
+    if not st.session_state.monitoring_auth:
+        m_pass = st.text_input("Monitoring bo'limi kodini kiriting:", type="password")
+        if st.button("Tasdiqlash"):
+            if m_pass == MONITORING_KODI:
+                st.session_state.monitoring_auth = True
+                st.rerun()
+            else: st.error("❌ Kod xato!")
+        st.stop()
+
+    # Agar kod to'g'ri bo'lsa:
+    st.success("✅ Kirish tasdiqlandi. Jurnal faylini yuklashingiz mumkin.")
+    j_fayl = st.file_uploader("Excelni yuklang", type=['xlsx'])
+    if j_fayl:
+        df_j = pd.read_excel(j_fayl)
+        st.dataframe(df_j.head())
+        col_oqit = st.selectbox("O'qituvchi ustuni:", df_j.columns)
+        col_stat = st.selectbox("Holat ustuni:", df_j.columns)
+        
+        xatolar = df_j[df_j[col_stat].astype(str).str.contains("To'ldirilmagan", na=False)]
+        
+        if st.button("📢 Guruhga ogohlantirish yuborish"):
+            text = f"<b>🔔 Jurnal monitoringi ({MAKTAB_NOMI})</b>\n\nKamchiliklar aniqlandi:\n"
+            for name in xatolar[col_oqit].unique()[:20]:
+                text += f"❌ {name}\n"
+            text += "\n<i>Iltimos, darslarni o'z vaqtida to'ldiring!</i>"
+            requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={"chat_id": GURUH_ID, "text": text, "parse_mode": "HTML"})
+            st.success("Xabar guruhga yuborildi!")
