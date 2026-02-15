@@ -11,9 +11,9 @@ from datetime import datetime # Vaqtni aniqlash uchun
 MAKTAB_NOMI = "1-sonli umumta'lim maktabi"
 DIREKTOR_FIO = "Mahmudov Matyoqub Narzulloyevich"
 TO_GRI_PAROL = "informatika2024"
-MONITORING_KODI = "admin777" 
+MONITORING_KODI = "admin777"
 BOT_TOKEN = "8524007504:AAFiMXSbXhe2M-84WlNM16wNpzhNolfQIf8"
-GURUH_ID = "-5045481739" 
+GURUH_ID = "-5045481739"
 
 HIKMATLAR_RO_YXATI = [
     "Ilm — saodat kalitidir.",
@@ -61,20 +61,20 @@ if "authenticated" not in st.session_state:
         else: st.error("Parol xato!")
     st.stop()
 
-# --- 5. AI MULOQOT (FAROSAT VA VAQTGA QARAB MUOMALA) ---
+# --- 5. AI MULOQOT (YANGI SARLAVHA BILAN) ---
 if menu == "🤖 AI Muloqot":
-    st.title("🤖 Farosatli Yordamchi")
+    # Sarlavha va Logotip (Emoji orqali)
+    st.title("🏫🤖 Maktab sun'iy intellekti bilan muloqot")
     
     if "user_name" not in st.session_state:
         st.session_state.user_name = None 
     if "greeted" not in st.session_state:
         st.session_state.greeted = False
 
-    # 1. SALOM VA ISM SO'RASH
     if not st.session_state.greeted:
         with st.chat_message("assistant"):
-            st.markdown("Assalomu alaykum! Maktabimiz tizimiga xush kelibsiz. 😊")
-            st.markdown("Ismingiz nima? Sizga qanday murojaat qilsam bo'ladi?")
+            st.markdown("Assalomu alaykum! Maktabimizning aqlli tizimiga xush kelibsiz. 😊")
+            st.markdown("Kechirasiz, ismingizni bilsam bo'ladimi? Sizga qanday murojaat qilay?")
         st.session_state.greeted = True
 
     if savol := st.chat_input("Xabaringizni yozing..."):
@@ -82,30 +82,25 @@ if menu == "🤖 AI Muloqot":
         
         with st.chat_message("assistant"):
             q = savol.lower().strip()
-            hozirgi_soat = datetime.now().hour # Soatni aniqlaymiz
+            hozirgi_soat = datetime.now().hour
 
-            # Ismni eslab qolish
             if st.session_state.user_name is None:
                 name_parts = re.search(r"(ismim|otim|men|man)\s+([a-zа-я]+)", q)
                 if name_parts:
                     st.session_state.user_name = name_parts.group(2).capitalize()
                 else:
                     st.session_state.user_name = savol.capitalize()
-                st.markdown(f"Tanishganimdan xursandman, **{st.session_state.user_name}**! Xizmat bo'lsa aytavering.")
+                st.markdown(f"Tanishganimdan xursandman, **{st.session_state.user_name}**! Xizmatingizdaman.")
 
-            # --- XAYRLASHISH VA OMAD TILASH ---
-            elif any(x in q for x in ["xayr", "sog' bo'l", "mayli", "boldi", "bo'ldi", "tushunarli"]):
+            elif any(x in q for x in ["xayr", "sog' bo'l", "mayli", "bo'ldi", "tushunarli"]):
                 xayr_xabari = f"Xo'p bo'ladi, {st.session_state.user_name}. Ishlaringizga omad tilayman! ✨"
-                # Kechqurun (18:00 dan keyin) bo'lsa
                 if hozirgi_soat >= 18 or hozirgi_soat <= 5:
                     xayr_xabari += " Kechasi yaxshi dam oling, tuningiz osuda o'tsin! 🌙"
                 st.markdown(xayr_xabari)
 
-            # Rahmat va muloqot
             elif any(x in q for x in ["rahmat", "zo'r", "ajoyib", "baraka top"]):
-                st.markdown(f"Arzimaydi, {st.session_state.user_name}! Sizga yordam berganimdan xursandman. Ishlaringizga doim omad yor bo'lsin!")
+                st.markdown(f"Arzimaydi, {st.session_state.user_name}! Sizga yordam berganimdan xursandman.")
 
-            # Qidiruv qismi (Daxlsiz)
             elif sheets_baza:
                 topildi = False
                 is_teacher_req = any(x in q for x in ["o'qituvchi", "pedagog", "xodim", "ro'yxat"])
@@ -140,11 +135,14 @@ elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
     if "m_auth" not in st.session_state: st.session_state.m_auth = False
     if not st.session_state.m_auth:
-        if st.text_input("Monitoring kodi:", type="password") == MONITORING_KODI:
-            if st.button("Kirish"):
+        m_input = st.text_input("Monitoring kodi:", type="password")
+        if st.button("Kirish"):
+            if m_input == MONITORING_KODI:
                 st.session_state.m_auth = True
                 st.rerun()
+            else: st.error("Kod xato!")
         st.stop()
+    
     j_fayl = st.file_uploader("Excel yuklang", type=['xlsx', 'xls', 'html'])
     if j_fayl:
         try:
@@ -152,8 +150,10 @@ elif menu == "📊 Jurnal Monitoringi":
             except:
                 j_fayl.seek(0)
                 df_j = pd.read_html(j_fayl, header=0)[0]
+            
             df_j.columns = [str(c).replace('\n', ' ').strip() for c in df_j.columns]
             st.dataframe(df_j)
+            
             col_target, col_name = "Baholar qo'yilgan jurnallar soni", "O'qituvchi"
             kamchiliklar = []
             if col_target in df_j.columns:
@@ -161,10 +161,12 @@ elif menu == "📊 Jurnal Monitoringi":
                     nums = re.findall(r'(\d+)', str(row[col_target]))
                     if len(nums) >= 2 and int(nums[0]) < int(nums[1]):
                         kamchiliklar.append(f"❌ {row[col_name]}: {int(nums[1]) - int(nums[0])} ta jurnal chala")
+            
             xabar_tahlili = "✅ Barcha jurnallar baholangan! mas'uliyatli ustozlarga ofarin!" if not kamchiliklar else "⚠️ **Kamchiliklar:**\n" + "\n".join(kamchiliklar)
             st.info(xabar_tahlili)
+            
             if st.button("📢 Telegramga yuborish"):
-                requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={"chat_id": GURUH_ID, "text": f"<b>📊 Monitoring</b>\n\n{xabar_tahlili}", "parse_mode": "HTML"})
+                requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
+                             json={"chat_id": GURUH_ID, "text": f"<b>📊 Monitoring</b>\n\n{xabar_tahlili}", "parse_mode": "HTML"})
                 st.success("✅ Yuborildi!")
         except Exception as e: st.error(f"Xato: {e}")
-
