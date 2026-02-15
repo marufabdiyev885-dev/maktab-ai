@@ -161,9 +161,10 @@ elif menu == "📊 Jurnal Monitoringi":
                     nums = re.findall(r'(\d+)', str(row[col_target]))
                     if len(nums) >= 2 and int(nums[0]) < int(nums[1]):
                         kamchiliklar.append(f"❌ {row[col_name]}: {int(nums[1]) - int(nums[0])} ta jurnal chala")
-            xabar_tahlili = "✅ Hammasi to'liq!" if not kamchiliklar else "⚠️ **Kamchiliklar:**\n" + "\n".join(kamchiliklar)
+            xabar_tahlili = "✅ Barcha jurnallar baholangan! mas'uliyatli ustozlarga ofarin!" if not kamchiliklar else "⚠️ **Kamchiliklar:**\n" + "\n".join(kamchiliklar)
             st.info(xabar_tahlili)
             if st.button("📢 Telegramga yuborish"):
                 requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={"chat_id": GURUH_ID, "text": f"<b>📊 Monitoring</b>\n\n{xabar_tahlili}", "parse_mode": "HTML"})
                 st.success("✅ Yuborildi!")
         except Exception as e: st.error(f"Xato: {e}")
+
