@@ -63,7 +63,7 @@ if "authenticated" not in st.session_state:
 
 # --- 5. AI MULOQOT ---
 if menu == "🤖 AI Muloqot":
-    st.title("🤖 Farosatli Yordamchi")
+    st.title("🤖 Maktabning sun'iy intellekti bilan muloqot")
     
     if "user_name" not in st.session_state:
         st.session_state.user_name = None 
@@ -168,3 +168,4 @@ elif menu == "📊 Jurnal Monitoringi":
                              json={"chat_id": GURUH_ID, "text": f"<b>📊 Monitoring</b>\n\n{xabar_tahlili}", "parse_mode": "HTML"})
                 st.success("✅ Yuborildi!")
         except Exception as e: st.error(f"Xato: {e}")
+
