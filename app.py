@@ -61,10 +61,9 @@ if "authenticated" not in st.session_state:
         else: st.error("Parol xato!")
     st.stop()
 
-# --- 5. AI MULOQOT (YANGI SARLAVHA BILAN) ---
+# --- 5. AI MULOQOT ---
 if menu == "🤖 AI Muloqot":
-    # Sarlavha va Logotip (Emoji orqali)
-    st.title("🏫🤖 Maktab sun'iy intellekti bilan muloqot")
+    st.title("🤖 Farosatli Yordamchi")
     
     if "user_name" not in st.session_state:
         st.session_state.user_name = None 
@@ -73,8 +72,8 @@ if menu == "🤖 AI Muloqot":
 
     if not st.session_state.greeted:
         with st.chat_message("assistant"):
-            st.markdown("Assalomu alaykum! Maktabimizning aqlli tizimiga xush kelibsiz. 😊")
-            st.markdown("Kechirasiz, ismingizni bilsam bo'ladimi? Sizga qanday murojaat qilay?")
+            st.markdown("Assalomu alaykum! Maktabimiz tizimiga xush kelibsiz. 😊")
+            st.markdown("Ismingiz nima? Sizga qanday murojaat qilsam bo'ladi?")
         st.session_state.greeted = True
 
     if savol := st.chat_input("Xabaringizni yozing..."):
@@ -90,7 +89,7 @@ if menu == "🤖 AI Muloqot":
                     st.session_state.user_name = name_parts.group(2).capitalize()
                 else:
                     st.session_state.user_name = savol.capitalize()
-                st.markdown(f"Tanishganimdan xursandman, **{st.session_state.user_name}**! Xizmatingizdaman.")
+                st.markdown(f"Tanishganimdan xursandman, **{st.session_state.user_name}**! Xizmat bo'lsa aytavering.")
 
             elif any(x in q for x in ["xayr", "sog' bo'l", "mayli", "bo'ldi", "tushunarli"]):
                 xayr_xabari = f"Xo'p bo'ladi, {st.session_state.user_name}. Ishlaringizga omad tilayman! ✨"
@@ -130,7 +129,6 @@ if menu == "🤖 AI Muloqot":
                 if not topildi:
                     st.warning(f"Kechirasiz {st.session_state.user_name}, bazadan topolmadim.")
 
-# --- MONITORING (O'ZGARISHSIZ) ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
     if "m_auth" not in st.session_state: st.session_state.m_auth = False
