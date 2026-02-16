@@ -13,7 +13,7 @@ DIREKTOR_FIO = "Mahmudov Matyoqub Narzulloyevich"
 TO_GRI_PAROL = "informatika2024"
 MONITORING_KODI = "admin777"
 BOT_TOKEN = "8524007504:AAFiMXSbXhe2M-84WlNM16wNpzhNolfQIf8"
-GURUH_ID = "-5045481739"
+GURUH_ID = "-1003047388159"
 
 HIKMATLAR_RO_YXATI = [
     "Ilm — saodat kalitidir.",
@@ -168,4 +168,5 @@ elif menu == "📊 Jurnal Monitoringi":
                              json={"chat_id": GURUH_ID, "text": f"<b>📊 Monitoring</b>\n\n{xabar_tahlili}", "parse_mode": "HTML"})
                 st.success("✅ Yuborildi!")
         except Exception as e: st.error(f"Xato: {e}")
+
 
