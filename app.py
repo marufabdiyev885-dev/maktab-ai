@@ -65,8 +65,7 @@ with st.sidebar:
     menu = st.radio("Bo'limni tanlang:", ["🤖 AI Muloqot", "📊 Jurnal Monitoringi"], key="main_nav_radio")
     st.divider()
     st.info(f"💡 {random.choice(HIKMATLAR)}")
-
-# --- 6. AI MULOQOT (QIDIRUV VA SUHBAT) ---
+# --- 6. AI MULOQOT (FAQAT SO'RALGANNI CHIQARISH) ---
 if menu == "🤖 AI Muloqot":
     st.title("🤖 Maktab AI yordamchisi")
     if "messages" not in st.session_state: st.session_state.messages = []
@@ -74,49 +73,52 @@ if menu == "🤖 AI Muloqot":
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]): st.markdown(msg["content"])
 
-    # Unikal key: chat_input_box
-    if savol := st.chat_input("Ism yozing (masalan: JALILOVA yoki Dilfuza)...", key="chat_input_box"):
+    if savol := st.chat_input("Ism yozing (masalan: o'qituvchi Jalilova)...", key="chat_input_final"):
         st.session_state.messages.append({"role": "user", "content": savol})
         with st.chat_message("user"): st.markdown(savol)
         
         with st.chat_message("assistant"):
-            q_clean = savol.strip()
+            q_lower = savol.lower().strip()
             topildi = False
             
-            # 1. Ro'yxat yoki kimlar borligi so'ralsa
-            if any(x in q_clean.lower() for x in ["ro'yxat", "kimlar bor", "hamma"]):
-                if sheets_baza:
-                    for key, df in sheets_baza.items():
-                        st.write(f"📋 **{key}** bo'yicha ro'yxat:")
-                        st.dataframe(df, use_container_width=True)
-                    topildi = True
+            # Fayllarni ajratib olamiz
+            o_qituvchi_fayllar = {k: v for k, v in sheets_baza.items() if "o'qituvchi" in k.lower() or "pedagog" in k.lower()}
+            o_quvchi_fayllar = {k: v for k, v in sheets_baza.items() if "o'quvchi" in k.lower() or "sinf" in k.lower()}
+
+            # Qidiruv mantiqi:
+            target_files = sheets_baza # Standart holatda hamma joydan qidiradi
             
-            # 2. Bazadan aniq qidiruv
-            if not topildi and sheets_baza:
-                for key, df in sheets_baza.items():
-                    # Harflar registri va bo'shliqlarga qaramasdan qidirish
-                    mask = df.apply(lambda row: row.astype(str).str.contains(q_clean, case=False, na=False).any(), axis=1)
+            if "o'qituvchi" in q_lower or "ustoz" in q_lower:
+                target_files = o_qituvchi_fayllar
+                q_search = q_lower.replace("o'qituvchi", "").replace("ustoz", "").strip()
+            elif "o'quvchi" in q_lower or "bola" in q_lower:
+                target_files = o_quvchi_fayllar
+                q_search = q_lower.replace("o'quvchi", "").replace("bola", "").strip()
+            else:
+                q_search = q_lower
+
+            # Faqat tanlangan fayllardan qidirish
+            if target_files:
+                for key, df in target_files.items():
+                    mask = df.apply(lambda row: row.astype(str).str.contains(q_search, case=False, na=False).any(), axis=1)
                     res_df = df[mask]
                     if not res_df.empty:
-                        st.success(f"🔍 Topildi:")
+                        st.success(f"🔍 '{q_search}' bo'yicha topildi:")
                         st.dataframe(res_df, use_container_width=True)
                         topildi = True
-                        # To'xtatmaslik kerak, chunki ham o'qituvchi, ham o'quvchi chiqishi mumkin
-            
-            # 3. Agar bazada bo'lmasa yoki qo'shimcha savol bo'lsa Groq AI javob beradi
-            if not topildi or len(savol.split()) > 3:
+
+            # Agar bazadan topilmasa Groq AI ga yuboramiz
+            if not topildi:
                 try:
                     chat_completion = client.chat.completions.create(
-                        messages=[{"role": "system", "content": f"Sen {MAKTAB_NOMI} yordamchisisan. O'qituvchilarga ochiq darslarda yordam berasan."},
+                        messages=[{"role": "system", "content": f"Sen {MAKTAB_NOMI} yordamchisisan."},
                                  {"role": "user", "content": savol}],
                         model="llama-3.3-70b-versatile",
                     )
                     javob = chat_completion.choices[0].message.content
                     st.markdown(javob)
                     st.session_state.messages.append({"role": "assistant", "content": javob})
-                except:
-                    if not topildi: st.error("AI hozirda band, bazadan ham topilmadi.")
-
+                except: st.error("AI hozirda band.")
 # --- 7. MONITORING (MUTLAQO TEGILMADI) ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
@@ -157,3 +159,4 @@ elif menu == "📊 Jurnal Monitoringi":
                                  json={"chat_id": GURUH_ID, "text": f"📊 <b>Monitoring:</b>\n\n{xabar}", "parse_mode": "HTML"})
                     st.success("Yuborildi!")
         except Exception as e: st.error(f"Xato: {e}")
+
