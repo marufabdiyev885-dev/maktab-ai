@@ -284,7 +284,7 @@ if menu == "🤖 AI Muloqot":
                     st.session_state.messages.append({"role": "assistant", "content": javob})
                 except:
                     st.error("AI bilan bog'lanishda xato.")
-                    --- 7. MONITORING (XATOLIKLARNI TUZATUVCHI VARIANT) ---
+                   # --- 7. MONITORING (XATOLIKLARNI TUZATUVCHI VARIANT) ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
     
@@ -360,6 +360,7 @@ elif menu == "📊 Jurnal Monitoringi":
                 
         except Exception as e:
             st.error(f"Faylni o'qishda kutilmagan xato: {e}")
+
 
 
 
