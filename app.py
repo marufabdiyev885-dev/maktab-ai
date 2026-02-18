@@ -2,10 +2,10 @@ import streamlit as st
 import pandas as pd
 import os
 import requests
-import io
-import random
 import re
-from datetime import datetime # Vaqtni aniqlash uchun
+import random
+from groq import Groq
+from datetime import datetime
 
 # --- 1. ASOSIY SOZLAMALAR ---
 MAKTAB_NOMI = "1-sonli umumta'lim maktabi"
@@ -13,7 +13,11 @@ DIREKTOR_FIO = "Mahmudov Matyoqub Narzulloyevich"
 TO_GRI_PAROL = "informatika2024"
 MONITORING_KODI = "admin777"
 BOT_TOKEN = "8524007504:AAFiMXSbXhe2M-84WlNM16wNpzhNolfQIf8"
-GURUH_ID = "-1003047388159"
+GURUH_ID = "-5045481739"
+
+# Berilgan API Kalit (Groq)
+GROQ_API_KEY = "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"
+client = Groq(api_key=GROQ_API_KEY)
 
 HIKMATLAR_RO_YXATI = [
     "Ilm — saodat kalitidir.",
@@ -61,74 +65,68 @@ if "authenticated" not in st.session_state:
         else: st.error("Parol xato!")
     st.stop()
 
-# --- 5. AI MULOQOT ---
+# --- 5. AI MULOQOT (Yangilangan) ---
 if menu == "🤖 AI Muloqot":
     st.title("🤖 Maktabning sun'iy intellekti bilan muloqot")
     
-    if "user_name" not in st.session_state:
-        st.session_state.user_name = None 
-    if "greeted" not in st.session_state:
-        st.session_state.greeted = False
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
 
-    if not st.session_state.greeted:
-        with st.chat_message("assistant"):
-            st.markdown("Assalomu alaykum! Maktabimiz tizimiga xush kelibsiz. 😊")
-            st.markdown("Ismingiz nima? Sizga qanday murojaat qilsam bo'ladi?")
-        st.session_state.greeted = True
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
     if savol := st.chat_input("Xabaringizni yozing..."):
+        st.session_state.messages.append({"role": "user", "content": savol})
         with st.chat_message("user"): st.markdown(savol)
         
         with st.chat_message("assistant"):
             q = savol.lower().strip()
-            hozirgi_soat = datetime.now().hour
+            topildi = False
+            
+            # 1-qadam: Sinfni qidirish (Masalan: 9-a)
+            sinf_match = re.search(r'(\d{1,2})[- \s]?([a-zа-я])', q)
+            if sinf_match:
+                sinf_nomi = f"{sinf_match.group(1)}-{sinf_match.group(2)}"
+                for name, df in sheets_baza.items():
+                    mask = df.apply(lambda row: row.astype(str).str.contains(rf"\b{sinf_nomi}\b", case=False, regex=True).any(), axis=1)
+                    res_df = df[mask]
+                    if not res_df.empty:
+                        msg = f"Mana, {sinf_nomi} sinf ma'lumotlari:"
+                        st.success(msg)
+                        st.dataframe(res_df, use_container_width=True)
+                        st.session_state.messages.append({"role": "assistant", "content": msg})
+                        topildi = True
+                        break
 
-            if st.session_state.user_name is None:
-                name_parts = re.search(r"(ismim|otim|men|man)\s+([a-zа-я]+)", q)
-                if name_parts:
-                    st.session_state.user_name = name_parts.group(2).capitalize()
-                else:
-                    st.session_state.user_name = savol.capitalize()
-                st.markdown(f"Tanishganimdan xursandman, **{st.session_state.user_name}**! Xizmat bo'lsa aytavering.")
+            # 2-qadam: O'qituvchini qidirish
+            if not topildi and any(x in q for x in ["o'qituvchi", "pedagog", "xodim", "ustoz"]):
+                for name, df in sheets_baza.items():
+                    if "pedagog" in name.lower() or any("pedagog" in str(col).lower() for col in df.columns):
+                        msg = "Maktab pedagoglar ro'yxati:"
+                        st.success(msg)
+                        st.dataframe(df, use_container_width=True)
+                        st.session_state.messages.append({"role": "assistant", "content": msg})
+                        topildi = True
+                        break
 
-            elif any(x in q for x in ["xayr", "sog' bo'l", "mayli", "bo'ldi", "tushunarli"]):
-                xayr_xabari = f"Xo'p bo'ladi, {st.session_state.user_name}. Ishlaringizga omad tilayman! ✨"
-                if hozirgi_soat >= 18 or hozirgi_soat <= 5:
-                    xayr_xabari += " Kechasi yaxshi dam oling, tuningiz osuda o'tsin! 🌙"
-                st.markdown(xayr_xabari)
+            # 3-qadam: Groq AI javobi
+            if not topildi:
+                try:
+                    chat_completion = client.chat.completions.create(
+                        messages=[
+                            {"role": "system", "content": f"Sen {MAKTAB_NOMI} yordamchisisan. O'zbek tilida javob ber."},
+                            {"role": "user", "content": savol}
+                        ],
+                        model="llama-3.3-70b-versatile",
+                    )
+                    javob = chat_completion.choices[0].message.content
+                    st.markdown(javob)
+                    st.session_state.messages.append({"role": "assistant", "content": javob})
+                except:
+                    st.error("AI bilan bog'lanishda xatolik.")
 
-            elif any(x in q for x in ["rahmat", "zo'r", "ajoyib", "baraka top"]):
-                st.markdown(f"Arzimaydi, {st.session_state.user_name}! Sizga yordam berganimdan xursandman.")
-
-            elif sheets_baza:
-                topildi = False
-                is_teacher_req = any(x in q for x in ["o'qituvchi", "pedagog", "xodim", "ro'yxat"])
-                
-                if is_teacher_req:
-                    for name, df in sheets_baza.items():
-                        if any("pedagog" in col for col in df.columns) or "лист2" in name.lower():
-                            st.success(f"{st.session_state.user_name}, mana o'qituvchilar ro'yxati:")
-                            st.dataframe(df, use_container_width=True)
-                            topildi = True
-                            break
-                
-                if not topildi:
-                    for name, df in sheets_baza.items():
-                        if re.match(r'^\d{1,2}-[a-zа-я]$', q):
-                            pattern = rf"\b{re.escape(q)}\b"
-                            mask = df.apply(lambda row: any(re.search(pattern, str(v).lower()) for v in row), axis=1)
-                        else:
-                            mask = df.apply(lambda row: q in str(v).lower() for v in row)
-                        
-                        res_df = df[mask]
-                        if not res_df.empty:
-                            st.success(f"Mana, {st.session_state.user_name}, topildi:")
-                            st.dataframe(res_df, use_container_width=True)
-                            topildi = True
-                
-                if not topildi:
-                    st.warning(f"Kechirasiz {st.session_state.user_name}, bazadan topolmadim.")
-
+# --- 6. JURNAL MONITORINGI (O'zgarmadi) ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
     if "m_auth" not in st.session_state: st.session_state.m_auth = False
@@ -160,7 +158,7 @@ elif menu == "📊 Jurnal Monitoringi":
                     if len(nums) >= 2 and int(nums[0]) < int(nums[1]):
                         kamchiliklar.append(f"❌ {row[col_name]}: {int(nums[1]) - int(nums[0])} ta jurnal chala")
             
-            xabar_tahlili = "✅ Barcha jurnallar baholangan! mas'uliyatli ustozlarga ofarin!" if not kamchiliklar else "⚠️ **Kamchiliklar:**\n" + "\n".join(kamchiliklar)
+            xabar_tahlili = "✅ Barcha jurnallar baholangan!" if not kamchiliklar else "⚠️ **Kamchiliklar:**\n" + "\n".join(kamchiliklar)
             st.info(xabar_tahlili)
             
             if st.button("📢 Telegramga yuborish"):
@@ -168,6 +166,3 @@ elif menu == "📊 Jurnal Monitoringi":
                              json={"chat_id": GURUH_ID, "text": f"<b>📊 Monitoring</b>\n\n{xabar_tahlili}", "parse_mode": "HTML"})
                 st.success("✅ Yuborildi!")
         except Exception as e: st.error(f"Xato: {e}")
-
-
-
