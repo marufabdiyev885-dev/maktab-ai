@@ -25,7 +25,6 @@ except Exception:
 # --- 2. BAZANI YUKLASH ---
 @st.cache_data
 def yuklash():
-    # Faqat excel fayllarni o'qiymiz
     files = [f for f in os.listdir('.') if f.lower().endswith(('.xlsx', '.xls'))]
     all_sheets = {}
     for f in files:
@@ -34,7 +33,6 @@ def yuklash():
             for name, df in sheets.items():
                 if not df.empty:
                     df.columns = [str(c).strip().lower() for c in df.columns]
-                    # Kalit sifatida fayl nomi va varaq nomini birlashtiramiz
                     key = f"{f.lower()} | {name.lower()}"
                     all_sheets[key] = df
         except:
@@ -62,9 +60,9 @@ with st.sidebar:
     st.title(f"🏛 {MAKTAB_NOMI}")
     menu = st.radio("Bo'limni tanlang:", ["🤖 AI Muloqot", "📊 Jurnal Monitoringi"])
     st.divider()
-    st.info("💡 **Yordam:** O'qituvchi ismi, mutaxassisligi yoki sinf (9-A) bo'yicha so'rang.")
+    st.info("💡 **Yordam:** O'qituvchi ismi yoki sinf (9-A) bo'yicha so'rang.")
 
-# --- 5. AI MULOQOT (Aqlli Qidiruv) ---
+# --- 5. AI MULOQOT ---
 if menu == "🤖 AI Muloqot":
     st.title("🤖 Maktab AI yordamchisi")
     
@@ -84,31 +82,15 @@ if menu == "🤖 AI Muloqot":
             q = savol.lower().strip()
             topildi = False
             
-            # A. O'qituvchilar bazasidan qidirish (Sizning rasmda 'baza_o'qituvchilar' fayli)
-            # 'pedagog', 'ustoz', 'o'qituvchi' so'zlari bo'lsa yoki shunchaki ism bo'lsa
             for key, df in sheets_baza.items():
-                if "qituvchi" in key:
-                    mask = df.apply(lambda row: row.astype(str).str.contains(q, case=False).any(), axis=1)
-                    res_df = df[mask]
-                    if not res_df.empty:
-                        st.success(f"👨‍🏫 O'qituvchilar bazasidan topildi:")
-                        st.dataframe(res_df, use_container_width=True)
-                        topildi = True
-                        break
+                mask = df.apply(lambda row: row.astype(str).str.contains(q, case=False).any(), axis=1)
+                res_df = df[mask]
+                if not res_df.empty:
+                    st.success(f"🔍 Topilgan ma'lumotlar:")
+                    st.dataframe(res_df, use_container_width=True)
+                    topildi = True
+                    break
 
-            # B. O'quvchilar va Sinflar qidiruvi (baza_o'quvchilar fayli)
-            if not topildi:
-                for key, df in sheets_baza.items():
-                    if "quvchi" in key:
-                        mask = df.apply(lambda row: row.astype(str).str.contains(q, case=False).any(), axis=1)
-                        res_df = df[mask]
-                        if not res_df.empty:
-                            st.success(f"🎓 O'quvchilar/Sinflar bazasidan topildi:")
-                            st.dataframe(res_df, use_container_width=True)
-                            topildi = True
-                            break
-
-            # C. Umumiy AI javobi (Agar bazada bo'lmasa)
             if not topildi:
                 try:
                     chat_completion = client.chat.completions.create(
@@ -122,11 +104,13 @@ if menu == "🤖 AI Muloqot":
                 except Exception as e:
                     st.error(f"AI xatosi: {e}")
 
-# --- 6. MONITORING (O'zgarmas qism) ---
+# --- 6. JURNAL MONITORINGI (SIZ AYTGANDEK SOZLANDI) ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
+    
     if "m_auth" not in st.session_state:
         st.session_state.m_auth = False
+        
     if not st.session_state.m_auth:
         m_input = st.text_input("Monitoring kodi:", type="password")
         if st.button("Kirish"):
@@ -137,32 +121,64 @@ elif menu == "📊 Jurnal Monitoringi":
                 st.error("Kod xato!")
         st.stop()
     
-    j_fayl = st.file_uploader("Excel yuklang", type=['xlsx', 'xls', 'html'])
+    j_fayl = st.file_uploader("Monitoring Excel faylini yuklang", type=['xlsx', 'xls', 'html'])
+    
     if j_fayl:
         try:
+            # Faylni o'qish
             try:
                 df_j = pd.read_excel(j_fayl)
             except:
                 j_fayl.seek(0)
                 df_j = pd.read_html(j_fayl, header=0)[0]
             
+            # Ustunlarni tozalash
             df_j.columns = [str(c).replace('\n', ' ').strip() for c in df_j.columns]
-            st.dataframe(df_j)
             
-            col_target, col_name = "Baholar qo'yilgan jurnallar soni", "O'qituvchi"
-            kamchiliklar = []
-            if col_target in df_j.columns:
+            # Kerakli ustunlarni aniqlash
+            col_target = next((c for c in df_j.columns if "jurnallar soni" in c.lower() or "baholar" in c.lower()), None)
+            col_name = next((c for c in df_j.columns if any(x in c.lower() for x in ["o'qituvchi", "f.i.sh", "pedagog"])), None)
+            
+            if col_target and col_name:
+                kamchiliklar = []
                 for _, row in df_j.iterrows():
                     nums = re.findall(r'(\d+)', str(row[col_target]))
-                    if len(nums) >= 2 and int(nums[0]) < int(nums[1]):
-                        kamchiliklar.append(f"❌ {row[col_name]}: {int(nums[1]) - int(nums[0])} ta jurnal chala")
-            
-            xabar_tahlili = "✅ Barcha jurnallar baholangan!" if not kamchiliklar else "⚠️ **Kamchiliklar:**\n" + "\n".join(kamchiliklar)
-            st.info(xabar_tahlili)
-            
-            if st.button("📢 Telegramga yuborish"):
-                requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
-                             json={"chat_id": GURUH_ID, "text": f"<b>📊 Monitoring</b>\n\n{xabar_tahlili}", "parse_mode": "HTML"})
-                st.success("✅ Yuborildi!")
+                    if len(nums) >= 2:
+                        baho_qo_yilgan = int(nums[0])
+                        jami_jurnal = int(nums[1])
+                        if baho_qo_yilgan < jami_jurnal:
+                            farq = jami_jurnal - baho_qo_yilgan
+                            kamchiliklar.append(f"❌ {row[col_name]}: {farq} ta jurnal chala")
+                
+                # NATIJANI BIRINCHI FOYDALANUVCHIGA KO'RSATISH
+                st.subheader("📋 Monitoring Natijasi (Sizga ko'rinishi):")
+                st.dataframe(df_j, use_container_width=True) # To'liq jadvalni ko'rsatish
+                
+                xabar_text = "✅ Barcha jurnallar to'liq baholangan!" if not kamchiliklar else "⚠️ **Aniqlangan kamchiliklar:**\n\n" + "\n".join(kamchiliklar)
+                
+                if not kamchiliklar:
+                    st.success(xabar_text)
+                else:
+                    st.warning(xabar_text)
+                
+                st.divider()
+                
+                # TELEGRAMGA YUBORISH TUGMASI (FAQAT BOSILSA YUBORADI)
+                if st.button("📢 Natijalarni Telegramga yuborish"):
+                    res = requests.post(
+                        f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
+                        json={
+                            "chat_id": GURUH_ID, 
+                            "text": f"<b>📊 {MAKTAB_NOMI}\nMonitoring natijalari:</b>\n\n{xabar_text}", 
+                            "parse_mode": "HTML"
+                        }
+                    )
+                    if res.status_code == 200:
+                        st.success("✅ Ma'lumotlar Telegram guruhiga muvaffaqiyatli yuborildi!")
+                    else:
+                        st.error("❌ Telegramga yuborishda xatolik yuz berdi.")
+            else:
+                st.error("❌ Faylda 'O'qituvchi' yoki 'Jurnallar soni' ustunlari topilmadi. Ustun nomlarini tekshiring.")
+                
         except Exception as e:
-            st.error(f"Xato: {e}")
+            st.error(f"Faylni tahlil qilishda xato: {e}")
