@@ -165,4 +165,5 @@ elif menu == "📊 Jurnal Monitoringi":
                 requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
                              json={"chat_id": GURUH_ID, "text": f"<b>📊 Monitoring</b>\n\n{xabar_tahlili}", "parse_mode": "HTML"})
                 st.success("✅ Yuborildi!")
-        except Exception as e: st.error(f"Xato: {e}")
+      except Exception as e:
+    st.error(f"Texnik xato: {e}")
