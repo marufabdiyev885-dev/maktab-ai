@@ -75,47 +75,58 @@ with st.sidebar:
     st.subheader("💡 Kun hikmati:")
     st.info(random.choice(HIKMATLAR))
 
-# --- 6. AI MULOQOT ---
+# --- 6. AI MULOQOT (QAYTA TIKLANDI) ---
 if menu == "🤖 AI Muloqot":
     st.title("🤖 Maktab AI yordamchisi")
+    st.info("💡 Men bilan ochiq darslar, o'yinlar va metodika haqida gaplashishingiz mumkin!")
     
-    if "messages" not in st.session_state:
+    if "messages" not in st.session_state: 
         st.session_state.messages = []
 
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+    # Chat tarixini ko'rsatish
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]): 
+            st.markdown(msg["content"])
 
-    if savol := st.chat_input("Xabaringizni yozing..."):
+    if savol := st.chat_input("Savolingizni yozing (masalan: 5-sinf uchun o'yin topib ber)..."):
         st.session_state.messages.append({"role": "user", "content": savol})
-        with st.chat_message("user"):
+        with st.chat_message("user"): 
             st.markdown(savol)
         
         with st.chat_message("assistant"):
             q = savol.lower().strip()
             topildi = False
-            for key, df in sheets_baza.items():
-                mask = df.apply(lambda row: row.astype(str).str.contains(q, case=False).any(), axis=1)
-                res_df = df[mask]
-                if not res_df.empty:
-                    st.success(f"🔍 Topildi:")
-                    st.dataframe(res_df, use_container_width=True)
-                    topildi = True
-                    break
-
+            
+            # 1. Excel bazada qidiruv (agar fayllar bo'lsa)
+            if sheets_baza:
+                for key, df in sheets_baza.items():
+                    mask = df.apply(lambda row: row.astype(str).str.contains(q, case=False).any(), axis=1)
+                    res_df = df[mask]
+                    if not res_df.empty:
+                        st.success("🔍 Maktab bazasidan topildi:")
+                        st.dataframe(res_df, use_container_width=True)
+                        topildi = True
+                        break
+            
+            # 2. Groq AI bilan bog'lanish (O'yinlar va metodika uchun)
             if not topildi:
                 try:
+                    # AI'ga shaxsiyat berish
+                    instruction = f"Sen {MAKTAB_NOMI}ning aqlli yordamchisisan. O'qituvchilarga ochiq darslar, qiziqarli o'yinlar va dars ishlanmalari bo'yicha yordam berasan. O'zbek tilida, samimiy javob ber."
+                    
                     chat_completion = client.chat.completions.create(
-                        messages=[{"role": "system", "content": f"Sen {MAKTAB_NOMI} AI yordamchisisan."},
-                                 {"role": "user", "content": savol}],
-                        model="llama-3.3-70b-versatile",
+                        messages=[
+                            {"role": "system", "content": instruction},
+                            {"role": "user", "content": savol}
+                        ],
+                        model="llama-3.3-70b-versatile", # Eng kuchli modeli
                     )
                     javob = chat_completion.choices[0].message.content
                     st.markdown(javob)
                     st.session_state.messages.append({"role": "assistant", "content": javob})
-                except Exception:
-                    st.error("AI hozir band, birozdan so'ng urinib ko'ring.")
-
+                except Exception as e:
+                    st.error("😔 AI hozircha javob bera olmayapti. Groq API limiti tugagan yoki internetda uzilish bor.")
+                    st.info("Lekin xavotir olmang, monitoring bo'limi ishlashda davom etadi!")
 # --- 7. MONITORING (XATOLIKLARNI TUZATUVCHI VARIANT) ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
@@ -192,3 +203,4 @@ elif menu == "📊 Jurnal Monitoringi":
                 
         except Exception as e:
             st.error(f"Faylni o'qishda kutilmagan xato: {e}")
+
