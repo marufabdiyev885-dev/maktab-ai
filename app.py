@@ -15,9 +15,12 @@ MONITORING_KODI = "admin777"
 BOT_TOKEN = "8524007504:AAFiMXSbXhe2M-84WlNM16wNpzhNolfQIf8"
 GURUH_ID = "-5045481739"
 
-# Berilgan API Kalit (Groq)
-GROQ_API_KEY = "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"
-client = Groq(api_key=GROQ_API_KEY)
+# API kalitni Streamlit Secrets'dan xavfsiz o'qiymiz
+try:
+    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+    client = Groq(api_key=GROQ_API_KEY)
+except Exception:
+    st.warning("⚠️ Diqqat: API kalit topilmadi. Streamlit Secrets bo'limiga kalitni qo'shing.")
 
 HIKMATLAR_RO_YXATI = [
     "Ilm — saodat kalitidir.",
@@ -69,7 +72,7 @@ if "authenticated" not in st.session_state:
 
 # --- 5. AI MULOQOT ---
 if menu == "🤖 AI Muloqot":
-    st.title("🤖 Maktabning sun'iy intellekti bilan muloqot")
+    st.title("🤖 Maktab AI yordamchisi")
     
     if "messages" not in st.session_state:
         st.session_state.messages = []
@@ -87,7 +90,7 @@ if menu == "🤖 AI Muloqot":
             q = savol.lower().strip()
             topildi = False
             
-            # 1-qadam: Sinfni qidirish (Masalan: 9-a)
+            # 1. Sinf qidiruvi
             sinf_match = re.search(r'(\d{1,2})[- \s]?([a-zа-я])', q)
             if sinf_match:
                 sinf_nomi = f"{sinf_match.group(1)}-{sinf_match.group(2)}"
@@ -102,7 +105,7 @@ if menu == "🤖 AI Muloqot":
                         topildi = True
                         break
 
-            # 2-qadam: O'qituvchini qidirish
+            # 2. O'qituvchi qidiruvi
             if not topildi and any(x in q for x in ["o'qituvchi", "pedagog", "xodim", "ustoz"]):
                 for name, df in sheets_baza.items():
                     if "pedagog" in name.lower() or any("pedagog" in str(col).lower() for col in df.columns):
@@ -113,7 +116,7 @@ if menu == "🤖 AI Muloqot":
                         topildi = True
                         break
 
-            # 3-qadam: Groq AI javobi
+            # 3. AI bilan bog'lanish
             if not topildi:
                 try:
                     chat_completion = client.chat.completions.create(
@@ -127,9 +130,9 @@ if menu == "🤖 AI Muloqot":
                     st.markdown(javob)
                     st.session_state.messages.append({"role": "assistant", "content": javob})
                 except Exception as e:
-                    st.error(f"AI bilan bog'lanishda xatolik: {e}")
+                    st.error(f"AI bilan bog'lanishda xatolik yuz berdi. Sababi: {e}")
 
-# --- 6. JURNAL MONITORINGI ---
+# --- 6. JURNAL MONITORINGI (Tegilmadi) ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
     if "m_auth" not in st.session_state:
