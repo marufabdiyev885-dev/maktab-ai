@@ -19,13 +19,10 @@ try:
     
     client = Groq(api_key=GROQ_API_KEY)
 except Exception:
-    st.error("⚠️ Secrets bo'limida ma'molik bor!")
+    st.error("⚠️ Secrets ma'lumotlarida xatolik bor!")
     st.stop()
 
-# --- 2. HIKMATLAR ---
-HIKMATLAR = ["Ilm - najotdir.", "Ustoz - otangdek ulug'.", "Kitob - bilim manbai."]
-
-# --- 3. BAZANI YUKLASH ---
+# --- 2. BAZANI YUKLASH ---
 @st.cache_data
 def yuklash():
     files = [f for f in os.listdir('.') if f.lower().endswith(('.xlsx', '.xls'))]
@@ -42,27 +39,28 @@ def yuklash():
 
 sheets_baza = yuklash()
 
-# --- 4. KIRISH ---
+# --- 3. DIZAYN VA KIRISH ---
 st.set_page_config(page_title=MAKTAB_NOMI, layout="wide")
 
 if "authenticated" not in st.session_state:
     st.title(f"🏫 {MAKTAB_NOMI}")
-    p_input = st.text_input("Kirish paroli:", type="password", key="main_pass")
-    if st.button("Kirish", key="main_btn"):
-        if p_input == TO_GRI_PAROL:
+    p_in = st.text_input("Kirish paroli:", type="password", key="main_auth_key")
+    if st.button("Kirish", key="main_auth_btn"):
+        if p_in == TO_GRI_PAROL:
             st.session_state.authenticated = True
             st.rerun()
         else: st.error("Xato!")
     st.stop()
 
-# --- 5. SIDEBAR ---
+# --- 4. SIDEBAR ---
 with st.sidebar:
     st.title(f"🏛 {MAKTAB_NOMI}")
     st.write(f"👤 **Direktor:** {DIREKTOR_FIO}")
-    menu = st.radio("Bo'lim:", ["🤖 AI Muloqot", "📊 Jurnal Monitoringi"], key="menu_radio")
-    st.info(f"💡 {random.choice(HIKMATLAR)}")
+    menu = st.radio("Bo'limni tanlang:", ["🤖 AI Muloqot", "📊 Jurnal Monitoringi"], key="nav_menu")
+    st.divider()
+    st.info("💡 Bilim - najotdir.")
 
-# --- 6. AI MULOQOT ---
+# --- 5. AI MULOQOT (TOZALANGAN VARIANT) ---
 if menu == "🤖 AI Muloqot":
     st.title("🤖 Maktab AI yordamchisi")
     if "messages" not in st.session_state: st.session_state.messages = []
@@ -70,7 +68,7 @@ if menu == "🤖 AI Muloqot":
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]): st.markdown(msg["content"])
 
-    if savol := st.chat_input("Ism yozing...", key="ai_input"):
+    if savol := st.chat_input("Ism yozing...", key="chat_input_unique"):
         st.session_state.messages.append({"role": "user", "content": savol})
         with st.chat_message("user"): st.markdown(savol)
         
@@ -78,43 +76,44 @@ if menu == "🤖 AI Muloqot":
             q_low = savol.lower().strip()
             topildi = False
             
-            # Bazadan qidirish (Faqat ism yozilsa)
-            if len(q_low) >= 3 and not any(x in q_low for x in ["salom", "qalay", "yaxshi"]):
-                target = sheets_baza
-                if "o'qituvchi" in q_low:
-                    target = {k:v for k,v in sheets_baza.items() if "o'qituvchi" in k.lower()}
-                    q_low = q_low.replace("o'qituvchi", "").strip()
-                
-                for key, df in target.items():
-                    mask = df.apply(lambda r: r.astype(str).str.contains(q_low, case=False).any(), axis=1)
+            # Faqat ism qidirilganda bazadan izlaydi
+            if len(q_low) >= 3 and not any(x in q_low for x in ["salom", "qalay", "yaxshi", "rahmat"]):
+                for key, df in sheets_baza.items():
+                    mask = df.apply(lambda r: r.astype(str).str.contains(savol, case=False).any(), axis=1)
                     if not df[mask].empty:
+                        st.success(f"🔍 Bazadan topildi:")
                         st.dataframe(df[mask], use_container_width=True)
                         topildi = True
+                        break
             
             if not topildi:
                 res = client.chat.completions.create(
                     messages=[{"role":"system","content":"Sen maktab yordamchisisan."},{"role":"user","content":savol}],
                     model="llama-3.3-70b-versatile"
                 )
-                st.markdown(res.choices[0].message.content)
+                msg_text = res.choices[0].message.content
+                st.markdown(msg_text)
+                st.session_state.messages.append({"role": "assistant", "content": msg_text})
 
-# --- 7. MONITORING (Sizning kodingiz tuzatildi) ---
+# --- 6. MONITORING (SENING MANTIQING - XATOSIZ) ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
     if "m_auth" not in st.session_state: st.session_state.m_auth = False
     
     if not st.session_state.m_auth:
-        m_in = st.text_input("Kod:", type="password", key="m_pass")
-        if st.button("Kirish", key="m_btn"):
-            if m_in == MONITORING_KODI: st.session_state.m_auth = True; st.rerun()
-            else: st.error("Xato!")
+        m_pass = st.text_input("Monitoring kodi:", type="password", key="mon_login_key")
+        if st.button("Kirish", key="mon_login_btn"):
+            if m_pass == MONITORING_KODI: 
+                st.session_state.m_auth = True
+                st.rerun()
+            else: st.error("Kod xato!")
         st.stop()
     
-    j_fayl = st.file_uploader("Excel yuklang", type=['xlsx', 'xls', 'html'], key="m_file")
+    j_fayl = st.file_uploader("Excel yuklang", type=['xlsx', 'xls', 'html'], key="mon_file_up")
     if j_fayl:
         try:
             try: df_j = pd.read_excel(j_fayl)
-            except: 
+            except:
                 j_fayl.seek(0)
                 df_j = pd.read_html(j_fayl, header=0)[0]
             
@@ -130,14 +129,16 @@ elif menu == "📊 Jurnal Monitoringi":
                         if int(nums[0]) < int(nums[1]):
                             kamchiliklar.append(f"❌ **{name}**: {int(nums[1])-int(nums[0])} ta chala ({val})")
                 
+                st.subheader("📋 Natija:")
                 st.dataframe(df_j, use_container_width=True)
-                xabar = "✅ To'liq!" if not kamchiliklar else "⚠️ **Kamchiliklar:**\n\n" + "\n".join(kamchiliklar)
                 
-                # SIZNING MANTIQINGIZ
+                xabar = "✅ Hammasi to'liq!" if not kamchiliklar else "⚠️ **Kamchiliklar:**\n\n" + "\n".join(kamchiliklar)
+                
+                # MONITORING NATIJASI FAQAT SHU YERDA CHIQADI
                 st.warning(xabar) if kamchiliklar else st.success(xabar)
                 
-                if st.button("📢 Telegram", key="tg_btn"):
+                if st.button("📢 Telegramga yuborish", key="mon_tg_btn"):
                     requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
-                                 json={"chat_id": GURUH_ID, "text": f"📊 Monitoring:\n{xabar}"})
+                                 json={"chat_id": GURUH_ID, "text": f"📊 <b>Monitoring:</b>\n\n{xabar}", "parse_mode": "HTML"})
                     st.success("Yuborildi!")
         except Exception as e: st.error(f"Xato: {e}")
