@@ -116,7 +116,7 @@ if menu == "🤖 AI Muloqot":
                 except Exception:
                     st.error("AI hozir band, birozdan so'ng urinib ko'ring.")
 
-# --- 7. MONITORING (ENG YANGI USUL) ---
+# --- 7. MONITORING (XATOLIKLARNI TUZATUVCHI VARIANT) ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
     
@@ -133,11 +133,30 @@ elif menu == "📊 Jurnal Monitoringi":
                 st.error("Kod xato!")
         st.stop()
     
-    j_fayl = st.file_uploader("Excel faylni yuklang", type=['xlsx', 'xls'], key="uploader")
+    j_fayl = st.file_uploader("Excel faylni yuklang", type=['xlsx', 'xls', 'html'], key="uploader")
     
     if j_fayl:
         try:
-            df_j = pd.read_excel(j_fayl)
+            # Faylni o'qishning bir nechta usulini sinab ko'ramiz
+            try:
+                # 1-usul: Standart Excel (openpyxl)
+                df_j = pd.read_excel(j_fayl, engine='openpyxl')
+            except Exception:
+                try:
+                    # 2-usul: Eski Excel (.xls - xlrd)
+                    j_fayl.seek(0)
+                    df_j = pd.read_excel(j_fayl, engine='xlrd')
+                except Exception:
+                    try:
+                        # 3-usul: HTML formatidagi Excel
+                        j_fayl.seek(0)
+                        df_j = pd.read_html(j_fayl, header=0)[0]
+                    except Exception:
+                        # 4-usul: Engine belgilamasdan urinish
+                        j_fayl.seek(0)
+                        df_j = pd.read_excel(j_fayl)
+
+            # Ustunlarni tozalash
             df_j.columns = [str(c).replace('\n', ' ').strip() for c in df_j.columns]
             
             kamchiliklar = []
@@ -146,7 +165,7 @@ elif menu == "📊 Jurnal Monitoringi":
                     name = str(row.iloc[0]) # 0-ustun: Ismlar
                     val = str(row.iloc[5])  # 5-ustun: Baholar holati
                     
-                    if "tuman" in name.lower() or "muassasa" in name.lower():
+                    if any(x in name.lower() for x in ["tuman", "muassasa", "o'qituvchi", "f.i.sh"]):
                         continue
                         
                     nums = re.findall(r'(\d+)', val)
@@ -169,6 +188,7 @@ elif menu == "📊 Jurnal Monitoringi":
                                  json={"chat_id": GURUH_ID, "text": f"<b>📊 Monitoring</b>\n\n{xabar_text}", "parse_mode": "HTML"})
                     st.success("✅ Telegramga yuborildi!")
             else:
-                st.error("Fayl formati mos emas.")
+                st.error(f"Faylda ustunlar yetarli emas. Topildi: {len(df_j.columns)} ta.")
+                
         except Exception as e:
-            st.error(f"Xato: {e}")
+            st.error(f"Faylni o'qishda kutilmagan xato: {e}")
