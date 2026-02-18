@@ -68,7 +68,7 @@ if menu == "🤖 AI Muloqot":
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]): st.markdown(msg["content"])
 
-    if savol := st.chat_input("Ism yozing...", key="chat_input_unique"):
+    if savol := st.chat_input("Ism yozing yoki ro'yxatni so'rang...", key="chat_input_unique"):
         st.session_state.messages.append({"role": "user", "content": savol})
         with st.chat_message("user"): st.markdown(savol)
         
@@ -76,25 +76,48 @@ if menu == "🤖 AI Muloqot":
             q_low = savol.lower().strip()
             topildi = False
             
-            # Faqat ism qidirilganda bazadan izlaydi
+            # 1. Kalit so'zlarni ajratamiz
+            is_teacher_query = any(x in q_low for x in ["o'qituvchi", "ustoz", "pedagog", "muallim"])
+            is_list_query = any(x in q_low for x in ["ro'yxat", "hamma", "barcha", "kimlar"])
+            
+            # 2. Qidiruv so'zini tozalash (ortiqcha gaplarni olib tashlaymiz)
+            search_word = q_low
+            for skip in ["top", "ber", "chiqar", "ro'yxati", "haqida", "izla", "ko'rsat", "o'qituvchilar"]:
+                search_word = search_word.replace(skip, "").strip()
+
+            # 3. Bazadan qidirish mantiqi
             if len(q_low) >= 3 and not any(x in q_low for x in ["salom", "qalay", "yaxshi", "rahmat"]):
                 for key, df in sheets_baza.items():
-                    mask = df.apply(lambda r: r.astype(str).str.contains(savol, case=False).any(), axis=1)
-                    if not df[mask].empty:
-                        st.success(f"🔍 Bazadan topildi:")
-                        st.dataframe(df[mask], use_container_width=True)
-                        topildi = True
-                        break
-            
-            if not topildi:
-                res = client.chat.completions.create(
-                    messages=[{"role":"system","content":"Sen maktab yordamchisisan."},{"role":"user","content":savol}],
-                    model="llama-3.3-70b-versatile"
-                )
-                msg_text = res.choices[0].message.content
-                st.markdown(msg_text)
-                st.session_state.messages.append({"role": "assistant", "content": msg_text})
+                    # A) Agar butun o'qituvchilar ro'yxati so'ralsa
+                    if is_list_query and is_teacher_query:
+                        if "o'qituvchi" in key.lower() or "pedagog" in key.lower():
+                            st.success("📋 O'qituvchilar ro'yxati:")
+                            st.dataframe(df, use_container_width=True)
+                            topildi = True
+                            break
+                    
+                    # B) Agar aniq bir ism qidirilsa (search_word bo'yicha)
+                    if search_word:
+                        mask = df.apply(lambda r: r.astype(str).str.contains(search_word, case=False, na=False).any(), axis=1)
+                        if not df[mask].empty:
+                            st.success(f"🔍 '{search_word}' bo'yicha ma'lumot topildi:")
+                            st.dataframe(df[mask], use_container_width=True)
+                            topildi = True
+                            break
 
+            # 4. Agar bazadan topilmasa Groq AI javob beradi
+            if not topildi:
+                try:
+                    res = client.chat.completions.create(
+                        messages=[{"role":"system","content":f"Sen {MAKTAB_NOMI} AI yordamchisisan. Samimiy muloqot qil."},
+                                 {"role":"user","content":savol}],
+                        model="llama-3.3-70b-versatile"
+                    )
+                    msg_text = res.choices[0].message.content
+                    st.markdown(msg_text)
+                    st.session_state.messages.append({"role": "assistant", "content": msg_text})
+                except:
+                    st.error("AI hozirda band.")
 # --- 6. MONITORING (SENING MANTIQING - XATOSIZ) ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
@@ -171,3 +194,4 @@ elif menu == "📊 Jurnal Monitoringi":
                 
         except Exception as e:
             st.error(f"Faylni o'qishda kutilmagan xato: {e}")
+
