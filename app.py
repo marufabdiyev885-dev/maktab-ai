@@ -4,7 +4,9 @@ import os
 import requests
 import re
 import random
+import io
 from groq import Groq
+from pptx import Presentation # Slayd uchun
 
 # --- 1. SOZLAMALAR ---
 try:
@@ -39,7 +41,18 @@ def yuklash():
 
 sheets_baza = yuklash()
 
-# --- 3. DIZAYN VA KIRISH ---
+# --- 3. SLAYD (PPTX) YARATISH ---
+def pptx_yarat(df, sarlavha):
+    prs = Presentation()
+    slide = prs.slides.add_slide(prs.slide_layouts[1])
+    slide.shapes.title.text = f"Hisobot: {sarlavha.upper()}"
+    slide.placeholders[1].text = df.to_string(index=False)[:1000]
+    ppt_io = io.BytesIO()
+    prs.save(ppt_io)
+    ppt_io.seek(0)
+    return ppt_io
+
+# --- 4. DIZAYN VA KIRISH ---
 st.set_page_config(page_title=MAKTAB_NOMI, layout="wide")
 
 if "authenticated" not in st.session_state:
@@ -52,7 +65,7 @@ if "authenticated" not in st.session_state:
         else: st.error("Xato!")
     st.stop()
 
-# --- 4. SIDEBAR ---
+# --- 5. SIDEBAR ---
 with st.sidebar:
     st.title(f"🏛 {MAKTAB_NOMI}")
     st.write(f"👤 **Direktor:** {DIREKTOR_FIO}")
@@ -60,7 +73,7 @@ with st.sidebar:
     st.divider()
     st.info("💡 Bilim - najotdir.")
 
-# --- 5. AI MULOQOT (TOZALANGAN VARIANT) ---
+# --- 6. AI MULOQOT (FAROSATLI VA SAMIMIY) ---
 if menu == "🤖 AI Muloqot":
     st.title("🤖 Maktab AI yordamchisi")
     if "messages" not in st.session_state: st.session_state.messages = []
@@ -68,131 +81,109 @@ if menu == "🤖 AI Muloqot":
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]): st.markdown(msg["content"])
 
-    if savol := st.chat_input("Ism yozing yoki ro'yxatni so'rang...", key="chat_input_unique"):
+    if savol := st.chat_input("Ism yozing yoki savol so'rang...", key="chat_input_unique"):
         st.session_state.messages.append({"role": "user", "content": savol})
         with st.chat_message("user"): st.markdown(savol)
         
         with st.chat_message("assistant"):
             q_low = savol.lower().strip()
-            topildi = False
             
-            # 1. Kalit so'zlarni ajratamiz
-            is_teacher_query = any(x in q_low for x in ["o'qituvchi", "ustoz", "pedagog", "muallim"])
-            is_list_query = any(x in q_low for x in ["ro'yxat", "hamma", "barcha", "kimlar"])
-            
-            # 2. Qidiruv so'zini tozalash (ortiqcha gaplarni olib tashlaymiz)
-            search_word = q_low
-            for skip in ["top", "ber", "chiqar", "ro'yxati", "haqida", "izla", "ko'rsat", "o'qituvchilar"]:
-                search_word = search_word.replace(skip, "").strip()
+            # A) ODAM OMILI: SAMIMIY JAVOBLAR
+            samimiy_javob = None
+            if any(x in q_low for x in ["rahmat", "tashakkur", "bor bo'ling", "baraka toping"]):
+                samimiy_javob = "Arzimaydi! Sizdan ham Alloh rozi bo'lsin. Maktabimiz ravoji uchun xizmat qilishdan xursandman. 😊"
+            elif any(x in q_low for x in ["salom", "assalom", "qalaysiz", "yaxshimisiz"]):
+                samimiy_javob = "Vaalaykum assalom! Men yaxshiman, rahmat. O'zingiz yaxshi yuribsizmi? Sizga qanday yordam bera olaman? 🏛"
+            elif any(x in q_low for x in ["xayr", "xush qoling", "ertagacha", "ko'rishguncha"]):
+                samimiy_javob = "Xayr, sog'-salomat bo'ling! Ishlaringizda omad tilayman. 👋"
+            elif any(x in q_low for x in ["zo'r", "ajoyib", "gap yo'q", "yaxshi ishlayapsan"]):
+                samimiy_javob = "Katta rahmat! Maqtovlaringizdan ruhlandim. Sizga yordam berish men uchun sharaf! 🌟"
 
-            # 3. Bazadan qidirish mantiqi
-            if len(q_low) >= 3 and not any(x in q_low for x in ["salom", "qalay", "yaxshi", "rahmat"]):
-                for key, df in sheets_baza.items():
-                    # A) Agar butun o'qituvchilar ro'yxati so'ralsa
-                    if is_list_query and is_teacher_query:
-                        if "o'qituvchi" in key.lower() or "pedagog" in key.lower():
-                            st.success("📋 O'qituvchilar ro'yxati:")
-                            st.dataframe(df, use_container_width=True)
+            if samimiy_javob:
+                st.markdown(samimiy_javob)
+                st.session_state.messages.append({"role": "assistant", "content": samimiy_javob})
+            
+            # B) BAZADAN QIDIRUV (Agar samimiy suhbat bo'lmasa)
+            else:
+                topildi = False
+                clean_word = q_low.replace("ro'yxati", "").replace("top", "").replace("o'qituvchilar", "").strip()
+                
+                if len(clean_word) >= 3:
+                    for key, df in sheets_baza.items():
+                        mask = df.apply(lambda r: r.astype(str).str.contains(clean_word, case=False, na=False).any(), axis=1)
+                        res_df = df[mask]
+                        if not res_df.empty:
+                            st.success(f"🔍 '{clean_word}' bo'yicha ma'lumot:")
+                            st.dataframe(res_df, use_container_width=True)
+                            
+                            # PPTX Slayd yuklash tugmasi
+                            ppt_data = pptx_yarat(res_df, savol)
+                            st.download_button(
+                                label="📂 Slaydni PPTX shaklida yuklash",
+                                data=ppt_data,
+                                file_name=f"{clean_word}_hisobot.pptx",
+                                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                                key=f"dl_{random.randint(0,999)}"
+                            )
                             topildi = True
                             break
-                    
-                    # B) Agar aniq bir ism qidirilsa (search_word bo'yicha)
-                    if search_word:
-                        mask = df.apply(lambda r: r.astype(str).str.contains(search_word, case=False, na=False).any(), axis=1)
-                        if not df[mask].empty:
-                            st.success(f"🔍 '{search_word}' bo'yicha ma'lumot topildi:")
-                            st.dataframe(df[mask], use_container_width=True)
-                            topildi = True
-                            break
+                
+                # C) AGAR BAZADA BO'LMASA -> GROQ AI
+                if not topildi:
+                    try:
+                        res = client.chat.completions.create(
+                            messages=[{"role":"system","content":f"Sen {MAKTAB_NOMI} AI yordamchisisan. O'zbekona lutf bilan, samimiy va madaniyatli gaplash."},
+                                     {"role":"user","content":savol}],
+                            model="llama-3.3-70b-versatile"
+                        )
+                        msg_text = res.choices[0].message.content
+                        st.markdown(msg_text)
+                        st.session_state.messages.append({"role": "assistant", "content": msg_text})
+                    except:
+                        st.error("AI hozirda band.")
 
-            # 4. Agar bazadan topilmasa Groq AI javob beradi
-            if not topildi:
-                try:
-                    res = client.chat.completions.create(
-                        messages=[{"role":"system","content":f"Sen {MAKTAB_NOMI} AI yordamchisisan. Samimiy muloqot qil."},
-                                 {"role":"user","content":savol}],
-                        model="llama-3.3-70b-versatile"
-                    )
-                    msg_text = res.choices[0].message.content
-                    st.markdown(msg_text)
-                    st.session_state.messages.append({"role": "assistant", "content": msg_text})
-                except:
-                    st.error("AI hozirda band.")
-# --- 6. MONITORING (SENING MANTIQING - XATOSIZ) ---
+# --- 7. MONITORING (SENING MANTIQING - ASL HOLIDA) ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
-    
-    if "m_auth" not in st.session_state:
-        st.session_state.m_auth = False
-        
+    if "m_auth" not in st.session_state: st.session_state.m_auth = False
     if not st.session_state.m_auth:
         m_input = st.text_input("Monitoring kodi:", type="password", key="mon_input")
         if st.button("Kirish", key="mon_btn"):
-            if m_input == MONITORING_KODI:
+            if m_input == MONITORING_KODI: 
                 st.session_state.m_auth = True
                 st.rerun()
-            else:
-                st.error("Kod xato!")
+            else: st.error("Kod xato!")
         st.stop()
     
     j_fayl = st.file_uploader("Excel faylni yuklang", type=['xlsx', 'xls', 'html'], key="uploader")
-    
     if j_fayl:
         try:
-            # Faylni o'qishning bir nechta usulini sinab ko'ramiz
-            try:
-                # 1-usul: Standart Excel (openpyxl)
-                df_j = pd.read_excel(j_fayl, engine='openpyxl')
-            except Exception:
-                try:
-                    # 2-usul: Eski Excel (.xls - xlrd)
+            # Faylni o'qish (engine'lar bilan)
+            try: df_j = pd.read_excel(j_fayl, engine='openpyxl')
+            except:
+                try: 
                     j_fayl.seek(0)
                     df_j = pd.read_excel(j_fayl, engine='xlrd')
-                except Exception:
-                    try:
-                        # 3-usul: HTML formatidagi Excel
-                        j_fayl.seek(0)
-                        df_j = pd.read_html(j_fayl, header=0)[0]
-                    except Exception:
-                        # 4-usul: Engine belgilamasdan urinish
-                        j_fayl.seek(0)
-                        df_j = pd.read_excel(j_fayl)
+                except:
+                    j_fayl.seek(0)
+                    df_j = pd.read_html(j_fayl, header=0)[0]
 
-            # Ustunlarni tozalash
             df_j.columns = [str(c).replace('\n', ' ').strip() for c in df_j.columns]
-            
             kamchiliklar = []
             if len(df_j.columns) >= 6:
                 for _, row in df_j.iterrows():
-                    name = str(row.iloc[0]) # 0-ustun: Ismlar
-                    val = str(row.iloc[5])  # 5-ustun: Baholar holati
-                    
-                    if any(x in name.lower() for x in ["tuman", "muassasa", "o'qituvchi", "f.i.sh"]):
-                        continue
-                        
+                    name, val = str(row.iloc[0]), str(row.iloc[5])
+                    if any(x in name.lower() for x in ["tuman", "muassasa", "f.i.sh"]): continue
                     nums = re.findall(r'(\d+)', val)
-                    if len(nums) >= 2:
-                        baho_bor, jami = int(nums[0]), int(nums[1])
-                        if baho_bor < jami:
-                            farq = jami - baho_bor
-                            kamchiliklar.append(f"❌ **{name}**: {farq} ta jurnal chala ({val})")
+                    if len(nums) >= 2 and int(nums[0]) < int(nums[1]):
+                        kamchiliklar.append(f"❌ **{name}**: {int(nums[1])-int(nums[0])} ta chala ({val})")
                 
-                st.subheader("📋 Tekshiruv Natijasi:")
                 st.dataframe(df_j, use_container_width=True)
-                
                 xabar_text = "✅ Hammasi to'liq!" if not kamchiliklar else "⚠️ **Kamchiliklar:**\n\n" + "\n".join(kamchiliklar)
-                if not kamchiliklar: st.success(xabar_text)
-                else: st.warning(xabar_text)
+                st.warning(xabar_text) if kamchiliklar else st.success(xabar_text)
                 
-                st.divider()
                 if st.button("📢 Telegramga yuborish", key="tg_btn"):
                     requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
-                                 json={"chat_id": GURUH_ID, "text": f"<b>📊 Monitoring</b>\n\n{xabar_text}", "parse_mode": "HTML"})
+                                 json={"chat_id": GURUH_ID, "text": f"📊 <b>Monitoring</b>\n\n{xabar_text}", "parse_mode": "HTML"})
                     st.success("✅ Telegramga yuborildi!")
-            else:
-                st.error(f"Faylda ustunlar yetarli emas. Topildi: {len(df_j.columns)} ta.")
-                
-        except Exception as e:
-            st.error(f"Faylni o'qishda kutilmagan xato: {e}")
-
-
+        except Exception as e: st.error(f"Xato: {e}")
