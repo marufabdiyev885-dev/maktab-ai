@@ -40,7 +40,8 @@ def yuklash():
                 if not df.empty:
                     df.columns = [str(c).strip().lower() for c in df.columns]
                     all_sheets[name] = df
-        except: continue
+        except:
+            continue
     return all_sheets
 
 sheets_baza = yuklash()
@@ -62,10 +63,11 @@ if "authenticated" not in st.session_state:
         if parol == TO_GRI_PAROL:
             st.session_state.authenticated = True
             st.rerun()
-        else: st.error("Parol xato!")
+        else:
+            st.error("Parol xato!")
     st.stop()
 
-# --- 5. AI MULOQOT (Yangilangan) ---
+# --- 5. AI MULOQOT ---
 if menu == "🤖 AI Muloqot":
     st.title("🤖 Maktabning sun'iy intellekti bilan muloqot")
     
@@ -78,7 +80,8 @@ if menu == "🤖 AI Muloqot":
 
     if savol := st.chat_input("Xabaringizni yozing..."):
         st.session_state.messages.append({"role": "user", "content": savol})
-        with st.chat_message("user"): st.markdown(savol)
+        with st.chat_message("user"):
+            st.markdown(savol)
         
         with st.chat_message("assistant"):
             q = savol.lower().strip()
@@ -123,26 +126,29 @@ if menu == "🤖 AI Muloqot":
                     javob = chat_completion.choices[0].message.content
                     st.markdown(javob)
                     st.session_state.messages.append({"role": "assistant", "content": javob})
-                except:
-                    st.error("AI bilan bog'lanishda xatolik.")
+                except Exception as e:
+                    st.error(f"AI bilan bog'lanishda xatolik: {e}")
 
-# --- 6. JURNAL MONITORINGI (O'zgarmadi) ---
+# --- 6. JURNAL MONITORINGI ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
-    if "m_auth" not in st.session_state: st.session_state.m_auth = False
+    if "m_auth" not in st.session_state:
+        st.session_state.m_auth = False
     if not st.session_state.m_auth:
         m_input = st.text_input("Monitoring kodi:", type="password")
         if st.button("Kirish"):
             if m_input == MONITORING_KODI:
                 st.session_state.m_auth = True
                 st.rerun()
-            else: st.error("Kod xato!")
+            else:
+                st.error("Kod xato!")
         st.stop()
     
     j_fayl = st.file_uploader("Excel yuklang", type=['xlsx', 'xls', 'html'])
     if j_fayl:
         try:
-            try: df_j = pd.read_excel(j_fayl)
+            try:
+                df_j = pd.read_excel(j_fayl)
             except:
                 j_fayl.seek(0)
                 df_j = pd.read_html(j_fayl, header=0)[0]
@@ -165,5 +171,5 @@ elif menu == "📊 Jurnal Monitoringi":
                 requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
                              json={"chat_id": GURUH_ID, "text": f"<b>📊 Monitoring</b>\n\n{xabar_tahlili}", "parse_mode": "HTML"})
                 st.success("✅ Yuborildi!")
-      except Exception as e:
-    st.error(f"Texnik xato: {e}")
+        except Exception as e:
+            st.error(f"Xato: {e}")
