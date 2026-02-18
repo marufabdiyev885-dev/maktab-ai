@@ -75,59 +75,56 @@ with st.sidebar:
     st.subheader("💡 Kun hikmati:")
     st.info(random.choice(HIKMATLAR))
 
-# --- 6. AI MULOQOT (QAYTA TIKLANDI) ---
+# --- 6. AI MULOQOT (RO'YXAT FUNKSIYASI BILAN) ---
 if menu == "🤖 AI Muloqot":
     st.title("🤖 Maktab AI yordamchisi")
-    st.info("💡 Men bilan ochiq darslar, o'yinlar va metodika haqida gaplashishingiz mumkin!")
     
-    if "messages" not in st.session_state: 
-        st.session_state.messages = []
-
-    # Chat tarixini ko'rsatish
+    if "messages" not in st.session_state: st.session_state.messages = []
     for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]): 
-            st.markdown(msg["content"])
+        with st.chat_message(msg["role"]): st.markdown(msg["content"])
 
-    if savol := st.chat_input("Savolingizni yozing (masalan: 5-sinf uchun o'yin topib ber)..."):
+    if savol := st.chat_input("Savol yozing yoki 'ro'yxat' deb so'rang..."):
         st.session_state.messages.append({"role": "user", "content": savol})
-        with st.chat_message("user"): 
-            st.markdown(savol)
+        with st.chat_message("user"): st.markdown(savol)
         
         with st.chat_message("assistant"):
             q = savol.lower().strip()
-            topildi = False
             
-            # 1. Excel bazada qidiruv (agar fayllar bo'lsa)
-            if sheets_baza:
-                for key, df in sheets_baza.items():
-                    mask = df.apply(lambda row: row.astype(str).str.contains(q, case=False).any(), axis=1)
-                    res_df = df[mask]
-                    if not res_df.empty:
-                        st.success("🔍 Maktab bazasidan topildi:")
-                        st.dataframe(res_df, use_container_width=True)
-                        topildi = True
-                        break
-            
-            # 2. Groq AI bilan bog'lanish (O'yinlar va metodika uchun)
+            # MAKSUD: Agar foydalanuvchi ro'yxatni so'rasa
+            if "ro'yxat" in q or "kimlar bor" in q:
+                if sheets_baza:
+                    st.success("📋 Maktab bazasidagi o'qituvchilar ro'yxati:")
+                    for key, df in sheets_baza.items():
+                        # Faqat birinchi ustunni (ismlar bo'lishi mumkin bo'lgan) ko'rsatamiz
+                        st.write(f"**Fayl: {key}**")
+                        st.dataframe(df.iloc[:, 0], use_container_width=True) # Faqat 1-ustun
+                    topildi = True
+                else:
+                    st.warning("Hozircha baza yuklanmagan. GitHub-ga fayllarni joylang.")
+                    topildi = True
+            else:
+                # Odatdagidek qidiruv mantiqi
+                topildi = False
+                if sheets_baza:
+                    for key, df in sheets_baza.items():
+                        mask = df.apply(lambda row: row.astype(str).str.contains(q, case=False).any(), axis=1)
+                        res_df = df[mask]
+                        if not res_df.empty:
+                            st.success("🔍 Topildi:")
+                            st.dataframe(res_df, use_container_width=True)
+                            topildi = True; break
+
+            # Agar bazada bo'lmasa Groq AI javob beradi
             if not topildi:
                 try:
-                    # AI'ga shaxsiyat berish
-                    instruction = f"Sen {MAKTAB_NOMI}ning aqlli yordamchisisan. O'qituvchilarga ochiq darslar, qiziqarli o'yinlar va dars ishlanmalari bo'yicha yordam berasan. O'zbek tilida, samimiy javob ber."
-                    
                     chat_completion = client.chat.completions.create(
-                        messages=[
-                            {"role": "system", "content": instruction},
-                            {"role": "user", "content": savol}
-                        ],
-                        model="llama-3.3-70b-versatile", # Eng kuchli modeli
+                        messages=[{"role": "system", "content": f"Sen {MAKTAB_NOMI} yordamchisisan."},
+                                 {"role": "user", "content": savol}],
+                        model="llama-3.3-70b-versatile",
                     )
-                    javob = chat_completion.choices[0].message.content
-                    st.markdown(javob)
-                    st.session_state.messages.append({"role": "assistant", "content": javob})
-                except Exception as e:
-                    st.error("😔 AI hozircha javob bera olmayapti. Groq API limiti tugagan yoki internetda uzilish bor.")
-                    st.info("Lekin xavotir olmang, monitoring bo'limi ishlashda davom etadi!")
-# --- 7. MONITORING (XATOLIKLARNI TUZATUVCHI VARIANT) ---
+                    st.markdown(chat_completion.choices[0].message.content)
+                except:
+                    st.error("AI hozirda javob bera olmayapti.")# --- 7. MONITORING (XATOLIKLARNI TUZATUVCHI VARIANT) ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
     
@@ -203,4 +200,5 @@ elif menu == "📊 Jurnal Monitoringi":
                 
         except Exception as e:
             st.error(f"Faylni o'qishda kutilmagan xato: {e}")
+
 
