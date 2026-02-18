@@ -65,7 +65,7 @@ with st.sidebar:
     menu = st.radio("Bo'limni tanlang:", ["🤖 AI Muloqot", "📊 Jurnal Monitoringi"], key="main_nav_radio")
     st.divider()
     st.info(f"💡 {random.choice(HIKMATLAR)}")
-# --- 6. AI MULOQOT (FAQAT SO'RALGANNI CHIQARISH) ---
+# --- 6. AI MULOQOT (TARTIBLI QIDIRUV) ---
 if menu == "🤖 AI Muloqot":
     st.title("🤖 Maktab AI yordamchisi")
     if "messages" not in st.session_state: st.session_state.messages = []
@@ -73,52 +73,45 @@ if menu == "🤖 AI Muloqot":
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]): st.markdown(msg["content"])
 
-    if savol := st.chat_input("Ism yozing (masalan: o'qituvchi Jalilova)...", key="chat_input_final"):
+    if savol := st.chat_input("Ism yozing yoki savol bering...", key="ai_chat_final_fix"):
         st.session_state.messages.append({"role": "user", "content": savol})
         with st.chat_message("user"): st.markdown(savol)
         
         with st.chat_message("assistant"):
             q_lower = savol.lower().strip()
+            
+            # Oddiy suhbat so'zlarini bazadan qidirmaslik uchun filtr
+            suhbat_sozlari = ["salom", "yaxshi", "rahmat", "ahvoling", "qalay", "nima gap", "ok", "ha", "yo'q"]
+            
             topildi = False
             
-            # Fayllarni ajratib olamiz
-            o_qituvchi_fayllar = {k: v for k, v in sheets_baza.items() if "o'qituvchi" in k.lower() or "pedagog" in k.lower()}
-            o_quvchi_fayllar = {k: v for k, v in sheets_baza.items() if "o'quvchi" in k.lower() or "sinf" in k.lower()}
-
-            # Qidiruv mantiqi:
-            target_files = sheets_baza # Standart holatda hamma joydan qidiradi
-            
-            if "o'qituvchi" in q_lower or "ustoz" in q_lower:
-                target_files = o_qituvchi_fayllar
-                q_search = q_lower.replace("o'qituvchi", "").replace("ustoz", "").strip()
-            elif "o'quvchi" in q_lower or "bola" in q_lower:
-                target_files = o_quvchi_fayllar
-                q_search = q_lower.replace("o'quvchi", "").replace("bola", "").strip()
+            # Agar bu shunchaki suhbat bo'lsa, to'g'ridan-to'g'ri AI javob bersin
+            if q_lower in suhbat_sozlari or len(q_lower) < 3:
+                pass # Bu qismda bazadan qidirmaydi, pastdagi Groq AI ishlaydi
             else:
-                q_search = q_lower
-
-            # Faqat tanlangan fayllardan qidirish
-            if target_files:
-                for key, df in target_files.items():
-                    mask = df.apply(lambda row: row.astype(str).str.contains(q_search, case=False, na=False).any(), axis=1)
-                    res_df = df[mask]
-                    if not res_df.empty:
-                        st.success(f"🔍 '{q_search}' bo'yicha topildi:")
-                        st.dataframe(res_df, use_container_width=True)
-                        topildi = True
-
-            # Agar bazadan topilmasa Groq AI ga yuboramiz
+                # Bazadan qidirish (Faqat mazmunli so'z bo'lsa)
+                if sheets_baza:
+                    for key, df in sheets_baza.items():
+                        mask = df.apply(lambda row: row.astype(str).str.contains(savol, case=False, na=False).any(), axis=1)
+                        res_df = df[mask]
+                        if not res_df.empty:
+                            st.success(f"🔍 '{savol}' bo'yicha bazadan topildi:")
+                            st.dataframe(res_df, use_container_width=True)
+                            topildi = True
+            
+            # Agar bazadan qidirish shart bo'lmasa yoki topilmasa - Groq AI suhbatlashadi
             if not topildi:
                 try:
                     chat_completion = client.chat.completions.create(
-                        messages=[{"role": "system", "content": f"Sen {MAKTAB_NOMI} yordamchisisan."},
+                        messages=[{"role": "system", "content": f"Sen {MAKTAB_NOMI} AI yordamchisisan. Samimiy suhbatlash. Agar ism so'rashsa, bazada yo'qligini ayt."},
                                  {"role": "user", "content": savol}],
                         model="llama-3.3-70b-versatile",
                     )
                     javob = chat_completion.choices[0].message.content
                     st.markdown(javob)
                     st.session_state.messages.append({"role": "assistant", "content": javob})
-                except: st.error("AI hozirda band.")
+                except:
+                    st.error("AI hozir ulanishda qiynalyapti.")
 # --- 7. MONITORING (MUTLAQO TEGILMADI) ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
@@ -159,4 +152,5 @@ elif menu == "📊 Jurnal Monitoringi":
                                  json={"chat_id": GURUH_ID, "text": f"📊 <b>Monitoring:</b>\n\n{xabar}", "parse_mode": "HTML"})
                     st.success("Yuborildi!")
         except Exception as e: st.error(f"Xato: {e}")
+
 
