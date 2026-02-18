@@ -41,7 +41,6 @@ def yuklash():
             sheets = pd.read_excel(f, sheet_name=None, dtype=str)
             for name, df in sheets.items():
                 if not df.empty:
-                    # Ustun nomlarini tozalaymiz
                     df.columns = [str(c).strip().lower() for c in df.columns]
                     all_sheets[name] = df
         except:
@@ -71,7 +70,7 @@ if "authenticated" not in st.session_state:
             st.error("Parol xato!")
     st.stop()
 
-# --- 5. AI MULOQOT (O'qituvchi qidiruvi kuchaytirildi) ---
+# --- 5. AI MULOQOT (Qidiruv tubdan yaxshilandi) ---
 if menu == "🤖 AI Muloqot":
     st.title("🤖 Maktab AI yordamchisi")
     
@@ -91,7 +90,7 @@ if menu == "🤖 AI Muloqot":
             q = savol.lower().strip()
             topildi = False
             
-            # 1. Sinf qidiruvi (Masalan: 9-a)
+            # 1. Aniq sinf qidiruvi (9-a kabi)
             sinf_match = re.search(r'(\d{1,2})[- \s]?([a-zа-я])', q)
             if sinf_match:
                 sinf_nomi = f"{sinf_match.group(1)}-{sinf_match.group(2)}"
@@ -106,35 +105,26 @@ if menu == "🤖 AI Muloqot":
                         topildi = True
                         break
 
-            # 2. O'qituvchi yoki Ism bo'yicha qidiruv (YANGI!)
+            # 2. Umumiy bazadan qidirish (O'qituvchi yoki O'quvchi farqlanmaydi)
             if not topildi:
-                is_pedagog_query = any(x in q for x in ["o'qituvchi", "pedagog", "xodim", "ustoz", "muallim"])
-                
                 for name, df in sheets_baza.items():
-                    # Varaq nomi yoki ustunlarda 'pedagog', 'mutaxassis', 'лист2' so'zlari bormi?
-                    cols_str = " ".join(df.columns).lower()
-                    if any(x in name.lower() or x in cols_str for x in ["pedagog", "mutaxassis", "лист2", "familiyasi"]):
+                    # Har bir qatordan foydalanuvchi yozgan so'zni qidiramiz
+                    mask = df.apply(lambda row: row.astype(str).str.contains(q, case=False).any(), axis=1)
+                    res_df = df[mask]
+                    
+                    if not res_df.empty:
+                        if "лист2" in name.lower() or "pedagog" in " ".join(df.columns).lower():
+                            msg = f"Pedagoglar bazasidan topildi:"
+                        else:
+                            msg = f"Ma'lumotlar bazasidan topildi ({name}):"
                         
-                        # Foydalanuvchi yozgan ismni jadvaldan qidiramiz
-                        mask = df.apply(lambda row: row.astype(str).str.contains(q, case=False).any(), axis=1)
-                        res_df = df[mask]
-                        
-                        if not res_df.empty:
-                            msg = f"Qidiruvingiz bo'yicha pedagoglar ma'lumoti:"
-                            st.success(msg)
-                            st.dataframe(res_df, use_container_width=True)
-                            st.session_state.messages.append({"role": "assistant", "content": msg})
-                            topildi = True
-                            break
-                        elif is_pedagog_query:
-                            msg = "Maktab pedagoglar ro'yxati:"
-                            st.success(msg)
-                            st.dataframe(df, use_container_width=True)
-                            st.session_state.messages.append({"role": "assistant", "content": msg})
-                            topildi = True
-                            break
+                        st.success(msg)
+                        st.dataframe(res_df, use_container_width=True)
+                        st.session_state.messages.append({"role": "assistant", "content": msg})
+                        topildi = True
+                        break
 
-            # 3. AI bilan bog'lanish (Agarda bazadan topilmasa)
+            # 3. AI bilan bog'lanish
             if not topildi:
                 try:
                     chat_completion = client.chat.completions.create(
@@ -150,7 +140,7 @@ if menu == "🤖 AI Muloqot":
                 except Exception as e:
                     st.error(f"AI bilan bog'lanishda xatolik: {e}")
 
-# --- 6. JURNAL MONITORINGI (MUTLAQO TEGILMADI) ---
+# --- 6. JURNAL MONITORINGI (O'ZGARMADI) ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
     if "m_auth" not in st.session_state:
