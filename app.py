@@ -90,7 +90,7 @@ if menu == "🤖 AI Muloqot":
                 st.markdown(javob)
                 st.session_state.messages.append({"role": "assistant", "content": javob})
 
-# --- 6. JURNAL MONITORINGI (SIZNING JADVALINGIZGA MOSLANDI) ---
+# --- 7. JURNAL MONITORINGI (O'TA SEZGIR VARIANT) ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
     
@@ -113,42 +113,56 @@ elif menu == "📊 Jurnal Monitoringi":
                 j_fayl.seek(0)
                 df_j = pd.read_html(j_fayl, header=0)[0]
             
+            # 1. Ustun nomlarini tozalash (probellar va yangi qatorlarni yo'qotish)
             df_j.columns = [str(c).replace('\n', ' ').strip() for c in df_j.columns]
             
-            # Ustunlarni aniqlash
-            col_target = next((c for c in df_j.columns if "baholar qo'yilgan jurnallar" in c.lower()), None)
-            col_name = next((c for c in df_j.columns if any(x in c.lower() for x in ["o'qituvchi", "f.i.sh"])), None)
+            # 2. Aqlli qidiruv: Ustun nomida "jurnal" va "soni" so'zlari borini topish
+            col_target = None
+            for c in df_j.columns:
+                lower_c = c.lower()
+                if "jurnal" in lower_c and "soni" in lower_c:
+                    col_target = c
+                    break
             
+            # 3. O'qituvchi ustunini topish
+            col_name = None
+            for c in df_j.columns:
+                lower_c = c.lower()
+                if any(x in lower_c for x in ["o'qituvchi", "f.i.sh", "pedagog", "o'qituvchi"]):
+                    col_name = c
+                    break
+            
+            # Agar ustunlar topilsa, hisoblashni boshlaymiz
             if col_target and col_name:
                 kamchiliklar = []
                 for _, row in df_j.iterrows():
                     val = str(row[col_target])
-                    # "6 Undan 6" formatidan sonlarni ajratish
+                    # "155 Undan 197" kabi matndan faqat sonlarni olamiz
                     nums = re.findall(r'(\d+)', val)
                     if len(nums) >= 2:
                         baho_bor = int(nums[0])
                         jami = int(nums[1])
                         if baho_bor < jami:
                             farq = jami - baho_bor
-                            kamchiliklar.append(f"❌ **{row[col_name]}**: {farq} ta jurnalda baho qo'yilmagan (Holat: {val})")
+                            kamchiliklar.append(f"❌ **{row[col_name]}**: {farq} ta jurnal chala (Holat: {val})")
                 
-                # NATIJANI KO'RSATISH
                 st.subheader("📋 Tekshiruv Natijasi:")
                 st.dataframe(df_j, use_container_width=True)
                 
-                if not kamchiliklar:
-                    xabar_text = "✅ Barcha jurnallar to'liq yozilgan!"
-                    st.success(xabar_text)
-                else:
-                    xabar_text = "⚠️ **Quyidagi o'qituvchilarda kamchilik aniqlandi:**\n\n" + "\n".join(kamchiliklar)
-                    st.warning(xabar_text)
+                xabar_text = "✅ Barcha jurnallar to'liq yozilgan!" if not kamchiliklar else "⚠️ **Kamchiliklar:**\n\n" + "\n".join(kamchiliklar)
+                
+                if not kamchiliklar: st.success(xabar_text)
+                else: st.warning(xabar_text)
                 
                 st.divider()
                 if st.button("📢 Natijalarni Telegramga yuborish"):
                     requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
-                                 json={"chat_id": GURUH_ID, "text": f"<b>📊 Monitoring</b>\n\n{xabar_text}", "parse_mode": "HTML"})
+                                 json={"chat_id": GURUH_ID, "text": f"<b>📊 {MAKTAB_NOMI} Monitoringi</b>\n\n{xabar_text}", "parse_mode": "HTML"})
                     st.success("✅ Telegramga yuborildi!")
             else:
-                st.error("❌ Kerakli ustunlar topilmadi. Ustun nomlarini tekshiring.")
+                # Agar hali ham topilmasa, mavjud ustun nomlarini ko'rsatadi (diagnoz uchun)
+                st.error("❌ Kerakli ustunlar topilmadi.")
+                st.write("Fayldagi mavjud ustunlar:", list(df_j.columns))
+                st.info("Maslahat: Excel faylda ustun nomi 'O'qituvchi' va 'Baholar qo'yilgan jurnallar soni' ekanligini tekshiring.")
         except Exception as e:
             st.error(f"Xato: {e}")
