@@ -60,78 +60,79 @@ with st.sidebar:
     st.divider()
     st.info("💡 Bilim - najotdir.")
 
-# --- 5. AI MULOQOT (FAROSATLI VARIANT) ---
+# --- 5. AI MULOQOT (MUKAMMAL VA FAROSATLI VARIANT) ---
 if menu == "🤖 AI Muloqot":
     st.title("🤖 Maktab AI yordamchisi")
-    if "messages" not in st.session_state: st.session_state.messages = []
+    
+    # Xotira (Suhbat tarixini saqlash)
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
     
     for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]): st.markdown(msg["content"])
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
 
-    if savol := st.chat_input("Ism yozing yoki savol so'rang...", key="chat_input_unique"):
+    if savol := st.chat_input("Qanday yordam bera olaman?", key="chat_input_unique"):
         st.session_state.messages.append({"role": "user", "content": savol})
-        with st.chat_message("user"): st.markdown(savol)
+        with st.chat_message("user"):
+            st.markdown(savol)
         
         with st.chat_message("assistant"):
             q_low = savol.lower().strip()
+            
+            # 1-QADAM: Odob-axloq va ijtimoiy so'zlarni filtrlash (Inson omili)
+            ijtimoiy_sozlar = {
+                "rahmat": ["Arzimaydi, doim xizmatingizdaman! 😊", "Sizdan ham Alloh rozi bo'lsin!", "Sizga yordam berishdan xursandman! ✨"],
+                "salom": ["Assalomu alaykum! Maktabimizning aqlli tizimiga xush kelibsiz. Qanday yordam bera olaman? 🏛", "Vaalaykum assalom! Sog'-salomatmisiz?"],
+                "xayr": ["Xayr, sog' bo'ling! Ishlaringizga rivoj tilayman. 👋", "Yaxshi boring, ertaga ko'rishguncha!"],
+                "zo'r": ["Rahmat! Sizga manzur bo'lganidan xursandman. 🌟", "Sizning kayfiyatingiz - bizning yutug'imiz!"],
+                "yaxshi": ["Shukur, yaxshi yuribman. Sizchi? Ishlaringiz joyidami? 😊"]
+            }
+
             topildi = False
-            samimiy_javob = None
+            for kalit, javoblar in ijtimoiy_sozlar.items():
+                if kalit in q_low:
+                    javob = random.choice(javoblar)
+                    st.markdown(javob)
+                    st.session_state.messages.append({"role": "assistant", "content": javob})
+                    topildi = True
+                    break
 
-            # --- 5.1. INSON OMILI: ODOBIY JAVOBLAR ---
-            if any(x in q_low for x in ["rahmat", "tashakkur", "bor bo'ling", "baraka top"]):
-                samimiy_javob = "Arzimaydi! Sizdan ham Alloh rozi bo'lsin. Doim xizmatingizdaman. 😊"
-            elif any(x in q_low for x in ["salom", "assalom", "qalaysiz", "yaxshimisiz"]):
-                samimiy_javob = "Vaalaykum assalom! Shukur, yaxshiman. O'zingiz sog'-salomatmisiz? Sizga qanday yordam bera olaman? 🏛"
-            elif any(x in q_low for x in ["xayr", "xush qoling", "ertagacha", "ko'rishguncha"]):
-                samimiy_javob = "Xayr, sog' bo'ling! Ishlaringizda rivoj va baraka tilayman. 👋"
-            elif any(x in q_low for x in ["zo'r", "ajoyib", "gap yo'q", "barakalla", "ofarin"]):
-                samimiy_javob = "Katta rahmat! Maqtovingizdan xursandman, harakat qilamiz! 🌟"
-
-            if samimiy_javob:
-                st.markdown(samimiy_javob)
-                st.session_state.messages.append({"role": "assistant", "content": samimiy_javob})
-                topildi = True # Boshqa qidiruv shart emas
-
-            # --- 5.2. AGAR SAMIMIY SUHBAT BO'LMASA -> BAZADAN QIDIRUV ---
+            # 2-QADAM: Agar ijtimoiy muloqot bo'lmasa, BAZADAN QIDIRISH
             if not topildi:
-                is_teacher_query = any(x in q_low for x in ["o'qituvchi", "ustoz", "pedagog", "muallim"])
-                is_list_query = any(x in q_low for x in ["ro'yxat", "hamma", "barcha", "kimlar"])
-                
+                # Gapdan qidiruv so'zini ajratib olish (Smart Search)
+                ortiqcha_sozlar = ["top", "ber", "chiqar", "ro'yxati", "haqida", "izla", "ko'rsat", "o'qituvchilar", "muallim", "ustoz"]
                 search_word = q_low
-                for skip in ["top", "ber", "chiqar", "ro'yxati", "haqida", "izla", "ko'rsat", "o'qituvchilar"]:
-                    search_word = search_word.replace(skip, "").strip()
+                for w in ortiqcha_sozlar:
+                    search_word = search_word.replace(w, "").strip()
 
-                if len(q_low) >= 3:
+                if len(search_word) >= 3:
                     for key, df in sheets_baza.items():
-                        if is_list_query and is_teacher_query:
-                            if "o'qituvchi" in key.lower() or "pedagog" in key.lower():
-                                st.success("📋 O'qituvchilar ro'yxati:")
-                                st.dataframe(df, use_container_width=True)
-                                topildi = True
-                                break
-                        
-                        if search_word:
-                            mask = df.apply(lambda r: r.astype(str).str.contains(search_word, case=False, na=False).any(), axis=1)
-                            if not df[mask].empty:
-                                st.success(f"🔍 '{search_word}' bo'yicha ma'lumot topildi:")
-                                st.dataframe(df[mask], use_container_width=True)
-                                topildi = True
-                                break
+                        mask = df.apply(lambda r: r.astype(str).str.contains(search_word, case=False, na=False).any(), axis=1)
+                        res_df = df[mask]
+                        if not res_df.empty:
+                            msg = f"🔍 **{search_word.capitalize()}** bo'yicha ma'lumotlarni topdim:"
+                            st.info(msg)
+                            st.dataframe(res_df, use_container_width=True)
+                            st.session_state.messages.append({"role": "assistant", "content": msg})
+                            topildi = True
+                            break
 
-            # --- 5.3. AGAR BAZADA BO'LMASA -> GROQ AI ---
+            # 3-QADAM: Agar bazada ham bo'lmasa, MUKAMMAL AI FIKRLASHI (Groq)
             if not topildi:
                 try:
                     res = client.chat.completions.create(
-                        messages=[{"role":"system","content":f"Sen {MAKTAB_NOMI} AI yordamchisisan. Samimiy, madaniyatli va o'zbekona lutf bilan muloqot qil."},
-                                 {"role":"user","content":savol}],
+                        messages=[
+                            {"role": "system", "content": f"Sen {MAKTAB_NOMI}ning juda aqlli, madaniyatli va farosatli yordamchisisan. Foydalanuvchi bilan o'zbekona lutf, samimiyat va hurmat bilan gaplash. Agar u bazadan topilmagan ma'lumotni so'rasa, uzr so'rab, o'zing bilgan umumiy tavsiyalarni ber."},
+                            {"role": "user", "content": savol}
+                        ],
                         model="llama-3.3-70b-versatile"
                     )
-                    msg_text = res.choices[0].message.content
-                    st.markdown(msg_text)
-                    st.session_state.messages.append({"role": "assistant", "content": msg_text})
+                    ai_javob = res.choices[0].message.content
+                    st.markdown(ai_javob)
+                    st.session_state.messages.append({"role": "assistant", "content": ai_javob})
                 except:
-                    st.error("AI hozirda band.")
-
+                    st.error("AI hozirda biroz band bo'lib qoldi. Birozdan so'ng urinib ko'ring.")
 # --- 6. MONITORING (SENING MANTIQING) ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
@@ -176,3 +177,4 @@ elif menu == "📊 Jurnal Monitoringi":
                                  json={"chat_id": GURUH_ID, "text": f"📊 <b>Monitoring</b>\n\n{xabar_text}", "parse_mode": "HTML"})
                     st.success("✅ Telegramga yuborildi!")
         except Exception as e: st.error(f"Xato: {e}")
+
