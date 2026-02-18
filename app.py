@@ -5,7 +5,7 @@ import requests
 import re
 import random
 from groq import Groq
-from PIL import Image, ImageDraw # Rasm uchun kerak
+from PIL import Image, ImageDraw
 import io
 
 # --- 1. SOZLAMALAR ---
@@ -21,7 +21,7 @@ try:
     
     client = Groq(api_key=GROQ_API_KEY)
 except Exception:
-    st.error("⚠️ Secrets ma'lumotlarida xatolik bor!")
+    st.error("⚠️ Secrets ma'lumotlarida (API kalitlar) xatolik bor!")
     st.stop()
 
 # --- 2. BAZANI YUKLASH ---
@@ -41,17 +41,17 @@ def yuklash():
 
 sheets_baza = yuklash()
 
-# --- 3. DIZAYN VA KIRISH ---
+# --- 3. SAHIFA SOZLAMALARI VA KIRISH ---
 st.set_page_config(page_title=MAKTAB_NOMI, layout="wide")
 
 if "authenticated" not in st.session_state:
     st.title(f"🏫 {MAKTAB_NOMI}")
-    p_in = st.text_input("Kirish paroli:", type="password", key="main_auth_key")
+    p_in = st.text_input("Kirish paroli:", type="password", key="main_auth")
     if st.button("Kirish", key="main_auth_btn"):
         if p_in == TO_GRI_PAROL:
             st.session_state.authenticated = True
             st.rerun()
-        else: st.error("Xato!")
+        else: st.error("Parol xato!")
     st.stop()
 
 # --- 4. SIDEBAR ---
@@ -62,20 +62,17 @@ with st.sidebar:
     st.divider()
     st.info("💡 Bilim - najotdir.")
 
-# --- 5. AI MULOQOT (YANGI VA RASMLI VARIANT) ---
+# --- 5. AI MULOQOT (AQLLI QIDIRUV VA SLAYD FUNKSIYASI) ---
 if menu == "🤖 AI Muloqot":
     st.title("🤖 Maktab AI yordamchisi")
-    
-    # Slayd (PNG) yaratish funksiyasi
+
+    # Slayd yaratish funksiyasi
     def rasm_yarat(df, sarlavha="MAKTAB MA'LUMOTI"):
-        img = Image.new('RGB', (1000, 750), color=(255, 255, 255))
+        img = Image.new('RGB', (1000, 800), color=(255, 255, 255))
         draw = ImageDraw.Draw(img)
-        # Ramka chizish
-        draw.rectangle([10, 10, 990, 740], outline=(0, 51, 102), width=10)
-        # Matn tayyorlash
-        matn = f"{sarlavha}\n\n" + df.to_string(index=False)[:1200]
+        draw.rectangle([10, 10, 990, 790], outline=(0, 51, 102), width=10)
+        matn = f"{sarlavha}\n\n" + df.to_string(index=False)[:1300]
         draw.text((40, 40), matn, fill=(0, 0, 0))
-        
         buf = io.BytesIO()
         img.save(buf, format="PNG")
         return buf.getvalue()
@@ -85,7 +82,7 @@ if menu == "🤖 AI Muloqot":
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]): st.markdown(msg["content"])
 
-    if savol := st.chat_input("Ism yozing yoki ro'yxatni so'rang...", key="chat_input_v2"):
+    if savol := st.chat_input("Ism yozing yoki ro'yxatni so'rang...", key="ai_input"):
         st.session_state.messages.append({"role": "user", "content": savol})
         with st.chat_message("user"): st.markdown(savol)
         
@@ -93,14 +90,13 @@ if menu == "🤖 AI Muloqot":
             q_low = savol.lower().strip()
             topildi = False
             
-            # Smart qidiruv so'zini tozalash
+            # Qidiruv so'zini tozalash
             search_word = q_low
             for skip in ["top", "ber", "chiqar", "ro'yxati", "haqida", "izla", "ko'rsat", "o'qituvchilar"]:
                 search_word = search_word.replace(skip, "").strip()
 
-            if len(q_low) >= 3 and not any(x in q_low for x in ["salom", "qalay", "yaxshi", "rahmat"]):
+            if len(q_low) >= 3 and not any(x in q_low for x in ["salom", "qalay", "rahmat"]):
                 for key, df in sheets_baza.items():
-                    # Filtrlash (Ism yoki ro'yxat bo'yicha)
                     is_list = any(x in q_low for x in ["ro'yxat", "hamma"])
                     is_teacher = any(x in q_low for x in ["o'qituvchi", "pedagog"])
                     
@@ -114,14 +110,14 @@ if menu == "🤖 AI Muloqot":
                         st.success(f"🔍 Ma'lumot topildi:")
                         st.dataframe(res_df, use_container_width=True)
                         
-                        # Rasm yuklash tugmasi
+                        # Rasm (Slayd) yuklash tugmasi
                         rasm_data = rasm_yarat(res_df, sarlavha=f"{savol.upper()}")
                         st.download_button(
-                            label="🖼 Slaydni rasm ko'rinishida yuklab olish",
+                            label="🖼 Slaydni rasm qilib yuklash",
                             data=rasm_data,
-                            file_name="maktab_ma_lumot.png",
+                            file_name="maktab_slayd.png",
                             mime="image/png",
-                            key=f"dl_{random.randint(0,1000)}"
+                            key=f"dl_{random.randint(0,9999)}"
                         )
                         topildi = True
                         break
@@ -137,14 +133,14 @@ if menu == "🤖 AI Muloqot":
                     st.session_state.messages.append({"role": "assistant", "content": msg_text})
                 except: st.error("AI hozirda band.")
 
-# --- 6. MONITORING (SENING ASL MANTIQING) ---
+# --- 6. JURNAL MONITORINGI (SIZNING ASL MANTIQINGIZ) ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
     if "m_auth" not in st.session_state: st.session_state.m_auth = False
     
     if not st.session_state.m_auth:
-        m_pass = st.text_input("Monitoring kodi:", type="password", key="mon_pass_unique")
-        if st.button("Kirish", key="mon_btn_unique"):
+        m_pass = st.text_input("Monitoring kodi:", type="password", key="mon_auth")
+        if st.button("Kirish", key="mon_auth_btn"):
             if m_pass == MONITORING_KODI: 
                 st.session_state.m_auth = True
                 st.rerun()
@@ -167,20 +163,29 @@ elif menu == "📊 Jurnal Monitoringi":
 
             df_j.columns = [str(c).replace('\n', ' ').strip() for c in df_j.columns]
             kamchiliklar = []
+            
             if len(df_j.columns) >= 6:
                 for _, row in df_j.iterrows():
                     name, val = str(row.iloc[0]), str(row.iloc[5])
+                    # Filtrlash (O'qituvchilar ismlarini tashlab ketmaydi)
                     if any(x in name.lower() for x in ["tuman", "muassasa", "f.i.sh"]): continue
+                    
                     nums = re.findall(r'(\d+)', val)
-                    if len(nums) >= 2 and int(nums[0]) < int(nums[1]):
-                        kamchiliklar.append(f"❌ **{name}**: {int(nums[1])-int(nums[0])} ta chala ({val})")
+                    if len(nums) >= 2:
+                        if int(nums[0]) < int(nums[1]):
+                            kamchiliklar.append(f"❌ **{name}**: {int(nums[1])-int(nums[0])} ta chala ({val})")
                 
+                st.subheader("📋 Tekshiruv Natijasi:")
                 st.dataframe(df_j, use_container_width=True)
-                xabar = "✅ Hammasi to'liq!" if not kamchiliklar else "⚠️ **Kamchiliklar:**\n\n" + "\n".join(kamchiliklar)
-                st.warning(xabar) if kamchiliklar else st.success(xabar)
                 
-                if st.button("📢 Telegramga yuborish", key="tg_send_btn"):
+                xabar = "✅ Hammasi to'liq!" if not kamchiliklar else "⚠️ **Kamchiliklar:**\n\n" + "\n".join(kamchiliklar)
+                
+                # MONITORING NATIJASI (SUCCESS/WARNING)
+                if kamchiliklar: st.warning(xabar)
+                else: st.success(xabar)
+                
+                if st.button("📢 Telegramga yuborish", key="tg_btn"):
                     requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
-                                 json={"chat_id": GURUH_ID, "text": f"📊 Monitoring:\n{xabar}"})
-                    st.success("Yuborildi!")
+                                 json={"chat_id": GURUH_ID, "text": f"📊 <b>Monitoring natijasi:</b>\n\n{xabar}", "parse_mode": "HTML"})
+                    st.success("✅ Telegramga yuborildi!")
         except Exception as e: st.error(f"Xato: {e}")
