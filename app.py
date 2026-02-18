@@ -74,8 +74,7 @@ with st.sidebar:
     st.divider()
     st.subheader("💡 Kun hikmati:")
     st.info(random.choice(HIKMATLAR))
-
-# --- 6. AI MULOQOT (RO'YXAT FUNKSIYASI BILAN) ---
+    # --- 6. AI MULOQOT (MAKSIMAL ANIQ QIDIRUV) ---
 if menu == "🤖 AI Muloqot":
     st.title("🤖 Maktab AI yordamchisi")
     
@@ -83,48 +82,209 @@ if menu == "🤖 AI Muloqot":
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]): st.markdown(msg["content"])
 
-    if savol := st.chat_input("Savol yozing yoki 'ro'yxat' deb so'rang..."):
+    if savol := st.chat_input("Ism yozing (masalan: JALILOVA yoki Dilfuza)..."):
         st.session_state.messages.append({"role": "user", "content": savol})
         with st.chat_message("user"): st.markdown(savol)
         
         with st.chat_message("assistant"):
-            q = savol.lower().strip()
+            q = savol.upper().strip() # Qidiruvni KATTA harfga o'giramiz
+            topildi = False
             
-            # MAKSUD: Agar foydalanuvchi ro'yxatni so'rasa
-            if "ro'yxat" in q or "kimlar bor" in q:
+            # 1. RO'YXAT so'ralsa
+            if "RO'YXAT" in q or "KIMLAR BOR" in q:
                 if sheets_baza:
-                    st.success("📋 Maktab bazasidagi o'qituvchilar ro'yxati:")
+                    st.success("📋 Maktab bazasidagi pedagoglar:")
                     for key, df in sheets_baza.items():
-                        # Faqat birinchi ustunni (ismlar bo'lishi mumkin bo'lgan) ko'rsatamiz
-                        st.write(f"**Fayl: {key}**")
-                        st.dataframe(df.iloc[:, 0], use_container_width=True) # Faqat 1-ustun
+                        # Ustun nomini qidirish (pedagogning ismi familiyasi)
+                        col_name = next((c for c in df.columns if "pedagog" in c or "ismi" in c), df.columns[0])
+                        st.dataframe(df[[col_name]], use_container_width=True)
                     topildi = True
                 else:
-                    st.warning("Hozircha baza yuklanmagan. GitHub-ga fayllarni joylang.")
+                    st.warning("Baza topilmadi. Fayllarni GitHub-ga yuklang.")
                     topildi = True
-            else:
-                # Odatdagidek qidiruv mantiqi
-                topildi = False
-                if sheets_baza:
-                    for key, df in sheets_baza.items():
-                        mask = df.apply(lambda row: row.astype(str).str.contains(q, case=False).any(), axis=1)
-                        res_df = df[mask]
-                        if not res_df.empty:
-                            st.success("🔍 Topildi:")
-                            st.dataframe(res_df, use_container_width=True)
-                            topildi = True; break
 
-            # Agar bazada bo'lmasa Groq AI javob beradi
+            # 2. ISHNI QIDIRISH (Harflarga e'tibor bermasdan)
+            elif sheets_baza:
+                for key, df in sheets_baza.items():
+                    # Har bir qatorni matnga aylantirib, ichidan qidiramiz
+                    mask = df.apply(lambda row: row.astype(str).str.contains(savol, case=False, na=False).any(), axis=1)
+                    res_df = df[mask]
+                    if not res_df.empty:
+                        st.success(f"🔍 '{savol}' bo'yicha topilgan ma'lumot:")
+                        st.dataframe(res_df, use_container_width=True)
+                        topildi = True; break
+
+            # 3. Agar bazada bo'lmasa Groq AI javob beradi
             if not topildi:
                 try:
                     chat_completion = client.chat.completions.create(
-                        messages=[{"role": "system", "content": f"Sen {MAKTAB_NOMI} yordamchisisan."},
+                        messages=[{"role": "system", "content": f"Sen {MAKTAB_NOMI} yordamchisisan. O'qituvchilarga ochiq darslarda yordam ber."},
                                  {"role": "user", "content": savol}],
                         model="llama-3.3-70b-versatile",
                     )
-                    st.markdown(chat_completion.choices[0].message.content)
+                    javob = chat_completion.choices[0].message.content
+                    st.markdown(javob)
+                    st.session_state.messages.append({"role": "assistant", "content": javob})
                 except:
-                    st.error("AI hozirda javob bera olmayapti.")# --- 7. MONITORING (XATOLIKLARNI TUZATUVCHI VARIANT) ---
+                    st.error("AI bilan bog'lanishda xato.")# --- 6. AI MULOQOT (MAKSIMAL ANIQ QIDIRUV) ---
+if menu == "🤖 AI Muloqot":
+    st.title("🤖 Maktab AI yordamchisi")
+    
+    if "messages" not in st.session_state: st.session_state.messages = []
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]): st.markdown(msg["content"])
+
+    if savol := st.chat_input("Ism yozing (masalan: JALILOVA yoki Dilfuza)..."):
+        st.session_state.messages.append({"role": "user", "content": savol})
+        with st.chat_message("user"): st.markdown(savol)
+        
+        with st.chat_message("assistant"):
+            q = savol.upper().strip() # Qidiruvni KATTA harfga o'giramiz
+            topildi = False
+            
+            # 1. RO'YXAT so'ralsa
+            if "RO'YXAT" in q or "KIMLAR BOR" in q:
+                if sheets_baza:
+                    st.success("📋 Maktab bazasidagi pedagoglar:")
+                    for key, df in sheets_baza.items():
+                        # Ustun nomini qidirish (pedagogning ismi familiyasi)
+                        col_name = next((c for c in df.columns if "pedagog" in c or "ismi" in c), df.columns[0])
+                        st.dataframe(df[[col_name]], use_container_width=True)
+                    topildi = True
+                else:
+                    st.warning("Baza topilmadi. Fayllarni GitHub-ga yuklang.")
+                    topildi = True
+
+            # 2. ISHNI QIDIRISH (Harflarga e'tibor bermasdan)
+            elif sheets_baza:
+                for key, df in sheets_baza.items():
+                    # Har bir qatorni matnga aylantirib, ichidan qidiramiz
+                    mask = df.apply(lambda row: row.astype(str).str.contains(savol, case=False, na=False).any(), axis=1)
+                    res_df = df[mask]
+                    if not res_df.empty:
+                        st.success(f"🔍 '{savol}' bo'yicha topilgan ma'lumot:")
+                        st.dataframe(res_df, use_container_width=True)
+                        topildi = True; break
+
+            # 3. Agar bazada bo'lmasa Groq AI javob beradi
+            if not topildi:
+                try:
+                    chat_completion = client.chat.completions.create(
+                        messages=[{"role": "system", "content": f"Sen {MAKTAB_NOMI} yordamchisisan. O'qituvchilarga ochiq darslarda yordam ber."},
+                                 {"role": "user", "content": savol}],
+                        model="llama-3.3-70b-versatile",
+                    )
+                    javob = chat_completion.choices[0].message.content
+                    st.markdown(javob)
+                    st.session_state.messages.append({"role": "assistant", "content": javob})
+                except:
+                    st.error("AI bilan bog'lanishda xato.")# --- 6. AI MULOQOT (MAKSIMAL ANIQ QIDIRUV) ---
+if menu == "🤖 AI Muloqot":
+    st.title("🤖 Maktab AI yordamchisi")
+    
+    if "messages" not in st.session_state: st.session_state.messages = []
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]): st.markdown(msg["content"])
+
+    if savol := st.chat_input("Ism yozing (masalan: JALILOVA yoki Dilfuza)..."):
+        st.session_state.messages.append({"role": "user", "content": savol})
+        with st.chat_message("user"): st.markdown(savol)
+        
+        with st.chat_message("assistant"):
+            q = savol.upper().strip() # Qidiruvni KATTA harfga o'giramiz
+            topildi = False
+            
+            # 1. RO'YXAT so'ralsa
+            if "RO'YXAT" in q or "KIMLAR BOR" in q:
+                if sheets_baza:
+                    st.success("📋 Maktab bazasidagi pedagoglar:")
+                    for key, df in sheets_baza.items():
+                        # Ustun nomini qidirish (pedagogning ismi familiyasi)
+                        col_name = next((c for c in df.columns if "pedagog" in c or "ismi" in c), df.columns[0])
+                        st.dataframe(df[[col_name]], use_container_width=True)
+                    topildi = True
+                else:
+                    st.warning("Baza topilmadi. Fayllarni GitHub-ga yuklang.")
+                    topildi = True
+
+            # 2. ISHNI QIDIRISH (Harflarga e'tibor bermasdan)
+            elif sheets_baza:
+                for key, df in sheets_baza.items():
+                    # Har bir qatorni matnga aylantirib, ichidan qidiramiz
+                    mask = df.apply(lambda row: row.astype(str).str.contains(savol, case=False, na=False).any(), axis=1)
+                    res_df = df[mask]
+                    if not res_df.empty:
+                        st.success(f"🔍 '{savol}' bo'yicha topilgan ma'lumot:")
+                        st.dataframe(res_df, use_container_width=True)
+                        topildi = True; break
+
+            # 3. Agar bazada bo'lmasa Groq AI javob beradi
+            if not topildi:
+                try:
+                    chat_completion = client.chat.completions.create(
+                        messages=[{"role": "system", "content": f"Sen {MAKTAB_NOMI} yordamchisisan. O'qituvchilarga ochiq darslarda yordam ber."},
+                                 {"role": "user", "content": savol}],
+                        model="llama-3.3-70b-versatile",
+                    )
+                    javob = chat_completion.choices[0].message.content
+                    st.markdown(javob)
+                    st.session_state.messages.append({"role": "assistant", "content": javob})
+                except:
+                    st.error("AI bilan bog'lanishda xato.")
+                    # --- 6. AI MULOQOT (MAKSIMAL ANIQ QIDIRUV) ---
+if menu == "🤖 AI Muloqot":
+    st.title("🤖 Maktab AI yordamchisi")
+    
+    if "messages" not in st.session_state: st.session_state.messages = []
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]): st.markdown(msg["content"])
+
+    if savol := st.chat_input("Ism yozing (masalan: JALILOVA yoki Dilfuza)..."):
+        st.session_state.messages.append({"role": "user", "content": savol})
+        with st.chat_message("user"): st.markdown(savol)
+        
+        with st.chat_message("assistant"):
+            q = savol.upper().strip() # Qidiruvni KATTA harfga o'giramiz
+            topildi = False
+            
+            # 1. RO'YXAT so'ralsa
+            if "RO'YXAT" in q or "KIMLAR BOR" in q:
+                if sheets_baza:
+                    st.success("📋 Maktab bazasidagi pedagoglar:")
+                    for key, df in sheets_baza.items():
+                        # Ustun nomini qidirish (pedagogning ismi familiyasi)
+                        col_name = next((c for c in df.columns if "pedagog" in c or "ismi" in c), df.columns[0])
+                        st.dataframe(df[[col_name]], use_container_width=True)
+                    topildi = True
+                else:
+                    st.warning("Baza topilmadi. Fayllarni GitHub-ga yuklang.")
+                    topildi = True
+
+            # 2. ISHNI QIDIRISH (Harflarga e'tibor bermasdan)
+            elif sheets_baza:
+                for key, df in sheets_baza.items():
+                    # Har bir qatorni matnga aylantirib, ichidan qidiramiz
+                    mask = df.apply(lambda row: row.astype(str).str.contains(savol, case=False, na=False).any(), axis=1)
+                    res_df = df[mask]
+                    if not res_df.empty:
+                        st.success(f"🔍 '{savol}' bo'yicha topilgan ma'lumot:")
+                        st.dataframe(res_df, use_container_width=True)
+                        topildi = True; break
+
+            # 3. Agar bazada bo'lmasa Groq AI javob beradi
+            if not topildi:
+                try:
+                    chat_completion = client.chat.completions.create(
+                        messages=[{"role": "system", "content": f"Sen {MAKTAB_NOMI} yordamchisisan. O'qituvchilarga ochiq darslarda yordam ber."},
+                                 {"role": "user", "content": savol}],
+                        model="llama-3.3-70b-versatile",
+                    )
+                    javob = chat_completion.choices[0].message.content
+                    st.markdown(javob)
+                    st.session_state.messages.append({"role": "assistant", "content": javob})
+                except:
+                    st.error("AI bilan bog'lanishda xato.")
+                    --- 7. MONITORING (XATOLIKLARNI TUZATUVCHI VARIANT) ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
     
@@ -200,5 +360,6 @@ elif menu == "📊 Jurnal Monitoringi":
                 
         except Exception as e:
             st.error(f"Faylni o'qishda kutilmagan xato: {e}")
+
 
 
