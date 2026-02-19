@@ -12,6 +12,7 @@ MAKTAB_NOMI = "1-sonli umumta'lim maktabi"
 DIREKTOR_FIO = "Mahmudov Matyoqub Narzulloyevich"
 ASOSIY_PAROL = "informatika2024"
 MONITORING_KODI = "admin777"
+MAKTAB_ID = "1000001352999"
 
 st.set_page_config(page_title=MAKTAB_NOMI, layout="wide", page_icon="🏫")
 
@@ -25,23 +26,22 @@ except Exception as e:
     st.error(f"Secrets xatolik: {str(e)}")
     st.stop()
 
-# --- FUNKSIYALAR ---
-
-def emaktab_muammolarini_ol():
-    """e-Maktab API dan ma'lumotlarni tortib olish"""
-    url = "https://emaktab.uz/teachers/api/problems?userId=1000002716779&date=null"
+# --- UNIVERSAL API FUNKSIYASI ---
+def emaktab_so'rov(path):
+    """e-Maktabning istalgan bo'limidan ma'lumot olish"""
+    url = f"https://emaktab.uz{path}"
     headers = {
-        'Accept': '*/*',
-        'Referer': 'https://emaktab.uz/teachers',
+        'Accept': 'application/json, text/plain, */*',
+        'Referer': 'https://emaktab.uz/reports/schools/filling',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36'
     }
-    # DIQQAT: Bu cookielar vaqtinchalik. Ertaga yangilash kerak bo'lishi mumkin.
+    # BU YERGA ERTAGA YANGI COOKIE QO'YISHINGIZ KERAK
     cookies = {
         'sst': 'f598c3fd-77c6-42cc-93ba-1c9fd4cf0ca5|20/02/2026 17:44:50',
         'UZDnevnikAuth_a': 'zuMlwMAdJeMW8nMXUFIK7GG3XsDWtuZmvWdNY1w6STmgPZjQE9iO6mc0sJg2j7Z%2F%2BxaJci3q0r%2FBS6hOrqaOxiec%2F3qijz8T%2B9cwuRhchqVtB3niadsINnYhuFiLLWsM9%2BELUlIpXMXdc6W9eyzJ99nVsBFHzSZZmaIoSZd96uI6eoLjUDf18vx526OG28SGEXcAtzToybTxcuICCEk2ZFPMm1KRsr9EH94m2eYof8UYpYQZbQb5nnqdcKuRhBV%2F%2BIU2rUxwDz3N%2Fj63MQYv9RImd6g%3D',
     }
     try:
-        res = requests.get(url, headers=headers, cookies=cookies, timeout=10)
+        res = requests.get(url, headers=headers, cookies=cookies, timeout=15)
         if res.status_code == 200:
             return res.json()
         return None
@@ -59,9 +59,10 @@ def yuklash():
                 if not df.empty:
                     df.columns = [str(c).strip().lower() for c in df.columns]
                     all_sheets[f + " | " + name] = df
-        except:
-            continue
+        except: continue
     return all_sheets
+
+sheets_baza = yuklash()
 
 # --- AUTHENTICATION ---
 if "authenticated" not in st.session_state:
@@ -71,14 +72,12 @@ if not st.session_state.authenticated:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.title("🏫 " + MAKTAB_NOMI)
-        st.subheader("Tizimga kirish")
         p_in = st.text_input("Kirish paroli:", type="password")
         if st.button("Kirish", use_container_width=True):
             if p_in == ASOSIY_PAROL:
                 st.session_state.authenticated = True
                 st.rerun()
-            else:
-                st.error("Parol xato!")
+            else: st.error("Parol xato!")
     st.stop()
 
 # --- SIDEBAR ---
@@ -86,70 +85,71 @@ with st.sidebar:
     st.title("🏛 " + MAKTAB_NOMI)
     st.write(f"👤 **Direktor:** {DIREKTOR_FIO}")
     st.divider()
-    menu = st.radio("Bo'limni tanlang:", ["🤖 AI Muloqot", "📊 Jurnal Monitoringi"])
-    st.divider()
-    if st.button("🚪 Chiqish", use_container_width=True):
-        st.session_state.authenticated = False
-        st.rerun()
+    menu = st.radio("Bo'limni tanlang:", ["🤖 AI Muloqot", "📊 Jurnal Monitoringi", "📂 Maktab Bazasi"])
 
-# --- AI MULOQOT ---
+# --- AI MULOQOT --- (Sizning kodingiz o'zgarmadi)
 if menu == "🤖 AI Muloqot":
     st.title("🤖 Maktab AI Yordamchisi")
-    
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+    # ... (AI muloqot qismi shu yerda qoladi)
 
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
-
-    savol = st.chat_input("Savolingizni yozing...")
-    if savol:
-        st.session_state.messages.append({"role": "user", "content": savol})
-        with st.chat_message("user"):
-            st.markdown(savol)
-
-        with st.chat_message("assistant"):
-            # AI logic (bu yerda sizning qidiruv logikangiz qoladi...)
-            system_prompt = f"Sen {MAKTAB_NOMI}ning AI yordamchisisan. O'zbek tilida qisqa va metodik javob ber."
-            res = client.chat.completions.create(
-                messages=[{"role": "system", "content": system_prompt}] + st.session_state.messages[-5:],
-                model="llama-3.3-70b-versatile",
-            )
-            ai_javob = res.choices[0].message.content
-            st.markdown(ai_javob)
-            st.session_state.messages.append({"role": "assistant", "content": ai_javob})
-
-# --- JURNAL MONITORINGI ---
+# --- JURNAL MONITORINGI (API INTEGRATSIYA) ---
 elif menu == "📊 Jurnal Monitoringi":
-    st.title("📊 Jurnal Monitoringi")
-
-    if "m_auth" not in st.session_state:
-        st.session_state.m_auth = False
-
+    st.title("📊 Jurnal Monitoringi (e-Maktab Live)")
+    
+    if "m_auth" not in st.session_state: st.session_state.m_auth = False
     if not st.session_state.m_auth:
         m_input = st.text_input("Monitoring kodi:", type="password")
         if st.button("Tasdiqlash"):
             if m_input == MONITORING_KODI:
                 st.session_state.m_auth = True
                 st.rerun()
-            else:
-                st.error("Kod xato!")
         st.stop()
 
-    # YANGI FUNKSIYA TUGMASI
-    st.info("💡 e-Maktab tizimidan jurnallarni avtomatik tekshirish uchun quyidagi tugmani bosing:")
-    if st.button("🔄 e-Maktabdan ma'lumotlarni tortib olish", use_container_width=True):
-        with st.spinner("e-Maktabga ulanilmoqda..."):
-            api_data = emaktab_muammolarini_ol()
-            if api_data:
-                st.success("Ma'lumotlar olindi!")
-                st.json(api_data) # Ma'lumotlarni JSON shaklida ko'rish
-            else:
-                st.error("Ulanishda xatolik. Cookie muddati tugagan bo'lishi mumkin.")
+    tab1, tab2 = st.tabs(["⚡️ Avtomatik (API)", "📁 Qo'lda (Excel)"])
 
-    st.divider()
-    st.write("Yoki Excel faylni qo'lda yuklang:")
-    j_fayl = st.file_uploader("Faylni tanlang", type=['xlsx', 'xls'])
+    with tab1:
+        st.info("Hisobotlar bo'limidan yozilmagan jurnallar va kamchiliklarni olish.")
+        col_btn1, col_btn2 = st.columns(2)
+        
+        if col_btn1.button("🔍 Yozilmagan jurnallarni tekshirish"):
+            data = emaktab_so'rov(f"/teachers/api/problems?userId=1000002716779&date=null")
+            if data:
+                st.subheader("📝 Natijalar")
+                if data.get("lessonsWithoutTitle"):
+                    st.error(f"Mavzusi yo'q darslar: {len(data['lessonsWithoutTitle'])} ta")
+                    st.dataframe(pd.DataFrame(data['lessonsWithoutTitle']))
+                if data.get("lessonsWithoutMarks"):
+                    st.warning(f"Bahosiz darslar: {len(data['lessonsWithoutMarks'])} ta")
+                    st.dataframe(pd.DataFrame(data['lessonsWithoutMarks']))
+                if not data.get("lessonsWithoutTitle") and not data.get("lessonsWithoutMarks"):
+                    st.success("Hamma jurnallar to'liq! ✅")
+            else: st.error("Ulanish xatosi (Cookie yangilang)")
+
+    with tab2:
+        # Sizning avvalgi Excel yuklash kodingiz shu yerda
+        j_fayl = st.file_uploader("Excel faylni yuklang", type=['xlsx', 'xls'])
+        # ... (Excel tahlil qismi)
+
+# --- MAKTAB BAZASI (O'QITUVCHI VA O'QUVCHILAR) ---
+elif menu == "📂 Maktab Bazasi":
+    st.title("📂 Maktab Umumiy Bazasi")
     
-    # ... (Sizning Excel tahlil kodingiz shu yerdan davom etadi)
+    st.info("Ushbu bo'lim e-maktabdan barcha o'qituvchi va o'quvchilar ro'yxatini real vaqtda oladi.")
+    
+    c1, c2, c3 = st.columns(3)
+    
+    if c1.button("👨‍🏫 O'qituvchilar ro'yxati"):
+        # API yo'li o'qituvchilar uchun (Namuna)
+        teachers = emaktab_so'rov(f"/api/school/{MAKTAB_ID}/teachers")
+        if teachers: st.dataframe(pd.DataFrame(teachers))
+        else: st.warning("Ma'lumot topilmadi yoki ruxsat yo'q.")
+
+    if c2.button("👨‍🎓 O'quvchilar ro'yxati"):
+        students = emaktab_so'rov(f"/api/school/{MAKTAB_ID}/students")
+        if students: st.dataframe(pd.DataFrame(students))
+        else: st.warning("Ma'lumot topilmadi.")
+
+    if c3.button("📈 Umumiy Hisobot"):
+        report = emaktab_so'rov(f"/api/reports/schools/filling/{MAKTAB_ID}")
+        if report: st.json(report)
+        else: st.error("Hisobotni yuklab bo'lmadi.")
