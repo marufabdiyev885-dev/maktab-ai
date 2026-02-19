@@ -68,6 +68,9 @@ with st.sidebar:
             del st.session_state[k]
         st.rerun()
 
+# =============================================
+# AI MULOQOT
+# =============================================
 if menu == "🤖 AI Muloqot":
     st.title("🤖 Maktab AI Yordamchisi")
 
@@ -162,6 +165,9 @@ if menu == "🤖 AI Muloqot":
                     st.error(xato)
                     st.session_state.messages.append({"role": "assistant", "content": xato})
 
+# =============================================
+# JURNAL MONITORINGI
+# =============================================
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
 
@@ -243,14 +249,14 @@ elif menu == "📊 Jurnal Monitoringi":
 
             c1, c2 = st.columns(2)
             with c1:
-                st.metric("To'liq bajarilgan", len(toliq_list))
+                st.metric("Toliq bajarilgan", len(toliq_list))
             with c2:
                 st.metric("Kamchilik bor", len(kamchiliklar))
 
             st.subheader("Monitoring Natijasi:")
 
             if not kamchiliklar:
-                st.success("Barcha jurnallar to'liq!")
+                st.success("Barcha jurnallar toliq!")
                 xabar_text = MAKTAB_NOMI + "\n\nBarcha jurnallar toliq! 🎉"
             else:
                 df_kam = pd.DataFrame(kamchiliklar)
