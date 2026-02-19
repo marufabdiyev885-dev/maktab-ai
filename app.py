@@ -253,7 +253,7 @@ elif menu == "📊 Jurnal Monitoringi":
 
                     if not name or name.lower() == "nan":
                         continue
-                    if any(x in name.lower() for x in o'tkazib_yuborish):
+                    if any(x in name.lower() for x in o`tkazib_yuborish):
                         continue
 
                     nums = re.findall(r'\d+', val)
@@ -265,7 +265,7 @@ elif menu == "📊 Jurnal Monitoringi":
                             farq = jami - baho_bor
                             foiz = round(baho_bor / jami * 100)
                             kamchiliklar.append({
-                                "O'qituvchi": name,
+                                "O`qituvchi": name,
                                 "Bajarilgan": baho_bor,
                                 "Jami": jami,
                                 "Farq": farq,
@@ -276,18 +276,18 @@ elif menu == "📊 Jurnal Monitoringi":
 
                 col1, col2 = st.columns(2)
                 with col1:
-                    st.metric("✅ To'liq bajarilgan", len(to_liq))
+                    st.metric("✅ To`liq bajarilgan", len(to_liq))
                 with col2:
                     st.metric("⚠️ Kamchilik bor", len(kamchiliklar))
 
                 st.subheader("📊 Monitoring Natijasi:")
 
                 if not kamchiliklar:
-                    st.success("✅ Barcha jurnallar to'liq to'ldirilgan!")
-                    xabar_text = f"✅ {MAKTAB_NOMI}\n\nBarcha jurnallar to'liq to'ldirilgan! 🎉"
+                    st.success("✅ Barcha jurnallar to`liq to`ldirilgan!")
+                    xabar_text = f"✅ {MAKTAB_NOMI}\n\nBarcha jurnallar to`liq to`ldirilgan! 🎉"
                 else:
                     df_kam = pd.DataFrame(kamchiliklar)
-                    st.warning(f"⚠️ {len(kamchiliklar)} ta o'qituvchida kamchilik aniqlandi:")
+                    st.warning(f"⚠️ {len(kamchiliklar)} ta o`qituvchida kamchilik aniqlandi:")
                     st.dataframe(
                         df_kam.style.applymap(lambda v: "background-color: #ffe0e0" if isinstance(v, int) and v > 0 else "", subset=["Farq"]),
                         use_container_width=True
@@ -295,10 +295,10 @@ elif menu == "📊 Jurnal Monitoringi":
                     
                     # Telegram uchun matn
                     lines = [f"📊 <b>{MAKTAB_NOMI} — Jurnal Monitoringi</b>\n"]
-                    lines.append(f"✅ To'liq: {len(to_liq)} ta\n⚠️ Kamchilik: {len(kamchiliklar)} ta\n")
+                    lines.append(f"✅ To`liq: {len(to_liq)} ta\n⚠️ Kamchilik: {len(kamchiliklar)} ta\n")
                     lines.append("<b>Kamchiliklar:</b>")
                     for k in kamchiliklar:
-                        lines.append(f"❌ {k[\"O'qituvchi\"]}: {k['Bajarilgan']}/{k['Jami']} ({k['Foiz']})")
+                        lines.append(f"❌ {k[\"O`qituvchi\"]}: {k['Bajarilgan']}/{k['Jami']} ({k['Foiz']})")
                     xabar_text = "\n".join(lines)
 
                 st.divider()
@@ -319,6 +319,7 @@ elif menu == "📊 Jurnal Monitoringi":
 
         except Exception as e:
             st.error(f"❌ Kutilmagan xato: {e}")
+
 
 
 
