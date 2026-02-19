@@ -245,7 +245,7 @@ elif menu == "📊 Jurnal Monitoringi":
             to_liq = []
 
             if len(df_j.columns) >= 6:
-                o'tkazib_yuborish = ["tuman", "muassasa", "o'qituvchi", "f.i.sh", "no", "jami"]
+                o'tkazib_yuborish = ["tuman", "muassasa", "o`qituvchi", "f.i.sh", "no", "jami"]
                 
                 for _, row in df_j.iterrows():
                     name = str(row.iloc[0]).strip()
@@ -319,4 +319,5 @@ elif menu == "📊 Jurnal Monitoringi":
 
         except Exception as e:
             st.error(f"❌ Kutilmagan xato: {e}")
+
 
