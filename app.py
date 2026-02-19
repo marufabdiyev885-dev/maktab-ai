@@ -190,3 +190,4 @@ elif menu == "📊 Jurnal Monitoringi":
             st.error(f"Xato: {e}")
 
 
+
