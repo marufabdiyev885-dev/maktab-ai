@@ -4,6 +4,7 @@ import pandas as pd
 import os
 import requests
 import re
+import io
 from groq import Groq
 
 MAKTAB_NOMI = "1-sonli umumta'lim maktabi"
@@ -191,21 +192,38 @@ elif menu == "📊 Jurnal Monitoringi":
     if j_fayl:
         df_j = None
         fayl_nomi = j_fayl.name.lower()
+        fayl_bytes = j_fayl.read()
 
-        if fayl_nomi.endswith('.xlsx'):
+        # Avval HTML formatini tekshirish (eMaktab xls lari aslida HTML)
+        if fayl_bytes[:200].strip().lower().startswith(b'<'):
             try:
-                df_j = pd.read_excel(j_fayl, engine='openpyxl')
+                dfs = pd.read_html(io.BytesIO(fayl_bytes), header=0)
+                if dfs:
+                    df_j = dfs[0]
+                    st.info("Fayl HTML formatida o'qildi.")
+                else:
+                    st.error("HTML jadval topilmadi.")
+                    st.stop()
+            except Exception as e:
+                st.error("HTML o'qishda xato: " + str(e))
+                st.stop()
+
+        elif fayl_nomi.endswith('.xlsx'):
+            try:
+                df_j = pd.read_excel(io.BytesIO(fayl_bytes), engine='openpyxl')
             except Exception as e:
                 st.error("xlsx o'qishda xato: " + str(e))
+                st.stop()
 
         elif fayl_nomi.endswith('.xls'):
             try:
-                df_j = pd.read_excel(j_fayl, engine='xlrd')
+                df_j = pd.read_excel(io.BytesIO(fayl_bytes), engine='xlrd')
             except Exception as e:
                 st.error("xls o'qishda xato: " + str(e))
+                st.stop()
 
         if df_j is None:
-            st.error("Faylni o'qib bo'lmadi. Fayl shikastlangan bo'lishi mumkin.")
+            st.error("Faylni o'qib bo'lmadi.")
             st.stop()
 
         df_j.columns = [str(c).replace('\n', ' ').strip() for c in df_j.columns]
@@ -268,7 +286,7 @@ elif menu == "📊 Jurnal Monitoringi":
                 lines.append("Kamchilik: " + str(len(kamchiliklar)) + " ta")
                 lines.append("")
                 for k in kamchiliklar:
-                    lines.append("- " + k["Xodim"] + ": " + str(k["Bajarilgan"]) + "/" + str(k["Jami"]))
+                    lines.append("- " + k["Xodim"] + ": " + str(k["Bajarilgan"]) + "/" + str(k["Jami"]) + " (" + k["Foiz"] + ")")
                 xabar_text = "\n".join(lines)
 
             st.divider()
