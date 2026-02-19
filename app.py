@@ -267,15 +267,15 @@ elif menu == "📊 Jurnal Monitoringi":
 
             c1, c2 = st.columns(2)
             with c1:
-                st.metric("Toliq bajarilgan", len(toliq_list))
+                st.metric("To`liq bajargan ustozlar soni ", len(toliq_list))
             with c2:
-                st.metric("Kamchilik bor", len(kamchiliklar))
+                st.metric("Kamchilik bor ustozlar", len(kamchiliklar))
 
             st.subheader("Monitoring Natijasi:")
 
             if not kamchiliklar:
-                st.success("Barcha jurnallar toliq!")
-                xabar_text = MAKTAB_NOMI + "\n\nBarcha jurnallar toliq! 🎉"
+                st.success("Barcha jurnallar toliq! fidoiy ustozlarga tashakkur")
+                xabar_text = MAKTAB_NOMI + "\n\nBarcha jurnallar toliq! Barakalla ustozlar 🎉"
             else:
                 df_kam = pd.DataFrame(kamchiliklar)
                 st.warning(str(len(kamchiliklar)) + " ta xodimda kamchilik:")
@@ -303,4 +303,5 @@ elif menu == "📊 Jurnal Monitoringi":
                     st.error("Telegram xatosi: " + resp.text)
         else:
             st.error("Faylda ustunlar yetarli emas: " + str(len(df_j.columns)) + " ta topildi.")
+
 
