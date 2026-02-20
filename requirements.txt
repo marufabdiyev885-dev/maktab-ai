@@ -10,3 +10,5 @@ html5lib
 google-generativeai
 groq
 Pillow
+streamlit-js-eval
+geopy
