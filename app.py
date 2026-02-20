@@ -22,7 +22,7 @@ DAVOMAT_FAYLI = "davomat_bazasi.csv"
 MAKTAB_LAT = 39.4955640
 MAKTAB_LON = 64.7924960
 MAKTAB_KOORDINATASI = (MAKTAB_LAT, MAKTAB_LON)
-RUXSAT_ETILGAN_MASOFA = 0.2  # 200 metr
+RUXSAT_ETILGAN_MASOFA =2 #0.2  # 200 metr
 
 st.set_page_config(page_title=MAKTAB_NOMI, layout="wide", page_icon="🏫")
 
@@ -217,3 +217,4 @@ elif menu == "📍 GPS Davomat":
                     mime="application/vnd.ms-excel"
                 )
             else: st.info("Hozircha baza bo'sh.")
+
