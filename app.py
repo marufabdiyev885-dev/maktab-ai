@@ -22,7 +22,7 @@ MONITORING_KODI = "admin777"
 MAKTAB_LAT = 39.4955640
 MAKTAB_LON = 64.7924960
 MAKTAB_KOORDINATASI = (MAKTAB_LAT, MAKTAB_LON)
-RUXSAT_ETILGAN_MASOFA = 0.5  # 500 metr (aniqlik uchun biroz kengaytirildi)
+RUXSAT_ETILGAN_MASOFA = 1#0.5  # 500 metr (aniqlik uchun biroz kengaytirildi)
 
 st.set_page_config(page_title=MAKTAB_NOMI, layout="wide", page_icon="🏫")
 
@@ -179,3 +179,4 @@ elif menu == "📍 GPS Davomat":
         if st.text_input("Admin kod:", type="password", key="adm_v") == MONITORING_KODI:
             conn = st.connection("gsheets", type=GSheetsConnection)
             st.dataframe(conn.read(ttl=0), use_container_width=True)
+
