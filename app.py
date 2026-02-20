@@ -22,7 +22,7 @@ DAVOMAT_FAYLI = "davomat_bazasi.csv"
 MAKTAB_LAT = 39.4955640
 MAKTAB_LON = 64.7924960
 MAKTAB_KOORDINATASI = (MAKTAB_LAT, MAKTAB_LON)
-RUXSAT_ETILGAN_MASOFA = 0.2 
+RUXSAT_ETILGAN_MASOFA = 0.2  # 200 metr
 
 st.set_page_config(page_title=MAKTAB_NOMI, layout="wide", page_icon="🏫")
 
@@ -44,6 +44,7 @@ except Exception as e:
 def davomatni_saqlash(ism, holat):
     v_txt = hozir.strftime("%H:%M:%S")
     s_txt = hozir.strftime("%d.%m.%Y")
+    # Bazaga "Keldi" yoki "Ketdi" holati yoziladi
     yangi_malumot = pd.DataFrame([[s_txt, v_txt, ism, holat]], 
                                 columns=["Sana", "Vaqt", "F.I.SH", "Holat"])
     if not os.path.isfile(DAVOMAT_FAYLI):
@@ -51,22 +52,7 @@ def davomatni_saqlash(ism, holat):
     else:
         yangi_malumot.to_csv(DAVOMAT_FAYLI, mode='a', header=False, index=False, encoding='utf-8-sig')
 
-@st.cache_data(ttl=300)
-def yuklash():
-    files = [f for f in os.listdir('.') if f.lower().endswith(('.xlsx', '.xls'))]
-    all_sheets = {}
-    for f in files:
-        try:
-            sheets = pd.read_excel(f, sheet_name=None, dtype=str)
-            for name, df in sheets.items():
-                if not df.empty:
-                    df.columns = [str(c).strip().lower() for c in df.columns]
-                    all_sheets[f + " | " + name] = df
-        except Exception: continue
-    return all_sheets
-
-sheets_baza = yuklash()
-
+# --- LOG-IN ---
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
@@ -82,6 +68,7 @@ if not st.session_state.authenticated:
             else: st.error("Parol xato!")
     st.stop()
 
+# --- SIDEBAR ---
 with st.sidebar:
     st.title("🏛 " + MAKTAB_NOMI)
     st.write("👤 **Direktor:** " + DIREKTOR_FIO)
@@ -93,7 +80,7 @@ with st.sidebar:
         st.rerun()
 
 # =============================================
-# AI MULOQOT
+# 🤖 AI MULOQOT
 # =============================================
 if menu == "🤖 AI Muloqot":
     st.title("🤖 Maktab AI Yordamchisi")
@@ -116,82 +103,117 @@ if menu == "🤖 AI Muloqot":
             except: st.error("AI band.")
 
 # =============================================
-# JURNAL MONITORINGI (TUGMA QAYTARILDI)
+# 📊 JURNAL MONITORINGI
 # =============================================
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
-    
-    if "m_auth" not in st.session_state:
-        st.session_state.m_auth = False
-        
+    if "m_auth" not in st.session_state: st.session_state.m_auth = False
     if not st.session_state.m_auth:
         m_input = st.text_input("Monitoring kodi:", type="password", key="mon_input")
         if st.button("Kirish", key="mon_btn"):
             if m_input == MONITORING_KODI:
                 st.session_state.m_auth = True
                 st.rerun()
-            else:
-                st.error("Kod xato!")
+            else: st.error("Kod xato!")
         st.stop()
     
     j_fayl = st.file_uploader("Excel faylni yuklang", type=['xlsx', 'xls', 'html'], key="uploader")
-    
     if j_fayl:
         try:
-            # Faylni o'qishning bir nechta usulini sinab ko'ramiz
             try:
-                # 1-usul: Standart Excel (openpyxl)
                 df_j = pd.read_excel(j_fayl, engine='openpyxl')
-            except Exception:
-                try:
-                    # 2-usul: Eski Excel (.xls - xlrd)
+            except:
+                try: 
                     j_fayl.seek(0)
                     df_j = pd.read_excel(j_fayl, engine='xlrd')
-                except Exception:
-                    try:
-                        # 3-usul: HTML formatidagi Excel
-                        j_fayl.seek(0)
-                        df_j = pd.read_html(j_fayl, header=0)[0]
-                    except Exception:
-                        # 4-usul: Engine belgilamasdan urinish
-                        j_fayl.seek(0)
-                        df_j = pd.read_excel(j_fayl)
-
-            # Ustunlarni tozalash
-            df_j.columns = [str(c).replace('\n', ' ').strip() for c in df_j.columns]
+                except:
+                    j_fayl.seek(0)
+                    df_j = pd.read_html(j_fayl, header=0)[0]
             
+            df_j.columns = [str(c).replace('\n', ' ').strip() for c in df_j.columns]
             kamchiliklar = []
             if len(df_j.columns) >= 6:
                 for _, row in df_j.iterrows():
-                    name = str(row.iloc[0]) # 0-ustun: Ismlar
-                    val = str(row.iloc[5])  # 5-ustun: Baholar holati
-                    
-                    if any(x in name.lower() for x in ["tuman", "muassasa", "o'qituvchi", "f.i.sh"]):
-                        continue
-                        
+                    name = str(row.iloc[0])
+                    val = str(row.iloc[5])
+                    if any(x in name.lower() for x in ["tuman", "muassasa", "o'qituvchi", "f.i.sh", "jami"]): continue
                     nums = re.findall(r'(\d+)', val)
                     if len(nums) >= 2:
-                        baho_bor, jami = int(nums[0]), int(nums[1])
-                        if baho_bor < jami:
-                            farq = jami - baho_bor
-                            kamchiliklar.append(f"❌ **{name}**: {farq} ta jurnal chala ({val})")
+                        b_bor, jami = int(nums[0]), int(nums[1])
+                        if b_bor < jami:
+                            kamchiliklar.append(f"❌ **{name}**: {jami - b_bor} ta chala ({val})")
                 
-                st.subheader("📋 Tekshiruv Natijasi:")
                 st.dataframe(df_j, use_container_width=True)
+                res_txt = "✅ Hammasi to'liq!" if not kamchiliklar else "⚠️ **Kamchiliklar:**\n\n" + "\n".join(kamchiliklar)
+                if not kamchiliklar: st.success(res_txt)
+                else: st.warning(res_txt)
                 
-                xabar_text = "✅ Hammasi to'liq!" if not kamchiliklar else "⚠️ **Kamchiliklar:**\n\n" + "\n".join(kamchiliklar)
-                if not kamchiliklar: st.success(xabar_text)
-                else: st.warning(xabar_text)
-                
-                st.divider()
-                if st.button("📢 Telegramga yuborish", key="tg_btn"):
+                if st.button("📢 Telegramga yuborish"):
+                    clean_txt = res_txt.replace("**", "")
                     requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
-                                 json={"chat_id": GURUH_ID, "text": f"<b>📊 Monitoring</b>\n\n{xabar_text}", "parse_mode": "HTML"})
-                    st.success("✅ Telegramga yuborildi!")
-            else:
-                st.error(f"Faylda ustunlar yetarli emas. Topildi: {len(df_j.columns)} ta.")
+                                  json={"chat_id": GURUH_ID, "text": f"📊 Monitoring\n\n{clean_txt}"})
+                    st.success("Yuborildi!")
+        except Exception as e: st.error(f"Xato: {e}")
+
+# =============================================
+# 📍 GPS DAVOMAT (Keldi/Ketdi mantiqi bilan)
+# =============================================
+elif menu == "📍 GPS Davomat":
+    st.title("📍 Maktab Hududida Davomat")
+    
+    # Vaqt cheklovlari
+    ertalabki_vaqt = (hozirgi_vaqt.hour < 8) or (hozirgi_vaqt.hour == 8 and hozirgi_vaqt.minute <= 30)
+    kechki_vaqt = (hozirgi_vaqt.hour >= 13)
+
+    st.write(f"🕒 **Hozirgi vaqt:** {hozirgi_vaqt.strftime('%H:%M')}")
+
+    if ertalabki_vaqt or kechki_vaqt:
+        # Holatni aniqlash
+        ish_holati = "KELDI" if ertalabki_vaqt else "KETDI"
+        st.success(f"🔓 Tizim ochiq (Holat: **{ish_holati}**)")
+        
+        with st.spinner("🛰 GPS aniqlanmoqda..."):
+            loc = get_geolocation()
+        
+        if loc and 'coords' in loc:
+            upos = (loc['coords']['latitude'], loc['coords']['longitude'])
+            masofa = geodesic(upos, MAKTAB_KOORDINATASI).km
+            
+            if masofa <= RUXSAT_ETILGAN_MASOFA:
+                st.success(f"📍 Hududdasiz ({round(masofa*1000)} m)")
+                ism = st.text_input("F.I.SH (Ism-familiyangizni yozing):", key="fio_inp")
                 
-        except Exception as e:
-            st.error(f"Faylni o'qishda kutilmagan xato: {e}")
+                if st.button(f"🔴 {ish_holati}NI TASDIQLASH", use_container_width=True):
+                    if ism:
+                        davomatni_saqlash(ism, ish_holati)
+                        # Telegramga yuborish
+                        tg_text = f"📍 #DAVOMAT\n👤 {ism}\n📅 {hozir.strftime('%d.%m.%Y')}\n⏰ {hozir.strftime('%H:%M')}\n🔄 Holat: **{ish_holati}**"
+                        requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
+                                      json={"chat_id": GURUH_ID, "text": tg_text, "parse_mode": "Markdown"})
+                        st.balloons()
+                        st.success(f"Muvaffaqiyatli qayd etildi: {ish_holati}")
+                    else: st.error("Ismingizni yozing!")
+            else: st.error(f"Maktab hududida emassiz! Masofa: {round(masofa*1000)} m")
+        else: st.info("🛰 GPS signali kutilmoqda. Brauzerda ruxsat bering.")
+    else:
+        st.error("⚠️ Davomat yopiq (08:30 dan 13:00 gacha qabul qilinmaydi)")
 
-
+    # --- ADMIN QISMI ---
+    st.divider()
+    with st.expander("📥 Davomat bazasini yuklab olish (Admin)"):
+        if st.text_input("Admin parol:", type="password", key="ad_pass") == MONITORING_KODI:
+            if os.path.exists(DAVOMAT_FAYLI):
+                df_baza = pd.read_csv(DAVOMAT_FAYLI)
+                st.dataframe(df_baza, use_container_width=True)
+                
+                buffer = io.BytesIO()
+                with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                    df_baza.to_excel(writer, index=False)
+                
+                st.download_button(
+                    label="📥 Excel faylni yuklab olish",
+                    data=buffer.getvalue(),
+                    file_name=f"davomat_{hozir.strftime('%d_%m')}.xlsx",
+                    mime="application/vnd.ms-excel"
+                )
+            else: st.info("Hozircha baza bo'sh.")
