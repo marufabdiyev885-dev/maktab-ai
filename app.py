@@ -254,9 +254,9 @@ elif menu == "📍 GPS Davomat":
                             else:
                                 if davomatni_gsheetsga_yoz(ism, ish_holati):
                                     # Telegramga yuborish
-                                    tg_text = f"📍 #DAVOMAT\n👤 {ism}\n📅 {bugun_sana}\n⏰ {hozir.strftime('%H:%M')}\n🔄 {ish_holati}"
-                                    requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
-                                                  json={"chat_id": GURUH_ID, "text": tg_text})
+                                    #tg_text = f"📍 #DAVOMAT\n👤 {ism}\n📅 {bugun_sana}\n⏰ {hozir.strftime('%H:%M')}\n🔄 {ish_holati}"
+                                    #requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
+                                                 # json={"chat_id": GURUH_ID, "text": tg_text})
                                     
                                     # Sessiyani qulflash
                                     st.session_state[key_name] = True
@@ -288,4 +288,5 @@ elif menu == "📍 GPS Davomat":
                 file_name=f"davomat_{hozir.strftime('%d_%m_%Y')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
 
