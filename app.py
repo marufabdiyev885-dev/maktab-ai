@@ -198,11 +198,19 @@ elif menu == "📊 Jurnal Monitoringi":
 elif menu == "📍 GPS Davomat":
     st.title("📍 GPS Davomat (Google Sheets)")
     
-    ertalab = (hozirgi_vaqt.hour < 8) or (hozirgi_vaqt.hour == 8 and hozirgi_vaqt.minute <= 30)
-    kechki = (hozirgi_vaqt.hour >= 13)
+    # --- VAQT CHEGARALARI ---
+    # Ertalab: 07:30 - 08:30
+    ertalab_boshlanish = dt.time(7, 30)
+    ertalab_tugash = dt.time(8, 30)
+    # Kechki: 13:00 - 17:00
+    kechki_boshlanish = dt.time(13, 0)
+    kechki_tugash = dt.time(17, 0)
 
-    if ertalab or kechki:
-        ish_holati = "KELDI" if ertalab else "KETDI"
+    is_ertalab = ertalab_boshlanish <= hozirgi_vaqt <= ertalab_tugash
+    is_kechki = kechki_boshlanish <= hozirgi_vaqt <= kechki_tugash
+
+    if is_ertalab or is_kechki:
+        ish_holati = "KELDI" if is_ertalab else "KETDI"
         st.success(f"🔓 Tizim ochiq (Holat: **{ish_holati}**)")
         
         with st.spinner("🛰 GPS aniqlanmoqda..."):
@@ -223,18 +231,29 @@ elif menu == "📍 GPS Davomat":
                             requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
                                           json={"chat_id": GURUH_ID, "text": tg_text})
                             st.balloons()
-                            st.success("Google Sheets-ga saqlandi!")
+                            st.success("Muvaffaqiyatli saqlandi!")
                     else: st.error("Ismingizni yozing!")
             else: st.error(f"Hududda emassiz! Masofa: {round(masofa*1000)} m")
         else: st.warning("🛰 GPS signali kutilmoqda...")
     else:
-        st.error("⚠️ Davomat yopiq (08:30 - 13:00)")
+        st.error("⚠️ Davomat yopiq! (07:30-08:30 yoki 13:00-17:00 oraliqlari ochiq)")
 
-    # ADMIN VIEW
+    # --- ADMIN VA JADVALNI YUKLAB OLISH ---
     st.divider()
-    if st.checkbox("Google Jadvalni ko'rish (Admin)"):
+    if st.checkbox("Google Jadvalni ko'rish va Yuklab olish (Admin)"):
         if st.text_input("Admin kod:", type="password", key="adm_v") == MONITORING_KODI:
             conn = st.connection("gsheets", type=GSheetsConnection)
-            st.dataframe(conn.read(ttl=0), use_container_width=True)
-
-
+            df_gsheet = conn.read(ttl=0)
+            st.dataframe(df_gsheet, use_container_width=True)
+            
+            # Excel formatiga o'tkazish
+            buffer = io.BytesIO()
+            with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+                df_gsheet.to_excel(writer, index=False, sheet_name='Davomat')
+            
+            st.download_button(
+                label="📥 Jadvalni Excel shaklida yuklab olish",
+                data=buffer,
+                file_name=f"davomat_{hozir.strftime('%d_%m_%Y')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
