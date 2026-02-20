@@ -198,20 +198,25 @@ elif menu == "📊 Jurnal Monitoringi":
 elif menu == "📍 GPS Davomat":
     st.title("📍 GPS Davomat (Google Sheets)")
     
-    # --- VAQT CHEGARALARI ---
-    # Ertalab: 07:30 - 08:30
-    ertalab_boshlanish = dt.time(7, 30)
+    # Vaqt chegaralari
+    ertalab_bosh = dt.time(7, 30)
     ertalab_tugash = dt.time(8, 30)
-    # Kechki: 13:00 - 17:00
-    kechki_boshlanish = dt.time(13, 0)
+    kechki_bosh = dt.time(13, 0)
     kechki_tugash = dt.time(17, 0)
 
-    is_ertalab = ertalab_boshlanish <= hozirgi_vaqt <= ertalab_tugash
-    is_kechki = kechki_boshlanish <= hozirgi_vaqt <= kechki_tugash
+    is_ertalab = ertalab_bosh <= hozirgi_vaqt <= ertalab_tugash
+    is_kechki = kechki_bosh <= hozirgi_vaqt <= kechki_tugash
 
     if is_ertalab or is_kechki:
         ish_holati = "KELDI" if is_ertalab else "KETDI"
-        st.success(f"🔓 Tizim ochiq (Holat: **{ish_holati}**)")
+        bugun_sana = hozir.strftime("%d.%m.%Y")
+        
+        # Google Sheets-dan bugungi ma'lumotlarni o'qish (tekshirish uchun)
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        df_check = conn.read(ttl=0)
+        
+        # Joriy sessiyada yoki bazada ushbu holat qayd etilganini aniqlash
+        # (Bu qism xodimning ismini kiritgandan keyin ishlaydi, lekin bizga umumiy holat kerak)
         
         with st.spinner("🛰 GPS aniqlanmoqda..."):
             loc = get_geolocation()
@@ -222,22 +227,48 @@ elif menu == "📍 GPS Davomat":
             
             if masofa <= RUXSAT_ETILGAN_MASOFA:
                 st.success(f"📍 Hududdasiz ({round(masofa*1000)} m)")
-                ism = st.text_input("F.I.SH (Ism-familiyangiz):")
                 
-                if st.button(f"🔴 {ish_holati}NI TASDIQLASH", use_container_width=True):
-                    if ism:
-                        if davomatni_gsheetsga_yoz(ism, ish_holati):
-                            tg_text = f"📍 #DAVOMAT\n👤 {ism}\n📅 {hozir.strftime('%d.%m.%Y')}\n⏰ {hozir.strftime('%H:%M')}\n🔄 {ish_holati}"
-                            requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
-                                          json={"chat_id": GURUH_ID, "text": tg_text})
-                            st.balloons()
-                            st.success("Muvaffaqiyatli saqlandi!")
-                    else: st.error("Ismingizni yozing!")
-            else: st.error(f"Hududda emassiz! Masofa: {round(masofa*1000)} m")
-        else: st.warning("🛰 GPS signali kutilmoqda...")
+                # Ism kiritish maydoni (agar hali tasdiqlanmagan bo'lsa)
+                key_name = f"submitted_{ish_holati}_{bugun_sana}"
+                
+                if key_name not in st.session_state:
+                    st.session_state[key_name] = False
+
+                if st.session_state[key_name]:
+                    status_text = "Siz davomatdan o'tdingiz" if is_ertalab else "Siz maktabdan chiqdingiz"
+                    st.info(f"✅ **{status_text}**")
+                else:
+                    ism = st.text_input("F.I.SH (Ism-familiyangiz):").strip()
+                    
+                    if st.button(f"🔴 {ish_holati}NI TASDIQLASH", use_container_width=True):
+                        if ism:
+                            # Bazada aynan shu odam shu holatda borligini tekshirish
+                            takroriy = df_check[(df_check['F.I.SH'] == ism) & 
+                                                (df_check['Sana'] == bugun_sana) & 
+                                                (df_check['Holat'] == ish_holati)]
+                            
+                            if not takroriy.empty:
+                                st.warning(f"⚠️ {ism}, siz allaqachon qayd etilgansiz!")
+                                st.session_state[key_name] = True
+                                st.rerun()
+                            else:
+                                if davomatni_gsheetsga_yoz(ism, ish_holati):
+                                    # Telegramga yuborish
+                                    tg_text = f"📍 #DAVOMAT\n👤 {ism}\n📅 {bugun_sana}\n⏰ {hozir.strftime('%H:%M')}\n🔄 {ish_holati}"
+                                    requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
+                                                  json={"chat_id": GURUH_ID, "text": tg_text})
+                                    
+                                    # Sessiyani qulflash
+                                    st.session_state[key_name] = True
+                                    st.balloons()
+                                    st.success("Muvaffaqiyatli saqlandi!")
+                                    st.rerun()
+                        else:
+                            st.error("Ismingizni yozing!")
+            else:
+                st.error(f"Hududda emassiz! Masofa: {round(masofa*1000)} m")
     else:
         st.error("⚠️ Davomat yopiq! (07:30-08:30 yoki 13:00-17:00 oraliqlari ochiq)")
-
     # --- ADMIN VA JADVALNI YUKLAB OLISH ---
     st.divider()
     if st.checkbox("Google Jadvalni ko'rish va Yuklab olish (Admin)"):
@@ -257,3 +288,4 @@ elif menu == "📍 GPS Davomat":
                 file_name=f"davomat_{hozir.strftime('%d_%m_%Y')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
