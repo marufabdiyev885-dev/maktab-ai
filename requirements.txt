@@ -12,3 +12,4 @@ groq
 Pillow
 streamlit-js-eval
 geopy
+st-gsheet-connection
