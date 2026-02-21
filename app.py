@@ -177,7 +177,7 @@ elif menu == "📊 Jurnal Monitoringi":
                 st.subheader("📋 Tekshiruv Natijasi:")
                 st.dataframe(df_j, use_container_width=True)
                 
-                xabar_text = "✅ Hammasi to'liq!" if not kamchiliklar else "⚠️ **Kamchiliklar:**\n\n" + "\n".join(kamchiliklar)
+                xabar_text = "✅ Barcha jurnallar baholandi! " if not kamchiliklar else "⚠️ **Kamchiliklar:**\n\n" + "\n".join(kamchiliklar)
                 if not kamchiliklar: st.success(xabar_text)
                 else: st.warning(xabar_text)
                 
@@ -288,6 +288,7 @@ elif menu == "📍 GPS Davomat":
                 file_name=f"davomat_{hozir.strftime('%d_%m_%Y')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
 
 
 
