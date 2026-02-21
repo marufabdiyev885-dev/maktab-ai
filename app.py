@@ -202,7 +202,7 @@ elif menu == "📍 GPS Davomat":
     ertalab_bosh = dt.time(7, 30)
     ertalab_tugash = dt.time(8, 30)
     kechki_bosh = dt.time(13, 0)
-    kechki_tugash = dt.time(17, 0)
+    kechki_tugash = dt.time(21, 0)
 
     is_ertalab = ertalab_bosh <= hozirgi_vaqt <= ertalab_tugash
     is_kechki = kechki_bosh <= hozirgi_vaqt <= kechki_tugash
@@ -288,5 +288,6 @@ elif menu == "📍 GPS Davomat":
                 file_name=f"davomat_{hozir.strftime('%d_%m_%Y')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
 
 
