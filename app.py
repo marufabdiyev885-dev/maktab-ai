@@ -3,7 +3,6 @@ import streamlit as st
 import pandas as pd
 import os
 import requests
-import re
 import io
 import datetime as dt
 import pytz
@@ -11,6 +10,7 @@ from groq import Groq
 from streamlit_js_eval import get_geolocation
 from geopy.distance import geodesic
 from streamlit_gsheets import GSheetsConnection
+from bs4 import BeautifulSoup
 
 # --- ASOSIY SOZLAMALAR ---
 MAKTAB_NOMI = "1-sonli umumta'lim maktabi"
@@ -18,7 +18,7 @@ DIREKTOR_FIO = "Mahmudov Matyoqub Narzulloyevich"
 ASOSIY_PAROL = "informatika2024"
 MONITORING_KODI = "admin777"
 
-# MAKTAB KOORDINATALARI
+# MAKTAB KOORDINATALARI (GPS)
 MAKTAB_LAT = 39.4955640
 MAKTAB_LON = 64.7924960
 MAKTAB_KOORDINATASI = (MAKTAB_LAT, MAKTAB_LON)
@@ -42,30 +42,22 @@ except Exception as e:
 # --- EMAKTAB API FUNKSIYASI ---
 def emaktab_hisobot_yukla(login, parol, school_id):
     session = requests.Session()
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-    }
+    headers = {'User-Agent': 'Mozilla/5.0'}
     try:
         session.get("https://login.emaktab.uz", headers=headers)
         login_data = {"login": login, "password": parol}
         res = session.post("https://login.emaktab.uz", data=login_data, headers=headers)
-        
         if "logout" not in res.text.lower() and "chiqish" not in res.text.lower():
             return False, "Login xato!"
-
-        # Operativ hisobot URL manzili
-        yil = 2025
-        view_url = f"https://schools.emaktab.uz/v2/reports/default?school={school_id}&report=paid-access-school&year={yil}"
-        
+        view_url = f"https://schools.emaktab.uz/v2/reports/default?school={school_id}&report=paid-access-school&year=2025"
         response = session.get(view_url, headers=headers)
         if response.status_code == 200:
-            return True, response.content 
-        
-        return False, f"Sahifa ochilmadi. Status kodi: {response.status_code}"
+            return True, response.content
+        return False, "Hisobotni olib bo'lmadi"
     except Exception as e:
         return False, str(e)
 
-# --- GOOGLE SHEETSGA YOZISH FUNKSIYASI ---
+# --- GOOGLE SHEETSGA YOZISH (GPS uchun) ---
 def davomatni_gsheetsga_yoz(ism, holat):
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
@@ -115,7 +107,7 @@ with st.sidebar:
         st.session_state.clear()
         st.rerun()
 
-# --- AI MULOQOT ---
+# --- AI MULOQOT (O'ZGARISHSIZ) ---
 if menu == "🤖 AI Muloqot":
     st.title("🤖 Maktab AI Yordamchisi")
     if "messages" not in st.session_state: st.session_state.messages = []
@@ -136,7 +128,7 @@ if menu == "🤖 AI Muloqot":
                 st.session_state.messages.append({"role": "assistant", "content": ans})
             except: st.error("AI band.")
 
-# --- JURNAL MONITORINGI ---
+# --- JURNAL MONITORINGI (O'ZGARISHSIZ) ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
     if "m_auth" not in st.session_state: st.session_state.m_auth = False
@@ -157,7 +149,7 @@ elif menu == "📊 Jurnal Monitoringi":
             st.dataframe(df_j, use_container_width=True)
         except Exception as e: st.error(f"Xato: {e}")
 
-# --- GPS DAVOMAT ---
+# --- GPS DAVOMAT (ASL HOLI) ---
 elif menu == "📍 GPS Davomat":
     st.title("📍 GPS Davomat")
     bugun_sana = hozir.strftime("%d.%m.%Y")
@@ -175,68 +167,46 @@ elif menu == "📍 GPS Davomat":
                     st.balloons()
         else: st.error(f"Hududda emassiz! ({round(masofa*1000)} m)")
 
-# --- EMAKTAB HISOBOT (Tahlil xatosi tuzatilgan) ---
+# --- EMAKTAB HISOBOT (RASMGA ASOSAN 7-QATORDAN O'QIYDIGAN TUZATILGAN QISM) ---
 elif menu == "📥 eMaktab Hisobot":
     st.title("📥 eMaktab Operativ Hisoboti")
-    if "emaktab_df" not in st.session_state: st.session_state.emaktab_df = None
-
+    if "em_df" not in st.session_state: st.session_state.em_df = None
+    
     col1, col2 = st.columns(2)
     with col1:
-        e_login = st.text_input("Login:", value="marufabdiyev")
-        e_parol = st.text_input("Parol:", type="password")
+        e_l, e_p = st.text_input("Login", value="marufabdiyev"), st.text_input("Parol", type="password")
     with col2:
-        e_id = st.text_input("Maktab ID:", value="1000001352999")
-        st.write(f"📅 Bugun: {hozir.strftime('%d.%m.%Y')}")
-
-    if st.button("🔍 Hisobotni eMaktabdan olish", use_container_width=True):
-        if e_parol:
-            with st.spinner("Jadval tahlil qilinmoqda..."):
-                ok, content = emaktab_hisobot_yukla(e_login, e_parol, e_id)
-                if ok:
-                    try:
-                        # 1. Barcha jadvallarni o'qiymiz (match parametrini olib tashladik)
-                        dfs = pd.read_html(io.BytesIO(content), encoding='utf-8')
-                        
-                        if dfs:
-                            # 2. Eng ko'p qatorli jadvalni (asosiy hisobot) tanlaymiz
-                            df = max(dfs, key=len)
-                            
-                            # Multiindex sarlavhalarni oxirgi qatorga tushiramiz
-                            if isinstance(df.columns, pd.MultiIndex):
-                                df.columns = df.columns.get_level_values(-1)
-                            
-                            # 3. Rasmga ko'ra: 0-ustun (Sinf), 3-ustun (Kundalik bilan taminlanganlar %)
-                            if df.shape[1] >= 4:
-                                report_df = df.iloc[:, [0, 3]].copy()
-                                report_df.columns = ['Sinf nomi', 'Kirish foizi (%)']
-                                
-                                # Faqat haqiqiy sinf qatorlarini qoldiramiz (masalan '1-A')
-                                report_df = report_df[report_df['Sinf nomi'].astype(str).str.contains('-', na=False)]
-                                
-                                st.session_state.emaktab_df = report_df
-                                st.success("✅ Ma'lumotlar muvaffaqiyatli yuklandi!")
-                            else:
-                                st.error("Jadval ustunlari mos kelmadi.")
-                        else:
-                            st.error("Sahifada jadval topilmadi.")
-                    except Exception as e:
-                        st.error(f"Tahlil xatosi: {e}")
-                else:
-                    st.error(content)
-        else:
-            st.error("Parolni kiriting!")
-
-    if st.session_state.emaktab_df is not None:
-        st.divider()
-        st.table(st.session_state.emaktab_df)
-        
-        if st.button("📢 Telegramga yuborish", use_container_width=True):
-            msg = f"<b>📊 eMaktab Hisoboti ({hozir.strftime('%d.%m.%Y')})</b>\n\n"
-            msg += f"<pre>{st.session_state.emaktab_df.to_string(index=False)}</pre>"
-            
+        e_id = st.text_input("Maktab ID", value="1000001352999")
+    
+    if st.button("🔍 Hisobotni olish", use_container_width=True):
+        ok, content = emaktab_hisobot_yukla(e_l, e_p, e_id)
+        if ok:
             try:
-                requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                             json={"chat_id": GURUH_ID, "text": msg, "parse_mode": "HTML"})
-                st.success("✅ Telegramga yuborildi!")
-            except:
-                st.error("Telegramga yuborishda xatolik.")
+                soup = BeautifulSoup(content, 'html.parser')
+                tables = soup.find_all('table')
+                if tables:
+                    main_table_html = str(max(tables, key=lambda t: len(t.find_all('tr'))))
+                    # Rasmda jadval 7-qator atrofida boshlangani uchun header=None qilib, keyin filtrlaymiz
+                    df = pd.read_html(io.StringIO(main_table_html), header=None)[0]
+                    
+                    # 1-ustundan (index 0) "1-A" kabi sinf nomlarini qidiramiz
+                    mask = df.iloc[:, 0].astype(str).str.contains('-', na=False)
+                    df_final = df[mask].copy()
+                    
+                    if not df_final.empty:
+                        # 0-ustun: Sinf nomi, 3-ustun: Foiz (rasmga qarab)
+                        report = df_final.iloc[:, [0, 3]].copy()
+                        report.columns = ['Sinf nomi', 'Kirish foizi (%)']
+                        st.session_state.em_df = report
+                        st.success("✅ Hisobot tayyor!")
+                    else: st.error("Sinf ma'lumotlari topilmadi.")
+                else: st.error("Jadval topilmadi.")
+            except Exception as e: st.error(f"Tahlil xatosi: {e}")
+        else: st.error(content)
+
+    if st.session_state.em_df is not None:
+        st.table(st.session_state.em_df)
+        if st.button("📢 Telegramga yuborish"):
+            msg = f"<b>📊 eMaktab ({hozir.strftime('%d.%m')})</b>\n\n<pre>{st.session_state.em_df.to_string(index=False)}</pre>"
+            requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={"chat_id": GURUH_ID, "text": msg, "parse_mode": "HTML"})
+            st.success("Yuborildi!")
