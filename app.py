@@ -45,56 +45,38 @@ except Exception as e:
 def emaktab_hisobot_yukla(login, parol, school_id):
     session = requests.Session()
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36'
     }
     try:
-        # 1. Kirish
+        # 1. Login
         session.get("https://login.emaktab.uz/", headers=headers)
         login_data = {"login": login, "password": parol}
         res = session.post("https://login.emaktab.uz/login", data=login_data, headers=headers)
         
         if "logout" not in res.text.lower() and "chiqish" not in res.text:
-            return False, "Login yoki parol xato! Iltimos, eMaktab login/parolini tekshiring."
+            return False, "Login yoki parol xato! eMaktab profilini tekshiring."
 
-        yil = hozir.year
-        # Hisobot turlari ro'yxati (agar biri ishlamasa, ikkinchisini sinaydi)
+        # 2. Yillarni aniqlash (Hozirgi va o'tgan o'quv yili)
+        joriy_yil = hozir.year
+        otgan_yil = joriy_yil - 1
+        yillar = [joriy_yil, otgan_yil]
+        
+        # Hisobot turlari
         reports = ["paid-access-school", "entrance-school", "access-school"]
         
-        for r_type in reports:
-            url = f"https://schools.emaktab.uz/v2/reports/export?school={school_id}&report={r_type}&year={yil}&format=xlsx"
-            fayl = session.get(url, headers=headers)
-            
-            # Agar fayl muvaffaqiyatli yuklansa va bo'sh bo'lmasa
-            if fayl.status_code == 200 and len(fayl.content) > 1000:
-                return True, fayl.content
+        for yil in yillar:
+            for r_type in reports:
+                url = f"https://schools.emaktab.uz/v2/reports/export?school={school_id}&report={r_type}&year={yil}&format=xlsx"
+                fayl = session.get(url, headers=headers)
+                
+                # Agar fayl muvaffaqiyatli kelsa (hajmi 1KB dan katta bo'lsa)
+                if fayl.status_code == 200 and len(fayl.content) > 1000:
+                    return True, fayl.content
         
-        return False, f"eMaktabda '{yil}' yil uchun hisobot topilmadi yoki ruxsat yo'q. ID: {school_id}"
+        return False, f"eMaktabda {joriy_yil} yoki {otgan_yil} yil uchun hisobot topilmadi. Ruxsat darajasini (Admin/Direktor) tekshiring."
         
     except Exception as e:
-        return False, f"Texnik xatolik: {str(e)}"
-
-# --- GOOGLE SHEETS FUNKSIYASI ---
-def davomatni_gsheetsga_yoz(ism, holat):
-    try:
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        try:
-            df = conn.read(ttl=0)
-        except:
-            df = pd.DataFrame(columns=["Sana", "Vaqt", "F.I.SH", "Holat"])
-        yangi_qator = pd.DataFrame({
-            "Sana": [hozir.strftime("%d.%m.%Y")],
-            "Vaqt": [hozir.strftime("%H:%M:%S")],
-            "F.I.SH": [ism],
-            "Holat": [holat]
-        })
-        df = pd.concat([df, yangi_qator], ignore_index=True)
-        conn.update(data=df)
-        return True
-    except Exception as e:
-        st.error(f"Google Sheets xatosi: {e}")
-        return False
-
-# --- LOG-IN ---
+        return False, f"Texnik xato: {str(e)}"# --- LOG-IN ---
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
@@ -289,4 +271,5 @@ elif menu == "📥 eMaktab Hisobot":
                         model="llama-3.3-70b-versatile"
                     )
                     st.info(f"**🤖 AI Xulosasi:**\n\n{res.choices[0].message.content}")
+
 
