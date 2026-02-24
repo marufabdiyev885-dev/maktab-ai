@@ -40,24 +40,75 @@ except Exception as e:
     st.stop()
 
 # --- EMAKTAB API FUNKSIYASI ---
-def emaktab_hisobot_yukla(login, parol, school_id):
-    session = requests.Session()
-    headers = {'User-Agent': 'Mozilla/5.0'}
-    try:
-        session.get("https://login.emaktab.uz", headers=headers)
-        login_data = {"login": login, "password": parol}
-        res = session.post("https://login.emaktab.uz", data=login_data, headers=headers)
-        if "logout" not in res.text.lower() and "chiqish" not in res.text.lower():
-            return False, "Login xato!"
-        view_url = f"https://schools.emaktab.uz/v2/reports/default?school={school_id}&report=paid-access-school&year=2025"
-        response = session.get(view_url, headers=headers)
-        if response.status_code == 200:
-            return True, response.content
-        return False, "Hisobotni olib bo'lmadi"
-    except Exception as e:
-        return False, str(e)
+# --- EMAKTAB HISOBOT (MUAMMONI ANIQLASH VA TUZATISH VARIANTI) ---
+elif menu == "📥 eMaktab Hisobot":
+    st.title("📥 eMaktab Operativ Hisoboti")
+    if "em_df" not in st.session_state: st.session_state.em_df = None
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        e_l, e_p = st.text_input("Login", value="marufabdiyev"), st.text_input("Parol", type="password")
+    with col2:
+        e_id = st.text_input("Maktab ID", value="1000001352999")
+    
+    if st.button("🔍 Hisobotni olish", use_container_width=True):
+        ok, content = emaktab_hisobot_yukla(e_l, e_p, e_id)
+        if ok:
+            try:
+                # Debug uchun: Sahifa tarkibini tekshirish (faqat xato bo'lsa ko'rinadi)
+                soup = BeautifulSoup(content, 'html.parser')
+                
+                # eMaktab ba'zan jadvalni 'id' yoki 'class' bilan beradi
+                # Barcha jadvallarni qidiramiz
+                all_tables = soup.find_all('table')
+                
+                if not all_tables:
+                    st.error("⚠️ Sahifada birorta ham <table> tegi topilmadi.")
+                    # Agar jadval topilmasa, sahifada nima borligini bilish uchun:
+                    if "Sinf" in str(content):
+                        st.info("Ma'lumot bor, lekin jadval formatida emas. Boshqa usulda tahlil qilinmoqda...")
+                
+                # Eng ko'p qatorli jadvalni qidirish
+                best_df = None
+                max_rows = 0
+                
+                # pandas orqali barcha mumkin bo'lgan jadvallarni o'qish
+                dfs = pd.read_html(io.BytesIO(content), encoding='utf-8')
+                
+                for temp_df in dfs:
+                    # Jadvalda "Sinf" yoki rasmda ko'ringan ustunlar borligini tekshirish
+                    # Bizga kamida 4 ta ustun kerak
+                    if temp_df.shape[1] >= 4:
+                        # Birinchi ustunda '-' (sinf belgisi) borligini tekshirish
+                        mask = temp_df.iloc[:, 0].astype(str).str.contains('-', na=False)
+                        if mask.any():
+                            current_rows = mask.sum()
+                            if current_rows > max_rows:
+                                max_rows = current_rows
+                                best_df = temp_df[mask].copy()
 
-# --- GOOGLE SHEETSGA YOZISH (GPS uchun) ---
+                if best_df is not None:
+                    # Rasmga asosan: 0-ustun Sinf, 3-ustun Foiz
+                    report = best_df.iloc[:, [0, 3]].copy()
+                    report.columns = ['Sinf nomi', 'Kirish foizi (%)']
+                    
+                    # Foiz ustunini tozalash (agar kerak bo'lsa)
+                    report['Kirish foizi (%)'] = report['Kirish foizi (%)'].astype(str).str.replace(',', '.')
+                    
+                    st.session_state.em_df = report
+                    st.success(f"✅ {len(report)} ta sinf ma'lumoti yuklandi!")
+                else:
+                    st.error("❌ Mos keladigan jadval topilmadi. Login yoki Maktab ID xato bo'lishi mumkin.")
+                    
+            except Exception as e:
+                st.error(f"⚠️ Tahlil jarayonida xato: {e}")
+        else:
+            st.error(f"❌ eMaktabga kirib bo'lmadi: {content}")
+
+    # Natijani chiqarish
+    if st.session_state.em_df is not None:
+        st.dataframe(st.session_state.em_df, use_container_width=True)
+        # ... Telegram yuborish kodi o'sha holicha ...# --- GOOGLE SHEETSGA YOZISH (GPS uchun) ---
 def davomatni_gsheetsga_yoz(ism, holat):
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
@@ -210,3 +261,4 @@ elif menu == "📥 eMaktab Hisobot":
             msg = f"<b>📊 eMaktab ({hozir.strftime('%d.%m')})</b>\n\n<pre>{st.session_state.em_df.to_string(index=False)}</pre>"
             requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={"chat_id": GURUH_ID, "text": msg, "parse_mode": "HTML"})
             st.success("Yuborildi!")
+
