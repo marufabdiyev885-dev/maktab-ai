@@ -29,7 +29,6 @@ st.set_page_config(page_title=MAKTAB_NOMI, layout="wide", page_icon="🏫")
 # --- VAQT VA SECRETS ---
 uzb_tz = pytz.timezone('Asia/Tashkent')
 hozir = dt.datetime.now(uzb_tz)
-hozirgi_vaqt = hozir.time()
 
 try:
     BOT_TOKEN = st.secrets["TELEGRAM_BOT_TOKEN"]
@@ -61,7 +60,7 @@ def emaktab_hisobot_yukla(login, parol, school_id):
         if response.status_code == 200:
             return True, response.content 
         
-        return False, "Hisobot sahifasi ochilmadi (404 yoki Ruxsat yo'q)."
+        return False, f"Hisobot sahifasi ochilmadi. Status: {response.status_code}"
     except Exception as e:
         return False, str(e)
 
@@ -175,7 +174,7 @@ elif menu == "📍 GPS Davomat":
                     st.balloons()
         else: st.error(f"Hududda emassiz! ({round(masofa*1000)} m)")
 
-# --- EMAKTAB HISOBOT (OPTIMALLASHTIRILGAN VARIANT) ---
+# --- EMAKTAB HISOBOT (MUAMMO TUZATILGAN JOYI) ---
 elif menu == "📥 eMaktab Hisobot":
     st.title("📥 eMaktab Operativ Hisoboti")
     if "emaktab_df" not in st.session_state: st.session_state.emaktab_df = None
@@ -190,53 +189,54 @@ elif menu == "📥 eMaktab Hisobot":
 
     if st.button("🔍 Hisobotni eMaktabdan olish", use_container_width=True):
         if e_parol:
-            with st.spinner("Ma'lumotlar tahlil qilinmoqda..."):
+            with st.spinner("Jadval tahlil qilinmoqda..."):
                 ok, content = emaktab_hisobot_yukla(e_login, e_parol, e_id)
                 if ok:
                     try:
-                        # Rasmga asosan encoding='utf-8' qo'shildi
+                        # 1. Barcha jadvallarni o'qiymiz
                         dfs = pd.read_html(io.BytesIO(content), encoding='utf-8')
+                        
                         if dfs:
-                            # Eng ko'p qatorli jadvalni tanlaymiz
+                            # 2. Eng katta jadvalni tanlaymiz (hisobot jadvali odatda eng kattasi bo'ladi)
                             df = max(dfs, key=len)
                             
+                            # Multiindex sarlavhalarni tozalash
                             if isinstance(df.columns, pd.MultiIndex):
                                 df.columns = df.columns.get_level_values(-1)
                             
-                            # Rasmga ko'ra: 0-ustun (Sinf), 3-ustun (Foiz)
+                            # 3. Ustunlarni indeks bo'yicha olamiz (0: Sinf, 3: Foiz)
+                            # Rasmda 1-A, 1-B kabi sinflar birinchi ustunda
                             if df.shape[1] >= 4:
                                 report_df = df.iloc[:, [0, 3]].copy()
                                 report_df.columns = ['Sinf nomi', 'Kirish foizi (%)']
                                 
-                                # Faqat sinf nomi bor qatorlarni filtrlash (masalan '1-A')
+                                # Faqat haqiqiy sinf qatorlarini qoldiramiz (sinf nomida '-' bo'lishi kerak)
                                 report_df = report_df[report_df['Sinf nomi'].astype(str).str.contains('-', na=False)]
                                 
                                 st.session_state.emaktab_df = report_df
-                                st.success("✅ Jadval muvaffaqiyatli o'qildi!")
+                                st.success("✅ Ma'lumotlar muvaffaqiyatli yuklandi!")
                             else:
-                                st.error("Jadval ustunlari kutilganidek emas.")
-                        else: st.error("Sahifada jadval topilmadi.")
+                                st.error("Jadval ustunlari yetarli emas.")
+                        else:
+                            st.error("Sahifada birorta ham jadval topilmadi.")
                     except Exception as e:
-                        st.error(f"Jadvalni o'qishda xato: {e}")
-                else: st.error(content)
-        else: st.error("Parolni kiriting!")
+                        st.error(f"Tahlil xatosi: {e}")
+                else:
+                    st.error(content)
+        else:
+            st.error("Parolni kiriting!")
 
     if st.session_state.emaktab_df is not None:
         st.divider()
-        st.dataframe(st.session_state.emaktab_df, use_container_width=True)
+        st.table(st.session_state.emaktab_df)
         
         if st.button("📢 Telegramga yuborish", use_container_width=True):
             msg = f"<b>📊 eMaktab Hisoboti ({hozir.strftime('%d.%m.%Y')})</b>\n\n"
-            msg += f"<code>{st.session_state.emaktab_df.to_string(index=False)}</code>"
+            msg += f"<pre>{st.session_state.emaktab_df.to_string(index=False)}</pre>"
             
             try:
-                res = requests.post(
-                    f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                    json={"chat_id": GURUH_ID, "text": msg, "parse_mode": "HTML"}
-                )
-                if res.status_code == 200:
-                    st.success("✅ Telegramga yuborildi!")
-                else:
-                    st.error(f"Telegram xatosi: {res.text}")
-            except Exception as e:
-                st.error(f"Yuborishda xatolik: {e}")
+                requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                             json={"chat_id": GURUH_ID, "text": msg, "parse_mode": "HTML"})
+                st.success("✅ Telegramga yuborildi!")
+            except:
+                st.error("Telegramga yuborishda xatolik.")
