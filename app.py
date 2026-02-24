@@ -21,7 +21,7 @@ RUXSAT_ETILGAN_MASOFA = 1
 
 st.set_page_config(page_title=MAKTAB_NOMI, layout="wide", page_icon="🏫")
 
-# Vaqt va Secrets
+# Vaqt
 uzb_tz = pytz.timezone('Asia/Tashkent')
 hozir = dt.datetime.now(uzb_tz)
 
@@ -33,85 +33,100 @@ except Exception as e:
     st.error(f"Secrets sozlamalarida xatolik: {e}")
     st.stop()
 
-# --- 2. EMAKTAB TAHLIL FUNKSIYASI (KUCHAYTIRILGAN) ---
+# --- 2. EMAKTAB UCHUN MUKAMMAL TAHLIL FUNKSIYASI ---
 def kundalik_hisobot_ol(login, parol, school_id):
     session = requests.Session()
+    # Brauzerni mukammal simulyatsiya qilish
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Referer': 'https://login.emaktab.uz/'
     }
+    
     try:
-        # Kirish jarayoni
-        session.get("https://login.emaktab.uz", headers=headers)
+        # 1-qadam: Login sahifasini olish
+        login_url = "https://login.emaktab.uz"
+        session.get(login_url, headers=headers)
+        
+        # 2-qadam: Kirish (Login)
         login_data = {"login": login, "password": parol}
-        res = session.post("https://login.emaktab.uz", data=login_data, headers=headers)
+        res = session.post(login_url, data=login_data, headers=headers)
         
         if "logout" not in res.text.lower() and "chiqish" not in res.text.lower():
-            return None, "🔒 Kirish amalga oshmadi. Login yoki parol xato!"
+            return None, "Login yoki parol noto'g'ri. Iltimos, qayta tekshiring."
 
-        # Kundalik ta'minlanganlik hisoboti URL
-        # report=paid-access-school - aynan kundalik ta'minlanganlik parametri
-        url = f"https://schools.emaktab.uz/v2/reports/default?school={school_id}&report=paid-access-school&year=2025"
-        response = session.get(url, headers=headers)
+        # 3-qadam: Hisobot sahifasiga o'tish
+        # Kundalik ta'minlanganlik: report=paid-access-school
+        report_url = f"https://schools.emaktab.uz/v2/reports/default?school={school_id}&report=paid-access-school&year=2025"
+        response = session.get(report_url, headers=headers)
         
         if response.status_code != 200:
-            return None, "🌐 Hisobot sahifasini yuklab bo'lmadi."
+            return None, f"Sahifa yuklanmadi. Status: {response.status_code}"
 
+        # 4-qadam: Ma'lumotni tahlil qilish
         soup = BeautifulSoup(response.content, 'html.parser')
         
-        # JADVALNI QIDIRISH (2 xil usulda)
-        rows_data = []
+        # Jadvallarni yig'ish (BeautifulSoup orqali qo'lda)
+        rows_list = []
+        tables = soup.find_all('table')
         
-        # 1-usul: Barcha 'tr' (jadval qatorlari) bo'yicha qidirish
-        all_rows = soup.find_all('tr')
-        for row in all_rows:
-            cols = row.find_all('td')
-            if len(cols) >= 4:
-                sinf = cols[0].get_text(strip=True)
-                foiz = cols[3].get_text(strip=True)
-                
-                # Agar birinchi ustunda raqam va "-" bo'lsa (masalan: 1-A)
-                if "-" in sinf and any(char.isdigit() for char in sinf):
-                    rows_data.append([sinf, foiz])
+        if tables:
+            # Eng katta jadvalni tanlaymiz
+            main_table = max(tables, key=lambda t: len(t.find_all('tr')))
+            for tr in main_table.find_all('tr'):
+                tds = tr.find_all('td')
+                if len(tds) >= 4:
+                    sinf = tds[0].get_text(strip=True)
+                    foiz = tds[3].get_text(strip=True)
+                    # Sinf nomida raqam va "-" borligini tekshirish (Masalan: 4-B)
+                    if "-" in sinf and any(c.isdigit() for c in sinf):
+                        rows_list.append([sinf, foiz])
         
-        if rows_data:
-            df = pd.DataFrame(rows_data, columns=['Sinf nomi', 'Ta\'minlanganlik (%)'])
+        if rows_list:
+            df = pd.DataFrame(rows_list, columns=['Sinf nomi', 'Ta\'minlanganlik (%)'])
             return df, "OK"
         else:
-            # 2-usul: Agar BeautifulSoup topmasa, Pandas orqali jadvalni qidirish
-            dfs = pd.read_html(io.StringIO(str(soup)))
-            for d in dfs:
-                if d.shape[1] >= 4:
-                    mask = d.iloc[:, 0].astype(str).str.contains('-', na=False)
-                    if mask.any():
-                        res_df = d[mask].iloc[:, [0, 3]].copy()
-                        res_df.columns = ['Sinf nomi', 'Ta\'minlanganlik (%)']
-                        return res_df, "OK"
-            
-            return None, "❌ Hisobotda sinflar jadvali topilmadi. Hisobot hali shakllanmagan bo'lishi mumkin."
+            # Agar BeautifulSoup topmasa, Pandas orqali harakat qilamiz
+            try:
+                dfs = pd.read_html(io.StringIO(str(soup)))
+                for d in dfs:
+                    if d.shape[1] >= 4:
+                        mask = d.iloc[:, 0].astype(str).str.contains('-', na=False)
+                        if mask.any():
+                            clean_df = d[mask].iloc[:, [0, 3]].copy()
+                            clean_df.columns = ['Sinf nomi', 'Ta\'minlanganlik (%)']
+                            return clean_df, "OK"
+            except:
+                pass
+            return None, "Hisobotda sinflar jadvali topilmadi. Maktab ID'sini tekshiring."
 
     except Exception as e:
-        return None, f"⚠️ Xatolik yuz berdi: {str(e)}"
+        return None, f"Tizimda xatolik: {str(e)}"
 
-# --- 3. LOGIN VA NAVIGATSIYA ---
-if "authenticated" not in st.session_state: st.session_state.authenticated = False
+# --- 3. ILOVA INTERFEYSI ---
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
 
 if not st.session_state.authenticated:
     st.title("🏫 " + MAKTAB_NOMI)
     p_in = st.text_input("Kirish paroli:", type="password")
-    if st.button("Kirish") and p_in == ASOSIY_PAROL:
-        st.session_state.authenticated = True
-        st.rerun()
+    if st.button("Kirish"):
+        if p_in == ASOSIY_PAROL:
+            st.session_state.authenticated = True
+            st.rerun()
+        else:
+            st.error("Parol xato!")
     st.stop()
 
-# Sidebarda menu
-menu = st.sidebar.radio("Bo'lim:", ["🤖 AI Muloqot", "📊 Jurnal Monitoringi", "📍 GPS Davomat", "📥 eMaktab Hisobot"])
+# Menyu
+menu = st.sidebar.radio("Bo'limni tanlang:", ["🤖 AI Muloqot", "📊 Jurnal Monitoringi", "📍 GPS Davomat", "📥 eMaktab Hisobot"])
 if st.sidebar.button("🚪 Chiqish"):
     st.session_state.clear()
     st.rerun()
 
 # --- 4. BO'LIMLAR ---
 
-# --- GPS DAVOMAT (SIZNING ASL KODINGIZ) ---
 if menu == "📍 GPS Davomat":
     st.title("📍 GPS Davomat")
     loc = get_geolocation()
@@ -126,7 +141,6 @@ if menu == "📍 GPS Davomat":
         else:
             st.error(f"Hududda emassiz! ({round(masofa*1000)} m)")
 
-# --- EMAKTAB HISOBOT (KUNDALIK TAMINLANGANLIK) ---
 elif menu == "📥 eMaktab Hisobot":
     st.title("📥 Kundalik bilan ta'minlanganlik")
     
@@ -136,14 +150,14 @@ elif menu == "📥 eMaktab Hisobot":
         e_p = st.text_input("eMaktab Parol:", type="password")
     with col2:
         e_id = st.text_input("Maktab ID:", value="1000001352999")
-        st.info("Hisobot avtomatik 2025-yil uchun olinadi.")
+        st.info("Hisobot 2025-o'quv yili uchun olinadi.")
 
     if st.button("🔍 Hisobotni yuklash", use_container_width=True):
-        with st.spinner("eMaktab tizimidan ma'lumotlar olinmoqda..."):
+        with st.spinner("eMaktab tizimi bilan bog'lanilmoqda..."):
             df, msg = kundalik_hisobot_ol(e_l, e_p, e_id)
             if df is not None:
                 st.session_state.kundalik_df = df
-                st.success("Ma'lumotlar muvaffaqiyatli yuklandi!")
+                st.success("Ma'lumotlar olindi!")
             else:
                 st.error(msg)
 
@@ -156,6 +170,4 @@ elif menu == "📥 eMaktab Hisobot":
             txt += f"<pre>{st.session_state.kundalik_df.to_string(index=False)}</pre>"
             requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
                          json={"chat_id": GURUH_ID, "text": txt, "parse_mode": "HTML"})
-            st.success("Telegramga yuborildi!")
-
-# (Qolgan AI va Monitoring bo'limlari o'z holicha qoladi...)
+            st.success("Xabar yuborildi!")
