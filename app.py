@@ -45,29 +45,44 @@ except Exception as e:
 def emaktab_hisobot_yukla(login, parol, school_id):
     session = requests.Session()
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
     }
     try:
-        session.get("https://login.emaktab.uz/", headers=headers)
+        # 1. Login sahifasini ochish
+        login_page = session.get("https://schools.emaktab.uz/login", headers=headers)
+        
+        # 2. Login qilish
         login_data = {"login": login, "password": parol}
-        res = session.post("https://login.emaktab.uz/login", data=login_data, headers=headers)
+        res = session.post(
+            "https://schools.emaktab.uz/login", 
+            data=login_data, 
+            headers=headers,
+            allow_redirects=True
+        )
         
-        if "logout" not in res.text.lower() and "chiqish" not in res.text:
-            return False, "Login yoki parol xato!"
+        # 3. Kirish tekshiruvi
+        if "logout" not in res.text.lower() and "chiqish" not in res.text.lower():
+            return False, f"Login xato! Status: {res.status_code}"
 
-        # Skrinshotdagi yil va formatga asosan
+        # 4. Hisobot URL (bir nechta variant sinab ko'ramiz)
         yil = 2025
-        url = f"https://schools.emaktab.uz/v2/reports/export?school={school_id}&report=paid-access-school&year={yil}&format=xlsx"
-        headers['Referer'] = f"https://schools.emaktab.uz/v2/reports/default?school={school_id}&report=paid-access-school&year={yil}"
+        urls = [
+            f"https://schools.emaktab.uz/v2/reports/export?school={school_id}&report=paid-access-school&year={yil}",
+            f"https://schools.emaktab.uz/v2/reports/download?school={school_id}&report=paid-access-school&year={yil}",
+            f"https://schools.emaktab.uz/v2/reports/default?school={school_id}&report=paid-access-school&year={yil}&export=xlsx",
+        ]
         
-        fayl = session.get(url, headers=headers)
-        if fayl.status_code == 200 and len(fayl.content) > 1000:
-            return True, fayl.content
-        return False, f"Xato: {fayl.status_code}. Hisobot topilmadi."
+        for url in urls:
+            fayl = session.get(url, headers=headers)
+            if fayl.status_code == 200 and len(fayl.content) > 500:
+                # Excel ekanligini tekshirish
+                if b'xl/' in fayl.content[:100] or b'PK' in fayl.content[:4]:
+                    return True, fayl.content
+        
+        return False, "Fayl yuklanmadi. Download URL aniqlanmadi."
+        
     except Exception as e:
-        return False, str(e)
-
-# --- GOOGLE SHEETSGA SAQLASH FUNKSIYASI ---
+        return False, str(e)# --- GOOGLE SHEETSGA SAQLASH FUNKSIYASI ---
 def davomatni_gsheetsga_yoz(ism, holat):
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
@@ -293,3 +308,4 @@ elif menu == "📥 eMaktab Hisobot":
                         model="llama-3.3-70b-versatile"
                     )
                     st.info(res.choices[0].message.content)
+
