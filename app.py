@@ -45,10 +45,11 @@ except Exception as e:
 def emaktab_hisobot_yukla(login, parol, school_id):
     session = requests.Session()
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,human/*;q=0.8'
     }
     try:
-        # 1. Login
+        # 1. Login qilish
         session.get("https://login.emaktab.uz/", headers=headers)
         login_data = {"login": login, "password": parol}
         res = session.post("https://login.emaktab.uz/login", data=login_data, headers=headers)
@@ -56,27 +57,61 @@ def emaktab_hisobot_yukla(login, parol, school_id):
         if "logout" not in res.text.lower() and "chiqish" not in res.text:
             return False, "Login yoki parol xato! eMaktab profilini tekshiring."
 
-        # 2. Yillarni aniqlash (Hozirgi va o'tgan o'quv yili)
-        joriy_yil = hozir.year
-        otgan_yil = joriy_yil - 1
-        yillar = [joriy_yil, otgan_yil]
+        # 2. To'g'ri yuklash linki (Sizning skrinshotingiz asosida tuzatildi)
+        # eMaktab v2 eksport manzili
+        url = f"https://schools.emaktab.uz/v2/reports/export?school={school_id}&report=paid-access-school&year=2025&format=xlsx"
         
-        # Hisobot turlari
-        reports = ["paid-access-school", "entrance-school", "access-school"]
+        # Ba'zan referer bo'lmasa 404 berishi mumkin, shuning uchun referer qo'shamiz
+        headers['Referer'] = f"https://schools.emaktab.uz/v2/reports/default?school={school_id}&report=paid-access-school&year=2025"
         
-        for yil in yillar:
-            for r_type in reports:
-                url = f"https://schools.emaktab.uz/v2/reports/export?school={school_id}&report={r_type}&year={yil}&format=xlsx"
-                fayl = session.get(url, headers=headers)
-                
-                # Agar fayl muvaffaqiyatli kelsa (hajmi 1KB dan katta bo'lsa)
-                if fayl.status_code == 200 and len(fayl.content) > 1000:
-                    return True, fayl.content
+        fayl = session.get(url, headers=headers)
         
-        return False, f"eMaktabda {joriy_yil} yoki {otgan_yil} yil uchun hisobot topilmadi. Ruxsat darajasini (Admin/Direktor) tekshiring."
-        
+        if fayl.status_code == 200 and len(fayl.content) > 1000:
+            return True, fayl.content
+        else:
+            # Agar eksport linki ishlamasa, HTML jadvalning o'zini tortib ko'ramiz
+            html_url = f"https://schools.emaktab.uz/v2/reports/default?school={school_id}&report=paid-access-school&year=2025"
+            html_res = session.get(html_url, headers=headers)
+            if "table" in html_res.text:
+                return True, html_res.content # Bu holda HTML qaytadi
+            
+            return False, f"Xatolik: {fayl.status_code}. Hisobotni yuklab bo'lmadi."
+            
     except Exception as e:
-        return False, f"Texnik xato: {str(e)}"# --- LOG-IN ---
+        return False, f"Ulanishda xato: {str(e)}"
+
+# --- MAIN QISMDAGI O'ZGARISH ---
+# (Stremlit menu qismida jadvalni o'qish qismini ham mustahkamlaymiz)
+
+elif menu == "📥 eMaktab Hisobot":
+    # ... (login inputlar) ...
+    if st.button("🔍 Hisobotni eMaktabdan olish", use_container_width=True):
+        if e_parol:
+            with st.spinner("Ma'lumotlar olinmoqda..."):
+                ok, content = emaktab_hisobot_yukla(e_login, e_parol, e_id)
+                if ok:
+                    try:
+                        # Avval Excel sifatida o'qishni sinaymiz
+                        try:
+                            df = pd.read_excel(io.BytesIO(content), skiprows=3)
+                        except:
+                            # Agar Excel bo'lmasa, HTML jadval sifatida o'qiymiz
+                            dfs = pd.read_html(io.BytesIO(content))
+                            df = dfs[0] # Birinchi jadvalni olamiz
+                        
+                        # Skrinshotingizga ko'ra ustunlarni tozalash
+                        # 0-ustun: Sinf, 3-ustun: Foiz (Sizning rasmda shunday)
+                        report_df = df.iloc[:, [0, 3]].dropna()
+                        report_df.columns = ['Sinf nomi', 'Kirish foizi (%)']
+                        
+                        st.session_state.emaktab_df = report_df
+                        st.session_state.emaktab_raw = content
+                        st.success("✅ Ma'lumotlar muvaffaqiyatli yuklandi!")
+                    except Exception as e:
+                        st.error(f"Jadvalni tahlil qilishda xato: {e}")
+                else:
+                    st.error(content)
+# --- LOG-IN ---
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
@@ -271,5 +306,6 @@ elif menu == "📥 eMaktab Hisobot":
                         model="llama-3.3-70b-versatile"
                     )
                     st.info(f"**🤖 AI Xulosasi:**\n\n{res.choices[0].message.content}")
+
 
 
