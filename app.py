@@ -39,38 +39,55 @@ except Exception as e:
     st.stop()
 
 # --- 3. YORDAMCHI FUNKSIYALAR ---
-def emaktab_hisobot_yukla(login, parol, school_id):
-    session = requests.Session()
-    headers = {'User-Agent': 'Mozilla/5.0'}
-    try:
-        session.get("https://login.emaktab.uz", headers=headers)
-        login_data = {"login": login, "password": parol}
-        res = session.post("https://login.emaktab.uz", data=login_data, headers=headers)
-        if "logout" not in res.text.lower() and "chiqish" not in res.text.lower():
-            return False, "Login xato!"
-        view_url = f"https://schools.emaktab.uz/v2/reports/default?school={school_id}&report=paid-access-school&year=2025"
-        response = session.get(view_url, headers=headers)
-        return (True, response.content) if response.status_code == 200 else (False, "Xato!")
-    except Exception as e:
-        return False, str(e)
+# --- EMAKTAB HISOBOT (JADVAL QIDIRISHNI KUCHAYTIRISH) ---
+elif menu == "📥 eMaktab Hisobot":
+    st.title("📥 eMaktab Hisoboti")
+    if "em_df" not in st.session_state: st.session_state.em_df = None
+    
+    c1, c2 = st.columns(2)
+    with c1: e_l = st.text_input("Login", value="marufabdiyev")
+    with c2: e_p = st.text_input("Parol", type="password")
+    e_id = st.text_input("Maktab ID", value="1000001352999")
+    
+    if st.button("🔍 Olish", use_container_width=True):
+        ok, content = emaktab_hisobot_yukla(e_l, e_p, e_id)
+        if ok:
+            try:
+                # 1. Barcha jadvallarni o'qishga harakat qilamiz
+                dfs = pd.read_html(io.BytesIO(content), encoding='utf-8')
+                
+                if dfs:
+                    # 2. Eng ko'p ustunli yoki qatorli jadvalni qidiramiz
+                    # Rasmga ko'ra bizga 4 ta ustunli jadval kerak
+                    found_target = False
+                    for df_temp in dfs:
+                        if df_temp.shape[1] >= 4:
+                            # Sinf formatini (masalan '1-A') 0-ustundan qidiramiz
+                            mask = df_temp.iloc[:, 0].astype(str).str.contains('-', na=False)
+                            if mask.any():
+                                final = df_temp[mask].iloc[:, [0, 3]].copy()
+                                final.columns = ['Sinf', 'Foiz (%)']
+                                st.session_state.em_df = final
+                                found_target = True
+                                st.success("✅ Jadval muvaffaqiyatli ajratib olindi!")
+                                break
+                    
+                    if not found_target:
+                        st.error("⚠️ Sahifada jadvallar bor, lekin sinf ma'lumotlari (1-A kabi) topilmadi.")
+                else:
+                    st.error("❌ Sahifa yuklandi, lekin ichida birorta ham jadval (table) topilmadi.")
+            except Exception as e:
+                st.error(f"⚠️ Tahlil xatosi: {e}")
+        else:
+            st.error(f"❌ Kirishda xatolik: {content}")
 
-def davomatni_gsheetsga_yoz(ism, holat):
-    try:
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        df = conn.read(ttl=0)
-        yangi = pd.DataFrame({
-            "Sana": [hozir.strftime("%d.%m.%Y")],
-            "Vaqt": [hozir.strftime("%H:%M:%S")],
-            "F.I.SH": [ism],
-            "Holat": [holat]
-        })
-        df = pd.concat([df, yangi], ignore_index=True)
-        conn.update(data=df)
-        return True
-    except:
-        return False
-
-# --- 4. LOGIN TIZIMI ---
+    if st.session_state.em_df is not None:
+        st.dataframe(st.session_state.em_df, use_container_width=True)
+        if st.button("📢 Telegramga yuborish"):
+            msg = f"<b>📊 eMaktab Hisoboti</b>\n<pre>{st.session_state.em_df.to_string(index=False)}</pre>"
+            requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
+                         json={"chat_id": GURUH_ID, "text": msg, "parse_mode": "HTML"})
+            st.success("Yuborildi!")# --- 4. LOGIN TIZIMI ---
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
@@ -164,3 +181,4 @@ elif menu == "📥 eMaktab Hisobot":
             msg = f"<b>📊 eMaktab</b>\n<pre>{st.session_state.em_df.to_string(index=False)}</pre>"
             requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={"chat_id": GURUH_ID, "text": msg, "parse_mode": "HTML"})
             st.success("Yuborildi!")
+
