@@ -22,16 +22,15 @@ MONITORING_KODI = "admin777"
 MAKTAB_LAT = 39.4955640
 MAKTAB_LON = 64.7924960
 MAKTAB_KOORDINATASI = (MAKTAB_LAT, MAKTAB_LON)
-RUXSAT_ETILGAN_MASOFA = 1 # 1 km (aniqlik uchun)
+RUXSAT_ETILGAN_MASOFA = 1 
 
 st.set_page_config(page_title=MAKTAB_NOMI, layout="wide", page_icon="🏫")
 
-# --- O'ZBEKISTON VAQTINI OLISH ---
+# --- VAQT VA SECRETS ---
 uzb_tz = pytz.timezone('Asia/Tashkent')
 hozir = dt.datetime.now(uzb_tz)
 hozirgi_vaqt = hozir.time()
 
-# --- SECRETS TEKSHIRUVI ---
 try:
     BOT_TOKEN = st.secrets["TELEGRAM_BOT_TOKEN"]
     GURUH_ID = st.secrets["TELEGRAM_GURUH_ID"]
@@ -41,14 +40,13 @@ except Exception as e:
     st.error(f"Secrets sozlamalarida xatolik: {e}")
     st.stop()
 
-# --- EMAKTAB API FUNKSIYASI (SKRINSHOT ASOSIDA TUZATILDI) ---
+# --- EMAKTAB API FUNKSIYASI ---
 def emaktab_hisobot_yukla(login, parol, school_id):
     session = requests.Session()
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
     }
     try:
-        # 1. Login
         session.get("https://login.emaktab.uz", headers=headers)
         login_data = {"login": login, "password": parol}
         res = session.post("https://login.emaktab.uz", data=login_data, headers=headers)
@@ -56,20 +54,35 @@ def emaktab_hisobot_yukla(login, parol, school_id):
         if "logout" not in res.text.lower() and "chiqish" not in res.text.lower():
             return False, "Login xato!"
 
-        # 2. Skrinshotingizdagi aniq ko'rinish sahifasi
         yil = 2025
         view_url = f"https://schools.emaktab.uz/v2/reports/default?school={school_id}&report=paid-access-school&year={yil}"
         
         response = session.get(view_url, headers=headers)
-        
-        if response.status_code == 200 and "Sinf" in response.text:
-            # HTML jadvalni aniqladik
+        if response.status_code == 200 and ("Sinf" in response.text or "table" in response.text):
             return True, response.content 
         
         return False, "Hisobot sahifasi ochilmadi (404 yoki Ruxsat yo'q)."
-        
     except Exception as e:
         return False, str(e)
+
+# --- GOOGLE SHEETSGA YOZISH FUNKSIYASI ---
+def davomatni_gsheetsga_yoz(ism, holat):
+    try:
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        df = conn.read(ttl=0)
+        yangi_qator = pd.DataFrame({
+            "Sana": [hozir.strftime("%d.%m.%Y")],
+            "Vaqt": [hozir.strftime("%H:%M:%S")],
+            "F.I.SH": [ism],
+            "Holat": [holat]
+        })
+        df = pd.concat([df, yangi_qator], ignore_index=True)
+        conn.update(data=df)
+        return True
+    except Exception as e:
+        st.error(f"Google Sheets xatosi: {e}")
+        return False
+
 # --- LOG-IN ---
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -126,8 +139,7 @@ if menu == "🤖 AI Muloqot":
 # --- JURNAL MONITORINGI ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
-    if "m_auth" not in st.session_state:
-        st.session_state.m_auth = False
+    if "m_auth" not in st.session_state: st.session_state.m_auth = False
     if not st.session_state.m_auth:
         m_input = st.text_input("Monitoring kodi:", type="password", key="mon_input")
         if st.button("Kirish", key="mon_btn"):
@@ -137,91 +149,36 @@ elif menu == "📊 Jurnal Monitoringi":
             else: st.error("Kod xato!")
         st.stop()
     
-    j_fayl = st.file_uploader("Excel faylni yuklang", type=['xlsx', 'xls', 'html'], key="uploader")
+    j_fayl = st.file_uploader("Excel yuklang", type=['xlsx', 'xls', 'html'], key="uploader")
     if j_fayl:
         try:
-            try:
-                df_j = pd.read_excel(j_fayl, engine='openpyxl')
-            except:
-                j_fayl.seek(0)
-                df_j = pd.read_excel(j_fayl, engine='xlrd')
-            
-            df_j.columns = [str(c).replace('\n', ' ').strip() for c in df_j.columns]
-            kamchiliklar = []
-            if len(df_j.columns) >= 6:
-                for _, row in df_j.iterrows():
-                    name = str(row.iloc[0])
-                    val = str(row.iloc[5])
-                    if any(x in name.lower() for x in ["tuman", "muassasa", "o'qituvchi", "f.i.sh"]): continue
-                    nums = re.findall(r'(\d+)', val)
-                    if len(nums) >= 2:
-                        baho_bor, jami = int(nums[0]), int(nums[1])
-                        if baho_bor < jami:
-                            farq = jami - baho_bor
-                            kamchiliklar.append(f"❌ **{name}**: {farq} ta jurnal chala ({val})")
-                
-                st.subheader("📋 Tekshiruv Natijasi:")
-                st.dataframe(df_j, use_container_width=True)
-                xabar_text = "✅ Barcha jurnallar baholandi! " if not kamchiliklar else "⚠️ **Kamchiliklar:**\n\n" + "\n".join(kamchiliklar)
-                if not kamchiliklar: st.success(xabar_text)
-                else: st.warning(xabar_text)
-                
-                if st.button("📢 Telegramga yuborish", key="tg_btn"):
-                    requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
-                                 json={"chat_id": GURUH_ID, "text": f"<b>📊 Monitoring</b>\n\n{xabar_text}", "parse_mode": "HTML"})
-                    st.success("✅ Telegramga yuborildi!")
-            else: st.error(f"Faylda ustunlar yetarli emas.")
+            df_j = pd.read_excel(j_fayl)
+            df_j.columns = [str(c).strip() for c in df_j.columns]
+            st.dataframe(df_j, use_container_width=True)
         except Exception as e: st.error(f"Xato: {e}")
 
 # --- GPS DAVOMAT ---
 elif menu == "📍 GPS Davomat":
-    st.title("📍 GPS Davomat (Google Sheets)")
-    ertalab_bosh, ertalab_tugash = dt.time(7, 30), dt.time(8, 30)
-    kechki_bosh, kechki_tugash = dt.time(13, 0), dt.time(21, 0)
-    is_ertalab = ertalab_bosh <= hozirgi_vaqt <= ertalab_tugash
-    is_kechki = kechki_bosh <= hozirgi_vaqt <= kechki_tugash
+    st.title("📍 GPS Davomat")
+    bugun_sana = hozir.strftime("%d.%m.%Y")
+    with st.spinner("🛰 GPS aniqlanmoqda..."):
+        loc = get_geolocation()
+    if loc and 'coords' in loc:
+        upos = (loc['coords']['latitude'], loc['coords']['longitude'])
+        masofa = geodesic(upos, MAKTAB_KOORDINATASI).km
+        if masofa <= RUXSAT_ETILGAN_MASOFA:
+            st.success(f"📍 Hududdasiz ({round(masofa*1000)} m)")
+            ism = st.text_input("F.I.SH:").strip()
+            if st.button("Tasdiqlash") and ism:
+                if davomatni_gsheetsga_yoz(ism, "KELDI"):
+                    st.success("✅ Saqlandi!")
+                    st.balloons()
+        else: st.error(f"Hududda emassiz! ({round(masofa*1000)} m)")
 
-    if is_ertalab or is_kechki:
-        ish_holati = "KELDI" if is_ertalab else "KETDI"
-        bugun_sana = hozir.strftime("%d.%m.%Y")
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        df_check = conn.read(ttl=0)
-        
-        with st.spinner("🛰 GPS aniqlanmoqda..."):
-            loc = get_geolocation()
-        
-        if loc and 'coords' in loc:
-            upos = (loc['coords']['latitude'], loc['coords']['longitude'])
-            masofa = geodesic(upos, MAKTAB_KOORDINATASI).km
-            if masofa <= RUXSAT_ETILGAN_MASOFA:
-                st.success(f"📍 Hududdasiz ({round(masofa*1000)} m)")
-                key_name = f"submitted_{ish_holati}_{bugun_sana}"
-                if key_name not in st.session_state: st.session_state[key_name] = False
-
-                if st.session_state[key_name]:
-                    st.info(f"✅ Siz qayd etilgansiz.")
-                else:
-                    ism = st.text_input("F.I.SH (Ism-familiyangiz):").strip()
-                    if st.button(f"🔴 {ish_holati}NI TASDIQLASH", use_container_width=True):
-                        if ism:
-                            takroriy = df_check[(df_check['F.I.SH'] == ism) & (df_check['Sana'] == bugun_sana) & (df_check['Holat'] == ish_holati)]
-                            if not takroriy.empty:
-                                st.warning("⚠️ Allaqachon qayd etilgansiz!")
-                                st.session_state[key_name] = True
-                            elif davomatni_gsheetsga_yoz(ism, ish_holati):
-                                st.session_state[key_name] = True
-                                st.balloons()
-                                st.success("Muvaffaqiyatli saqlandi!")
-                                st.rerun()
-                        else: st.error("Ismingizni yozing!")
-            else: st.error(f"Hududda emassiz! ({round(masofa*1000)} m)")
-    else: st.error("⚠️ Davomat yopiq!")
-
-# --- EMAKTAB HISOBOT (SAQLANGAN VA TUZATILGAN) ---
+# --- EMAKTAB HISOBOT (MUAMMO TUZATILGAN JOYI) ---
 elif menu == "📥 eMaktab Hisobot":
     st.title("📥 eMaktab Operativ Hisoboti")
     if "emaktab_df" not in st.session_state: st.session_state.emaktab_df = None
-    if "emaktab_raw" not in st.session_state: st.session_state.emaktab_raw = None
 
     col1, col2 = st.columns(2)
     with col1:
@@ -233,46 +190,37 @@ elif menu == "📥 eMaktab Hisobot":
 
     if st.button("🔍 Hisobotni eMaktabdan olish", use_container_width=True):
         if e_parol:
-            with st.spinner("Ma'lumotlar olinmoqda..."):
+            with st.spinner("Jadval olinmoqda..."):
                 ok, content = emaktab_hisobot_yukla(e_login, e_parol, e_id)
                 if ok:
                     try:
-                        # Skrinshotdagi jadvalga mos holda 0 va 3-ustunlarni olamiz
-                        df = pd.read_excel(io.BytesIO(content), skiprows=3)
-                        report_df = df.iloc[:, [0, 3]].dropna()
-                        report_df.columns = ['Sinf nomi', 'Kirish foizi (%)']
-                        st.session_state.emaktab_df = report_df
-                        st.session_state.emaktab_raw = content
-                        st.success("✅ Ma'lumotlar muvaffaqiyatli yuklandi!")
-                    except:
-                        st.error("Jadvalni o'qishda xato. Formatni tekshiring.")
-                else:
-                    st.error(content)
-        else:
-            st.error("Parolni kiriting!")
+                        # HTML ichidan jadvalni o'qish ( match='Sinf' aynan kerakli jadvalni topadi)
+                        dfs = pd.read_html(io.BytesIO(content), match='Sinf')
+                        if dfs:
+                            df = dfs[0]
+                            # Multiindex bo'lsa tozalash
+                            if isinstance(df.columns, pd.MultiIndex):
+                                df.columns = df.columns.get_level_values(-1)
+                            
+                            # Skrinshotga ko'ra: 0-Sinf, 3-Foiz ustuni
+                            report_df = df.iloc[:, [0, 3]].dropna()
+                            report_df.columns = ['Sinf nomi', 'Kirish foizi (%)']
+                            
+                            st.session_state.emaktab_df = report_df
+                            st.success("✅ Jadval muvaffaqiyatli o'qildi!")
+                        else: st.error("Jadval topilmadi.")
+                    except Exception as e:
+                        st.error(f"Jadvalni o'qishda xato: {e}")
+                else: st.error(content)
+        else: st.error("Parolni kiriting!")
 
     if st.session_state.emaktab_df is not None:
         st.divider()
-        st.dataframe(st.session_state.emaktab_df, use_container_width=True)
+        st.table(st.session_state.emaktab_df)
         
-        c1, c2 = st.columns(2)
-        with c1:
-            if st.button("📢 Telegramga yuborish", use_container_width=True):
-                f_obj = io.BytesIO(st.session_state.emaktab_raw)
-                f_obj.name = f"emaktab_{hozir.strftime('%d_%m')}.xlsx"
-                requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument",
-                             data={"chat_id": GURUH_ID, "caption": f"📊 eMaktab hisoboti ({hozir.strftime('%d.%m.%Y')})"},
-                             files={"document": f_obj})
-                st.success("✅ Telegramga yuborildi!")
-        with c2:
-            if st.button("🤖 AI Tahlil", use_container_width=True):
-                with st.spinner("AI tahlil qilmoqda..."):
-                    data_str = st.session_state.emaktab_df.to_string(index=False)
-                    res = client.chat.completions.create(
-                        messages=[{"role": "user", "content": f"Tahlil qil: {data_str}"}],
-                        model="llama-3.3-70b-versatile"
-                    )
-                    st.info(res.choices[0].message.content)
-
-
-
+        if st.button("📢 Telegramga yuborish", use_container_width=True):
+            msg = f"<b>📊 eMaktab Hisoboti ({hozir.strftime('%d.%m.%Y')})</b>\n\n"
+            msg += st.session_state.emaktab_df.to_string(index=False)
+            requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                         json={"chat_id": GURUH_ID, "text": f"<pre>{msg}</pre>", "parse_mode": "HTML"})
+            st.success("✅ Telegramga yuborildi!")
