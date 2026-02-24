@@ -44,20 +44,34 @@ except Exception as e:
 # --- EMAKTAB API FUNKSIYASI ---
 def emaktab_hisobot_yukla(login, parol, school_id):
     session = requests.Session()
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
     try:
-        session.get("https://login.emaktab.uz/")
+        # 1. Kirish
+        session.get("https://login.emaktab.uz/", headers=headers)
         login_data = {"login": login, "password": parol}
-        res = session.post("https://login.emaktab.uz/login", data=login_data)
+        res = session.post("https://login.emaktab.uz/login", data=login_data, headers=headers)
+        
         if "logout" not in res.text.lower() and "chiqish" not in res.text:
-            return False, "Login yoki parol xato!"
+            return False, "Login yoki parol xato! Iltimos, eMaktab login/parolini tekshiring."
+
         yil = hozir.year
-        url = f"https://schools.emaktab.uz/v2/reports/export?school={school_id}&report=paid-access-school&year={yil}&format=xlsx"
-        fayl = session.get(url)
-        if fayl.status_code != 200 or len(fayl.content) < 500:
-            return False, "Hisobot shakllanmadi."
-        return True, fayl.content
+        # Hisobot turlari ro'yxati (agar biri ishlamasa, ikkinchisini sinaydi)
+        reports = ["paid-access-school", "entrance-school", "access-school"]
+        
+        for r_type in reports:
+            url = f"https://schools.emaktab.uz/v2/reports/export?school={school_id}&report={r_type}&year={yil}&format=xlsx"
+            fayl = session.get(url, headers=headers)
+            
+            # Agar fayl muvaffaqiyatli yuklansa va bo'sh bo'lmasa
+            if fayl.status_code == 200 and len(fayl.content) > 1000:
+                return True, fayl.content
+        
+        return False, f"eMaktabda '{yil}' yil uchun hisobot topilmadi yoki ruxsat yo'q. ID: {school_id}"
+        
     except Exception as e:
-        return False, str(e)
+        return False, f"Texnik xatolik: {str(e)}"
 
 # --- GOOGLE SHEETS FUNKSIYASI ---
 def davomatni_gsheetsga_yoz(ism, holat):
@@ -275,3 +289,4 @@ elif menu == "📥 eMaktab Hisobot":
                         model="llama-3.3-70b-versatile"
                     )
                     st.info(f"**🤖 AI Xulosasi:**\n\n{res.choices[0].message.content}")
+
