@@ -45,39 +45,28 @@ except Exception as e:
 def emaktab_hisobot_yukla(login, parol, school_id):
     session = requests.Session()
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
     }
     try:
-        # 1. Login sahifasini ochish — TO'G'RI URL!
+        # 1. Login
         session.get("https://login.emaktab.uz", headers=headers)
-        
-        # 2. Login qilish
         login_data = {"login": login, "password": parol}
-        res = session.post(
-            "https://login.emaktab.uz",  
-            data=login_data, 
-            headers=headers,
-            allow_redirects=True
-        )
+        res = session.post("https://login.emaktab.uz", data=login_data, headers=headers)
         
-        # 3. Kirish tekshiruvi
         if "logout" not in res.text.lower() and "chiqish" not in res.text.lower():
-            return False, f"Login xato! Status: {res.status_code}"
+            return False, "Login xato!"
 
-        # 4. Hisobot yuklab olish
+        # 2. Skrinshotingizdagi aniq ko'rinish sahifasi
         yil = 2025
-        urls = [
-            f"https://schools.emaktab.uz/v2/reports/export?school={school_id}&report=paid-access-school&year={yil}",
-            f"https://schools.emaktab.uz/v2/reports/download?school={school_id}&report=paid-access-school&year={yil}",
-        ]
+        view_url = f"https://schools.emaktab.uz/v2/reports/default?school={school_id}&report=paid-access-school&year={yil}"
         
-        for url in urls:
-            fayl = session.get(url, headers=headers)
-            if fayl.status_code == 200 and len(fayl.content) > 500:
-                if b'PK' in fayl.content[:4]:  # Excel fayl belgisi
-                    return True, fayl.content
+        response = session.get(view_url, headers=headers)
         
-        return False, "Fayl yuklanmadi."
+        if response.status_code == 200 and "Sinf" in response.text:
+            # HTML jadvalni aniqladik
+            return True, response.content 
+        
+        return False, "Hisobot sahifasi ochilmadi (404 yoki Ruxsat yo'q)."
         
     except Exception as e:
         return False, str(e)
@@ -284,5 +273,6 @@ elif menu == "📥 eMaktab Hisobot":
                         model="llama-3.3-70b-versatile"
                     )
                     st.info(res.choices[0].message.content)
+
 
 
