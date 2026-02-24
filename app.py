@@ -53,6 +53,7 @@ def emaktab_hisobot_yukla(login, parol, school_id):
         if "logout" not in res.text.lower() and "chiqish" not in res.text.lower():
             return False, "Login xato!"
 
+        # Operativ hisobot URL manzili
         yil = 2025
         view_url = f"https://schools.emaktab.uz/v2/reports/default?school={school_id}&report=paid-access-school&year={yil}"
         
@@ -60,7 +61,7 @@ def emaktab_hisobot_yukla(login, parol, school_id):
         if response.status_code == 200:
             return True, response.content 
         
-        return False, f"Hisobot sahifasi ochilmadi. Status: {response.status_code}"
+        return False, f"Sahifa ochilmadi. Status kodi: {response.status_code}"
     except Exception as e:
         return False, str(e)
 
@@ -174,7 +175,7 @@ elif menu == "📍 GPS Davomat":
                     st.balloons()
         else: st.error(f"Hududda emassiz! ({round(masofa*1000)} m)")
 
-# --- EMAKTAB HISOBOT (MUAMMO TUZATILGAN JOYI) ---
+# --- EMAKTAB HISOBOT (Tahlil xatosi tuzatilgan) ---
 elif menu == "📥 eMaktab Hisobot":
     st.title("📥 eMaktab Operativ Hisoboti")
     if "emaktab_df" not in st.session_state: st.session_state.emaktab_df = None
@@ -193,32 +194,31 @@ elif menu == "📥 eMaktab Hisobot":
                 ok, content = emaktab_hisobot_yukla(e_login, e_parol, e_id)
                 if ok:
                     try:
-                        # 1. Barcha jadvallarni o'qiymiz
+                        # 1. Barcha jadvallarni o'qiymiz (match parametrini olib tashladik)
                         dfs = pd.read_html(io.BytesIO(content), encoding='utf-8')
                         
                         if dfs:
-                            # 2. Eng katta jadvalni tanlaymiz (hisobot jadvali odatda eng kattasi bo'ladi)
+                            # 2. Eng ko'p qatorli jadvalni (asosiy hisobot) tanlaymiz
                             df = max(dfs, key=len)
                             
-                            # Multiindex sarlavhalarni tozalash
+                            # Multiindex sarlavhalarni oxirgi qatorga tushiramiz
                             if isinstance(df.columns, pd.MultiIndex):
                                 df.columns = df.columns.get_level_values(-1)
                             
-                            # 3. Ustunlarni indeks bo'yicha olamiz (0: Sinf, 3: Foiz)
-                            # Rasmda 1-A, 1-B kabi sinflar birinchi ustunda
+                            # 3. Rasmga ko'ra: 0-ustun (Sinf), 3-ustun (Kundalik bilan taminlanganlar %)
                             if df.shape[1] >= 4:
                                 report_df = df.iloc[:, [0, 3]].copy()
                                 report_df.columns = ['Sinf nomi', 'Kirish foizi (%)']
                                 
-                                # Faqat haqiqiy sinf qatorlarini qoldiramiz (sinf nomida '-' bo'lishi kerak)
+                                # Faqat haqiqiy sinf qatorlarini qoldiramiz (masalan '1-A')
                                 report_df = report_df[report_df['Sinf nomi'].astype(str).str.contains('-', na=False)]
                                 
                                 st.session_state.emaktab_df = report_df
                                 st.success("✅ Ma'lumotlar muvaffaqiyatli yuklandi!")
                             else:
-                                st.error("Jadval ustunlari yetarli emas.")
+                                st.error("Jadval ustunlari mos kelmadi.")
                         else:
-                            st.error("Sahifada birorta ham jadval topilmadi.")
+                            st.error("Sahifada jadval topilmadi.")
                     except Exception as e:
                         st.error(f"Tahlil xatosi: {e}")
                 else:
