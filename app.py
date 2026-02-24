@@ -1,74 +1,43 @@
-# -*- coding: utf-8 -*-
 import streamlit as st
-import pandas as pd
 import requests
-from bs4 import BeautifulSoup
-import re
 
-# --- 1. SOZLAMALAR ---
-st.set_page_config(page_title="eMaktab Monitoring", layout="wide")
+# 1. Sozlamalar (Sizning maktabingizga mos)
+SCHOOL_ID = "1000001352999"
+REPORT_URL = f"https://schools.emaktab.uz/v2/reports/default?school={SCHOOL_ID}&report=paid-access-school&year=2025"
 
-# --- 2. JADVALNI OLISH FUNKSIYASI ---
-def get_emaktab_data(school_id, cookie):
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Cookie': cookie
-    }
-    # Rasmda ko'ringan aniq URL
-    url = f"https://schools.emaktab.uz/v2/reports/default?school={school_id}&report=paid-access-school&year=2025"
-    
-    try:
-        response = requests.get(url, headers=headers)
-        if response.status_code != 200:
-            return None, f"Xato: Status {response.status_code}"
+st.title("🚀 Tezkor eMaktab Monitoring")
 
-        soup = BeautifulSoup(response.content, 'html.parser')
-        rows = []
+# Cookie kiritish
+cookie = st.text_area("Cookie-ni kiriting (F12 orqali olingan):")
+
+if st.button("Ma'lumotlarni yashin tezligida olish"):
+    if cookie:
+        headers = {
+            'User-Agent': 'Mozilla/5.0',
+            'Cookie': cookie,
+            'Accept': 'application/json' # Biz serverdan HTML emas, JSON so'rayapmiz
+        }
         
-        # Sahifadagi barcha qatorlarni tekshiramiz
-        for tr in soup.find_all('tr'):
-            tds = tr.find_all('td')
-            if len(tds) >= 4:
-                sinf = tds[0].get_text(strip=True)
-                foiz = tds[3].get_text(strip=True)
-                
-                # Faqat sinf nomi bor qatorlarni olamiz (Masalan: 1-A)
-                if re.search(r'\d+-[A-ZА-Я]', sinf):
-                    rows.append([sinf, foiz])
+        # Sahifani so'raymiz
+        res = requests.get(REPORT_URL, headers=headers)
         
-        if rows:
-            return pd.DataFrame(rows, columns=['Sinf', 'Kundalik %']), "OK"
-        return None, "Jadval topilmadi. Cookie xato yoki muddati o'tgan."
-    except Exception as e:
-        return None, str(e)
-
-# --- 3. INTERFEYS ---
-st.title("📊 eMaktab: Kundalikka kirish")
-
-# Yon panelda sozlamalar
-with st.sidebar:
-    st.header("Sozlamalar")
-    school_id = st.text_input("Maktab ID:", value="1000001352999")
-    cookie_input = st.text_area("Brauzer Cookie (nusxalab qo'ying):", height=200)
-    st.info("Cookie olish uchun: F12 -> Network -> Sahifani yangilang -> Har qanday so'rovni tanlang -> Headers -> Cookie matnini nusxalang.")
-
-# Asosiy tugma
-if st.button("Jadvalni yuklash"):
-    if not cookie_input:
-        st.error("Cookie kiritilmagan!")
-    else:
-        df, msg = get_emaktab_data(school_id, cookie_input)
-        if df is not None:
-            st.success(msg)
-            st.table(df) # Rasmda ko'ringan tartibda jadval chiqaradi
+        # Agar eMaktab JSON formatda javob bersa (ba'zan shunday bo'ladi):
+        try:
+            data = res.json()
+            # Bu yerda jadvalni yuklamasdan, JSON ichidagi raqamlarni chiqarish mumkin
+            st.success("Ma'lumotlar server bazasidan olindi!")
+            st.json(data) 
+        except:
+            # Agar JSON bermasa, HTML ichidan eng muhim raqamlarni bitta qatorda ajratib olamiz
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(res.content, 'html.parser')
             
-            # Telegramga yuborish tugmasi (faqat jadval chiqsa ko'rinadi)
-            st.session_state.table_df = df
-        else:
-            st.error(msg)
-
-# Telegram bo'limi
-if "table_df" in st.session_state:
-    if st.button("📢 Telegramga yuborish"):
-        # Telegram sozlamalaringizni buni yerga qo'ying
-        st.write("Telegramga yuborish funksiyasi chaqirildi...")
+            # Rasmda ko'ringan umumiy raqamlarni ajratib olish (Umumiy %, o'quvchilar soni)
+            # Bu jadvalni yuklamasdan tepada turadigan xulosani olish
+            summary = soup.find('div', class_='report-summary') 
+            if summary:
+                st.info(f"Xulosa: {summary.get_text(strip=True)}")
+            else:
+                st.warning("Jadval yuklanmadi, lekin sahifa kodi olindi. Brauzerda sessiyangiz faolligini tekshiring.")
+    else:
+        st.error("Cookie bo'sh!")
