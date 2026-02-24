@@ -13,4 +13,6 @@ Pillow
 streamlit-js-eval
 geopy
 st-gsheets-connection
+beautifulsoup4
+
 
