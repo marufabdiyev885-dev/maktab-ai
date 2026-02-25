@@ -106,25 +106,54 @@ if menu == "👥 Ro'yxatlar":
             st.dataframe(df, use_container_width=True)
         else: st.warning(f"{f_oqv} fayli topilmadi.")
 
-# --- 2. 🤖 AI MULOQOT ---
+# --- 🤖 AI MULOQOT (BAZA BILAN ISHLAYDIGAN VARIANT) ---
 elif menu == "🤖 AI Muloqot":
     st.title("🤖 Maktab AI Yordamchisi")
-    if "messages" not in st.session_state: st.session_state.messages = []
+    
+    # Bazalarni AI tushunishi uchun tayyorlaymiz
+    baza_matni = ""
+    try:
+        if os.path.exists("baza_o'qituvchilar.xlsx"):
+            oqt_df = pd.read_excel("baza_o'qituvchilar.xlsx")
+            baza_matni += f"\nO'qituvchilar ro'yxati: {oqt_df.to_string(index=False)}\n"
+        
+        if os.path.exists("baza_o'quvchilar.xlsx"):
+            oqv_df = pd.read_excel("baza_o'quvchilar.xlsx")
+            baza_matni += f"\nO'quvchilar ro'yxati: {oqv_df.to_string(index=False)}\n"
+    except Exception as e:
+        st.error(f"Bazani o'qishda xatolik: {e}")
+
+    if "messages" not in st.session_state: 
+        st.session_state.messages = []
+
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]): st.markdown(msg["content"])
     
-    savol = st.chat_input("Savol...")
+    savol = st.chat_input("Masalan: 'Matematika o'qituvchisi kim?' yoki '9-A sinfda kimlar o'qiydi?'")
+    
     if savol:
         st.session_state.messages.append({"role": "user", "content": savol})
         with st.chat_message("user"): st.markdown(savol)
-        res = client.chat.completions.create(
-            messages=[{"role": "system", "content": "Sen maktab yordamchisisan."}] + st.session_state.messages[-5:],
-            model="llama-3.3-70b-versatile"
-        )
-        ans = res.choices[0].message.content
-        st.session_state.messages.append({"role": "assistant", "content": ans})
-        with st.chat_message("assistant"): st.markdown(ans)
+        
+        # AI ga bazani "tizim xabari" sifatida beramiz
+        prompt_tizim = f"""
+        Sen maktabning aqlli yordamchisisan. Quyidagi ma'lumotlar bazasidan foydalanib savollarga aniq javob ber. 
+        Agar ma'lumot bazada bo'lmasa, 'Kechirasiz, bazada bu haqda ma'lumot topilmadi' deb javob ber.
+        
+        MA'LUMOTLAR BAZASI:
+        {baza_matni}
+        """
 
+        try:
+            res = client.chat.completions.create(
+                messages=[{"role": "system", "content": prompt_tizim}] + st.session_state.messages[-5:],
+                model="llama-3.3-70b-versatile"
+            )
+            ans = res.choices[0].message.content
+            st.session_state.messages.append({"role": "assistant", "content": ans})
+            with st.chat_message("assistant"): st.markdown(ans)
+        except Exception as e:
+            st.error(f"AI ulanishda xato: {e}")
 # --- 3. 📊 JURNAL MONITORINGI ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Monitoring (eMaktab Excel)")
@@ -173,3 +202,4 @@ elif menu == "📍 GPS Davomat":
                     st.balloons()
                     st.success("Davomat qayd etildi!")
         else: st.error(f"Siz maktab hududidan uzoqdasiz! ({round(masofa*1000)} m)")
+
