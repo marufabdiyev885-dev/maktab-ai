@@ -208,44 +208,100 @@ elif menu == "📊 Jurnal Monitoringi":
             else: st.success("✅ Kamchiliklar topilmadi.")
         except Exception as e: st.error(f"Xato: {e}")
 
-# --- 4. 📍 GPS DAVOMAT ---
 elif menu == "📍 GPS Davomat":
-    st.title("📍 GPS Davomat")
+    st.title("📍 GPS Davomat (Google Sheets)")
     
-    # Lokatsiyani olish
-    loc = get_geolocation()
-    
-    if loc is None:
-        st.warning("📍 Lokatsiya aniqlanmoqda yoki ruxsat berilmagan. Iltimos, brauzerda lokatsiyaga ruxsat bering.")
-    else:
-        try:
-            # Ma'lumot borligini tekshirish (KeyError oldini olish)
-            if 'coords' in loc:
-                lat = loc['coords']['latitude']
-                lon = loc['coords']['longitude']
-                upos = (lat, lon)
+    # Vaqt chegaralari
+    ertalab_bosh = dt.time(7, 30)
+    ertalab_tugash = dt.time(8, 30)
+    kechki_bosh = dt.time(13, 0)
+    kechki_tugash = dt.time(21, 0)
+
+    is_ertalab = ertalab_bosh <= hozirgi_vaqt <= ertalab_tugash
+    is_kechki = kechki_bosh <= hozirgi_vaqt <= kechki_tugash
+
+    if is_ertalab or is_kechki:
+        ish_holati = "KELDI" if is_ertalab else "KETDI"
+        bugun_sana = hozir.strftime("%d.%m.%Y")
+        
+        # Google Sheets-dan bugungi ma'lumotlarni o'qish (tekshirish uchun)
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        df_check = conn.read(ttl=0)
+        
+        # Joriy sessiyada yoki bazada ushbu holat qayd etilganini aniqlash
+        # (Bu qism xodimning ismini kiritgandan keyin ishlaydi, lekin bizga umumiy holat kerak)
+        
+        with st.spinner("🛰 GPS aniqlanmoqda..."):
+            loc = get_geolocation()
+        
+        if loc and 'coords' in loc:
+            upos = (loc['coords']['latitude'], loc['coords']['longitude'])
+            masofa = geodesic(upos, MAKTAB_KOORDINATASI).km
+            
+            if masofa <= RUXSAT_ETILGAN_MASOFA:
+                st.success(f"📍 Hududdasiz ({round(masofa*1000)} m)")
                 
-                # Masofani hisoblash
-                masofa = geodesic(upos, MAKTAB_KOORDINATASI).km
+                # Ism kiritish maydoni (agar hali tasdiqlanmagan bo'lsa)
+                key_name = f"submitted_{ish_holati}_{bugun_sana}"
                 
-                if masofa <= RUXSAT_ETILGAN_MASOFA:
-                    st.success(f"📍 Maktab hududidasiz ({round(masofa*1000)} m)")
-                    ism = st.text_input("F.I.SH (Ismingizni kiriting):")
-                    
-                    if st.button("🔴 TASDIQLASH"):
-                        if ism:
-                            if davomatni_gsheetsga_yoz(ism, "KELDI"):
-                                st.balloons()
-                                st.success("Davomat qayd etildi!")
-                        else:
-                            st.error("Iltimos, ismingizni kiriting!")
+                if key_name not in st.session_state:
+                    st.session_state[key_name] = False
+
+                if st.session_state[key_name]:
+                    status_text = "Siz davomatdan o'tdingiz" if is_ertalab else "Siz maktabdan chiqdingiz"
+                    st.info(f"✅ **{status_text}**")
                 else:
-                    st.error(f"Siz maktab hududidan uzoqdasiz! ({round(masofa, 2)} km)")
-                    st.info(f"Sizning manzilingiz: {lat}, {lon}")
+                    ism = st.text_input("F.I.SH (Ism-familiyangiz):").strip()
+                    
+                    if st.button(f"🔴 {ish_holati}NI TASDIQLASH", use_container_width=True):
+                        if ism:
+                            # Bazada aynan shu odam shu holatda borligini tekshirish
+                            takroriy = df_check[(df_check['F.I.SH'] == ism) & 
+                                                (df_check['Sana'] == bugun_sana) & 
+                                                (df_check['Holat'] == ish_holati)]
+                            
+                            if not takroriy.empty:
+                                st.warning(f"⚠️ {ism}, siz allaqachon qayd etilgansiz!")
+                                st.session_state[key_name] = True
+                                st.rerun()
+                            else:
+                                if davomatni_gsheetsga_yoz(ism, ish_holati):
+                                    # Telegramga yuborish
+                                    #tg_text = f"📍 #DAVOMAT\n👤 {ism}\n📅 {bugun_sana}\n⏰ {hozir.strftime('%H:%M')}\n🔄 {ish_holati}"
+                                    #requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
+                                                 # json={"chat_id": GURUH_ID, "text": tg_text})
+                                    
+                                    # Sessiyani qulflash
+                                    st.session_state[key_name] = True
+                                    st.balloons()
+                                    st.success("Muvaffaqiyatli saqlandi!")
+                                    st.rerun()
+                        else:
+                            st.error("Ismingizni yozing!")
             else:
-                st.error("GPS ma'lumotlarini o'qib bo'lmadi.")
-        except Exception as e:
-            st.error(f"GPS xatoligi: {e}")
+                st.error(f"Hududda emassiz! Masofa: {round(masofa*1000)} m")
+    else:
+        st.error("⚠️ Davomat yopiq! (07:30-08:30 yoki 13:00-17:00 oraliqlari ochiq)")
+    # --- ADMIN VA JADVALNI YUKLAB OLISH ---
+    st.divider()
+    if st.checkbox("Google Jadvalni ko'rish va Yuklab olish (Admin)"):
+        if st.text_input("Admin kod:", type="password", key="adm_v") == MONITORING_KODI:
+            conn = st.connection("gsheets", type=GSheetsConnection)
+            df_gsheet = conn.read(ttl=0)
+            st.dataframe(df_gsheet, use_container_width=True)
+            
+            # Excel formatiga o'tkazish
+            buffer = io.BytesIO()
+            with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+                df_gsheet.to_excel(writer, index=False, sheet_name='Davomat')
+            
+            st.download_button(
+                label="📥 Jadvalni Excel shaklida yuklab olish",
+                data=buffer,
+                file_name=f"davomat_{hozir.strftime('%d_%m_%Y')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+
 
 
 
