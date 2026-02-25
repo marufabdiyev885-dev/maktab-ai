@@ -175,38 +175,85 @@ elif menu == "🤖 AI Muloqot":
                         st.markdown("Aka, ma'lumotni topdim, lekin AI bilan bog'lanishda ozgina texnik nosozlik bo'ldi. Mana ma'lumotlar:")
                         st.write(baza_matni)
                 else:
-                    st.warning("Aka, topolmadim. Balki ismni qisqaroq yozarmiz?")# --- 3. 📊 JURNAL MONITORINGI ---
+                    st.warning("Aka, topolmadim. Balki ismni qisqaroq yozarmiz?")
+                   # --- JURNAL MONITORINGI ---
 elif menu == "📊 Jurnal Monitoringi":
-    st.title("📊 Monitoring (eMaktab Excel)")
-    j_fayl = st.file_uploader("eMaktabdan olingan faylni yuklang", type=['xlsx', 'xls', 'html'])
+    st.title("📊 Jurnal Monitoringi")
+    
+    if "m_auth" not in st.session_state:
+        st.session_state.m_auth = False
+        
+    if not st.session_state.m_auth:
+        m_input = st.text_input("Monitoring kodi:", type="password", key="mon_input")
+        if st.button("Kirish", key="mon_btn"):
+            if m_input == MONITORING_KODI:
+                st.session_state.m_auth = True
+                st.rerun()
+            else:
+                st.error("Kod xato!")
+        st.stop()
+    
+    j_fayl = st.file_uploader("Excel faylni yuklang", type=['xlsx', 'xls', 'html'], key="uploader")
+    
     if j_fayl:
         try:
-            # Faylni o'qish (HTML formatini ham hisobga oladi)
-            try: df_j = pd.read_html(j_fayl)[0]
-            except: df_j = pd.read_excel(j_fayl)
-            
-            st.dataframe(df_j, use_container_width=True)
+            # Faylni o'qishning bir nechta usulini sinab ko'ramiz
+            try:
+                # 1-usul: Standart Excel (openpyxl)
+                df_j = pd.read_excel(j_fayl, engine='openpyxl')
+            except Exception:
+                try:
+                    # 2-usul: Eski Excel (.xls - xlrd)
+                    j_fayl.seek(0)
+                    df_j = pd.read_excel(j_fayl, engine='xlrd')
+                except Exception:
+                    try:
+                        # 3-usul: HTML formatidagi Excel
+                        j_fayl.seek(0)
+                        df_j = pd.read_html(j_fayl, header=0)[0]
+                    except Exception:
+                        # 4-usul: Engine belgilamasdan urinish
+                        j_fayl.seek(0)
+                        df_j = pd.read_excel(j_fayl)
+
+            # Ustunlarni tozalash
+            df_j.columns = [str(c).replace('\n', ' ').strip() for c in df_j.columns]
             
             kamchiliklar = []
-            for _, row in df_j.iterrows():
-                name = str(row.iloc[0])
-                if any(x in name.lower() for x in ["tuman", "o'qituvchi", "f.i.sh"]): continue
-                
-                # Regex tahlil (Baholar ustuni - 5-ustun deb faraz qilamiz)
-                if len(row) >= 6:
-                    val = str(row.iloc[5])
+            if len(df_j.columns) >= 6:
+                for _, row in df_j.iterrows():
+                    name = str(row.iloc[0]) # 0-ustun: Ismlar
+                    val = str(row.iloc[5])  # 5-ustun: Baholar holati
+                    
+                    if any(x in name.lower() for x in ["tuman", "muassasa", "o'qituvchi", "f.i.sh"]):
+                        continue
+                        
                     nums = re.findall(r'(\d+)', val)
-                    if len(nums) >= 2 and int(nums[0]) < int(nums[1]):
-                        kamchiliklar.append(f"❌ {name}: {int(nums[1]) - int(nums[0])} ta chala ({val})")
-            
-            if kamchiliklar:
-                msg = "⚠️ **Monitoring Kamchiliklari:**\n\n" + "\n".join(kamchiliklar)
-                st.warning(msg)
-                if st.button("📢 Telegramga yuborish"):
-                    requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={"chat_id": GURUH_ID, "text": msg})
-                    st.success("Yuborildi!")
-            else: st.success("✅ Kamchiliklar topilmadi.")
-        except Exception as e: st.error(f"Xato: {e}")
+                    if len(nums) >= 2:
+                        baho_bor, jami = int(nums[0]), int(nums[1])
+                        if baho_bor < jami:
+                            farq = jami - baho_bor
+                            kamchiliklar.append(f"❌ **{name}**: {farq} ta jurnal chala ({val})")
+                
+                st.subheader("📋 Tekshiruv Natijasi:")
+                st.dataframe(df_j, use_container_width=True)
+                
+                xabar_text = "✅ Barcha jurnallar baholandi! " if not kamchiliklar else "⚠️ **Kamchiliklar:**\n\n" + "\n".join(kamchiliklar)
+                if not kamchiliklar: st.success(xabar_text)
+                else: st.warning(xabar_text)
+                
+                st.divider()
+                if st.button("📢 Telegramga yuborish", key="tg_btn"):
+                    requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
+                                 json={"chat_id": GURUH_ID, "text": f"<b>📊 Monitoring</b>\n\n{xabar_text}", "parse_mode": "HTML"})
+                    st.success("✅ Telegramga yuborildi!")
+            else:
+                st.error(f"Faylda ustunlar yetarli emas. Topildi: {len(df_j.columns)} ta.")
+                
+        except Exception as e:
+            st.error(f"Faylni o'qishda kutilmagan xato: {e}")
+
+
 
 elif menu == "📍 GPS Davomat":
     st.title("📍 GPS Davomat (Google Sheets)")
@@ -301,6 +348,7 @@ elif menu == "📍 GPS Davomat":
                 file_name=f"davomat_{hozir.strftime('%d_%m_%Y')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
 
 
 
