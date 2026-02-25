@@ -211,19 +211,41 @@ elif menu == "📊 Jurnal Monitoringi":
 # --- 4. 📍 GPS DAVOMAT ---
 elif menu == "📍 GPS Davomat":
     st.title("📍 GPS Davomat")
+    
+    # Lokatsiyani olish
     loc = get_geolocation()
-    if loc:
-        upos = (loc['coords']['latitude'], loc['coords']['longitude'])
-        masofa = geodesic(upos, MAKTAB_KOORDINATASI).km
-        if masofa <= RUXSAT_ETILGAN_MASOFA:
-            st.success(f"📍 Maktab hududidasiz ({round(masofa*1000)} m)")
-            ism = st.text_input("F.I.SH (Ismingizni kiriting):")
-            if st.button("🔴 TASDIQLASH"):
-                if ism and davomatni_gsheetsga_yoz(ism, "KELDI"):
-                    st.balloons()
-                    st.success("Davomat qayd etildi!")
-        else: st.error(f"Siz maktab hududidan uzoqdasiz! ({round(masofa*1000)} m)")
-
+    
+    if loc is None:
+        st.warning("📍 Lokatsiya aniqlanmoqda yoki ruxsat berilmagan. Iltimos, brauzerda lokatsiyaga ruxsat bering.")
+    else:
+        try:
+            # Ma'lumot borligini tekshirish (KeyError oldini olish)
+            if 'coords' in loc:
+                lat = loc['coords']['latitude']
+                lon = loc['coords']['longitude']
+                upos = (lat, lon)
+                
+                # Masofani hisoblash
+                masofa = geodesic(upos, MAKTAB_KOORDINATASI).km
+                
+                if masofa <= RUXSAT_ETILGAN_MASOFA:
+                    st.success(f"📍 Maktab hududidasiz ({round(masofa*1000)} m)")
+                    ism = st.text_input("F.I.SH (Ismingizni kiriting):")
+                    
+                    if st.button("🔴 TASDIQLASH"):
+                        if ism:
+                            if davomatni_gsheetsga_yoz(ism, "KELDI"):
+                                st.balloons()
+                                st.success("Davomat qayd etildi!")
+                        else:
+                            st.error("Iltimos, ismingizni kiriting!")
+                else:
+                    st.error(f"Siz maktab hududidan uzoqdasiz! ({round(masofa, 2)} km)")
+                    st.info(f"Sizning manzilingiz: {lat}, {lon}")
+            else:
+                st.error("GPS ma'lumotlarini o'qib bo'lmadi.")
+        except Exception as e:
+            st.error(f"GPS xatoligi: {e}")
 
 
 
