@@ -23,68 +23,72 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
+# Driver yuklashda SSL xatosini chetlab o'tish uchun (Offline xatosiga qarshi)
+os.environ['WDM_SSL_VERIFY'] = '0'
+
 # --- ASOSIY SOZLAMALAR ---
 MAKTAB_NOMI = "1-sonli umumta'lim maktabi"
 DIREKTOR_FIO = "Mahmudov Matyoqub Narzulloyevich"
 ASOSIY_PAROL = "informatika2024"
-MONITORING_KODI = "admin777"
 
-# MAKTAB KOORDINATALARI
-MAKTAB_LAT = 39.4955640
-MAKTAB_LON = 64.7924960
+MAKTAB_LAT, MAKTAB_LON = 39.4955640, 64.7924960
 MAKTAB_KOORDINATASI = (MAKTAB_LAT, MAKTAB_LON)
 RUXSAT_ETILGAN_MASOFA = 0.5 
 
 st.set_page_config(page_title=MAKTAB_NOMI, layout="wide", page_icon="🏫")
 
-# --- VAQTNI TO'G'RI SOZLASH (TUZAILDI) ---
+# --- VAQT ---
 try:
     uzb_tz = pytz.timezone('Asia/Tashkent')
     hozir = dt.datetime.now(uzb_tz)
-except Exception:
-    uzb_tz = pytz.utc
-    hozir = dt.datetime.now(uzb_tz)
-hozirgi_vaqt = hozir.time()
+except:
+    hozir = dt.datetime.now()
 
-# --- SECRETS TEKSHIRUVI ---
+# --- SECRETS ---
 try:
     BOT_TOKEN = st.secrets["TELEGRAM_BOT_TOKEN"]
     GURUH_ID = st.secrets["TELEGRAM_GURUH_ID"]
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
     client = Groq(api_key=GROQ_API_KEY)
 except Exception as e:
-    st.error(f"Secrets sozlamalarida xatolik: {e}")
+    st.error("Secrets sozlamalari topilmadi!")
     st.stop()
 
-# --- EDGE SELENIUM HISOBOT FUNKSIYASI ---
+# --- EDGE SELENIUM FUNKSIYASI ---
 def kundalik_hisobot_ol_selenium(login, parol, school_id, yil):
     edge_options = Options()
     edge_options.add_argument("--headless")
     edge_options.add_argument("--no-sandbox")
     edge_options.add_argument("--disable-dev-shm-usage")
     edge_options.add_argument("--ignore-certificate-errors")
-    
-    os.environ['WDM_SSL_VERIFY'] = '0'
+    edge_options.add_argument("--disable-ssl-tracker")
     
     try:
-        service = Service(EdgeChromiumDriverManager().install())
-        driver = webdriver.Edge(service=service, options=edge_options)
+        # Driverni o'rnatish va ulanish
+        with st.spinner("📦 Driver yuklanmoqda va ulanish o'rnatilmoqda..."):
+            service = Service(EdgeChromiumDriverManager().install())
+            driver = webdriver.Edge(service=service, options=edge_options)
         
+        driver.set_page_load_timeout(40)
         driver.get("https://login.emaktab.uz")
+        
         wait = WebDriverWait(driver, 25)
         
+        # Login
         wait.until(EC.presence_of_element_located((By.NAME, "login"))).send_keys(login)
         driver.find_element(By.NAME, "password").send_keys(parol)
         driver.find_element(By.XPATH, "//input[@type='submit' or @value='Kirish']").click()
         
-        time.sleep(4)
+        time.sleep(5)
         if "login" in driver.current_url:
             driver.quit()
             return None, "🔒 Login yoki parol xato!"
 
-        url = f"https://schools.emaktab.uz/v2/reports/default?school={school_id}&report=paid-access-school&year={yil}"
-        driver.get(url)
+        # Hisobot sahifasiga o'tish
+        report_url = f"https://schools.emaktab.uz/v2/reports/default?school={school_id}&report=paid-access-school&year={yil}"
+        driver.get(report_url)
         
+        # Jadvalni kutish
         wait.until(EC.presence_of_element_located((By.TAG_NAME, "table")))
         time.sleep(3)
         
@@ -104,28 +108,26 @@ def kundalik_hisobot_ol_selenium(login, parol, school_id, yil):
                         rows_data.append([c1, c2, c3, c4])
 
         if rows_data:
-            df = pd.DataFrame(rows_data, columns=['Sinf', "O'quvchi soni", 'Kelmagan', 'Foiz (%)'])
-            return df, "OK"
-        return None, "Ma'lumot topilmadi"
+            return pd.DataFrame(rows_data, columns=['Sinf', "O'quvchi soni", 'Kelmagan', 'Foiz (%)']), "OK"
+        return None, "Ma'lumot topilmadi!"
+        
     except Exception as e:
         if 'driver' in locals(): driver.quit()
-        return None, f"Ulanish xatosi: {str(e)}"
+        return None, f"⚠️ Ulanishda muammo: {str(e)}"
 
-# --- LOG-IN ---
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
+# --- INTERFEYS ---
+if "auth" not in st.session_state: st.session_state.auth = False
 
-if not st.session_state.authenticated:
+if not st.session_state.auth:
     st.title("🏫 " + MAKTAB_NOMI)
-    p_in = st.text_input("Kirish paroli:", type="password")
-    if st.button("Kirish", use_container_width=True):
+    p_in = st.text_input("Parol:", type="password")
+    if st.button("Kirish"):
         if p_in == ASOSIY_PAROL:
-            st.session_state.authenticated = True
+            st.session_state.auth = True
             st.rerun()
-        else: st.error("Parol xato!")
+        else: st.error("Xato!")
     st.stop()
 
-# --- SIDEBAR ---
 with st.sidebar:
     st.title("🏛 Menu")
     menu = st.radio("Tanlang:", ["🤖 AI Muloqot", "📊 Jurnal Monitoringi", "📍 GPS Davomat", "📥 eMaktab Hisobot"])
@@ -133,51 +135,53 @@ with st.sidebar:
         st.session_state.clear()
         st.rerun()
 
-# --- 1. AI MULOQOT ---
+# --- BO'LIMLAR ---
 if menu == "🤖 AI Muloqot":
     st.title("🤖 AI Yordamchi")
-    if "messages" not in st.session_state: st.session_state.messages = []
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]): st.markdown(msg["content"])
-    savol = st.chat_input("Savol...")
-    if savol:
-        st.session_state.messages.append({"role": "user", "content": savol})
-        with st.chat_message("user"): st.markdown(savol)
-        res = client.chat.completions.create(messages=[{"role":"system","content":"Yordamchi"}] + st.session_state.messages[-5:], model="llama-3.3-70b-versatile")
+    if "msgs" not in st.session_state: st.session_state.msgs = []
+    for m in st.session_state.msgs:
+        with st.chat_message(m["role"]): st.markdown(m["content"])
+    
+    u_inp = st.chat_input("Xabar...")
+    if u_inp:
+        st.session_state.msgs.append({"role": "user", "content": u_inp})
+        with st.chat_message("user"): st.markdown(u_inp)
+        res = client.chat.completions.create(messages=[{"role":"system","content":"Yordamchi"}] + st.session_state.msgs[-5:], model="llama-3.3-70b-versatile")
         ans = res.choices[0].message.content
-        st.session_state.messages.append({"role": "assistant", "content": ans})
+        st.session_state.msgs.append({"role": "assistant", "content": ans})
         with st.chat_message("assistant"): st.markdown(ans)
 
-# --- 2. JURNAL MONITORINGI ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Monitoring")
-    j_fayl = st.file_uploader("Faylni yuklang", type=['xlsx', 'xls'])
-    if j_fayl:
-        st.dataframe(pd.read_excel(j_fayl), use_container_width=True)
+    f = st.file_uploader("Excel:", type=['xlsx'])
+    if f: st.dataframe(pd.read_excel(f))
 
-# --- 3. GPS DAVOMAT ---
 elif menu == "📍 GPS Davomat":
     st.title("📍 GPS Davomat")
     loc = get_geolocation()
     if loc:
         upos = (loc['coords']['latitude'], loc['coords']['longitude'])
-        masofa = geodesic(upos, MAKTAB_KOORDINATASI).km
-        if masofa <= RUXSAT_ETILGAN_MASOFA:
-            ism = st.text_input("Ism:")
-            if st.button("Tasdiqlash"):
-                st.success(f"{ism} uchun davomat saqlandi!")
-        else: st.error(f"Hududda emassiz: {round(masofa*1000)} m")
+        m = geodesic(upos, MAKTAB_KOORDINATASI).km
+        if m <= RUXSAT_ETILGAN_MASOFA:
+            st.success("Maktabdasiz")
+            ism = st.text_input("F.I.SH:")
+            if st.button("Tasdiqlash"): st.success("Saqlandi!")
+        else: st.error(f"Uzoqdasiz: {round(m*1000)} m")
 
-# --- 4. EMAKTAB HISOBOT ---
 elif menu == "📥 eMaktab Hisobot":
     st.title("📥 eMaktab Hisoboti")
-    e_login = st.text_input("Login:", value="marufabdiyev")
-    e_parol = st.text_input("Parol:", type="password")
-    e_id = st.text_input("Maktab ID:", value="1000001352999")
-    if st.button("🔍 Hisobotni yangilash"):
-        with st.spinner("⏳ Edge ishga tushmoqda..."):
-            df, msg = kundalik_hisobot_ol_selenium(e_login, e_parol, e_id, 2025)
-            if df is not None:
-                st.dataframe(df, use_container_width=True)
-                st.success("Hisobot muvaffaqiyatli yuklandi!")
-            else: st.error(msg)
+    c1, c2 = st.columns(2)
+    with c1:
+        l = st.text_input("Login:", value="marufabdiyev")
+        p = st.text_input("Parol:", type="password")
+    with c2:
+        sid = st.text_input("ID:", value="1000001352999")
+        yil = st.selectbox("Yil:", [2025, 2026])
+    
+    if st.button("🔍 Yangilash"):
+        res_df, res_msg = kundalik_hisobot_ol_selenium(l, p, sid, yil)
+        if res_df is not None:
+            st.dataframe(res_df, use_container_width=True)
+            st.success("Tayyor!")
+        else:
+            st.error(res_msg)
