@@ -107,77 +107,75 @@ if menu == "👥 Ro'yxatlar":
         else: st.warning(f"{f_oqv} fayli topilmadi.")
 
 # --- 🤖 AI MULOQOT (TEJAMKOR VARIANT) ---
-if menu == "🤖 AI Muloqot":
+# --- 🤖 AI MULOQOT (TO'G'RILANGAN VARIANT) ---
+elif menu == "🤖 AI Muloqot":
     st.title("🤖 Aqlli va Farosatli Muloqot")
     
+    # Ma'rufjon aka uchun maxsus salomlashish
     if "greeted" not in st.session_state:
-        st.session_state.greeted = False
-    if not st.session_state.greeted:
         with st.chat_message("assistant"):
             st.markdown(f"**Assalomu alaykum, Ma'rufjon aka!** Bugun qaysi ma'lumotni titib chiqamiz?")
         st.session_state.greeted = True
 
     if savol := st.chat_input("Sinf (1-A) yoki ismni yozing..."):
-        with st.chat_message("user"): st.markdown(savol)
+        with st.chat_message("user"): 
+            st.markdown(savol)
         
-        with st.chat_message("assistant"):
-            q = savol.lower().strip()
-            
-            # --- FAROSAT VA O'ZARO HURMAT QISMI ---
-            rahmat_gaplar = ["rahmat", "zo'r", "ajoyib", "gap yo'q", "baraka top", "ishlaringga omad", "super"]
-            salom_gaplar = ["salom", "assalom", "qalaysan", "yaxshimisan", "ishlar yaxshimi"]
-            xayr_gaplar = ["xayr", "sog' bo'l", "mayli", "tushunarli"]
+        q = savol.lower().strip()
+        
+        # 1. FAROSAT VA O'ZARO HURMAT (Hardcoded javoblar)
+        rahmat_gaplar = ["rahmat", "zo'r", "ajoyib", "gap yo'q", "baraka top", "ishlaringga omad"]
+        salom_gaplar = ["salom", "assalom", "qalaysan", "yaxshimisan"]
+        xayr_gaplar = ["xayr", "sog' bo'l", "mayli", "tushunarli"]
 
+        with st.chat_message("assistant"):
             if any(x in q for x in rahmat_gaplar):
-                javoblar = [
+                st.markdown(random.choice([
                     "Arzimaydi, Ma'rufjon aka! Sizga xizmat qilish — men uchun zavq.",
                     "Siz ham sog' bo'ling aka! Doim xizmatingizdaman.",
-                    "Xursandman aka! Yana biror nima kerak bo'lsa, tortinmang.",
                     "Harakat qilyapmiz-da aka, sizdek odamga yordam berish bizga sharaf!"
-                ]
-                st.markdown(random.choice(javoblar))
-                
+                ]))
             elif any(x in q for x in salom_gaplar):
-                st.markdown("Vaalaykum assalom! Ma'rufjon aka, o'zingiz charchamayapsizmi? Qaysi sinf yoki o'qituvchini qidirib beray?")
-
+                st.markdown("Vaalaykum assalom! Ma'rufjon aka, o'zingiz charchamayapsizmi? Qaysi ma'lumot kerak?")
             elif any(x in q for x in xayr_gaplar):
                 st.markdown("Xo'p bo'ladi aka, sog' bo'ling! Ishlaringizga omad!")
-
-            # --- QIDIRUV MANTIQI ---
-            elif sheets_baza:
+            
+            # 2. QIDIRUV VA AI TAHLILI (GitHub fayllari bilan)
+            else:
                 topildi = False
+                baza_matni = ""
                 
-                # O'qituvchilar bo'limi (pedagog so'zi bo'yicha)
-                is_teacher_req = any(x in q for x in ["o'qituvchi", "pedagog", "xodim", "ro'yxat"])
-                if is_teacher_req:
-                    for name, df in sheets_baza.items():
-                        if any("pedagog" in col for col in df.columns) or "лист2" in name.lower():
-                            st.success(f"Ma'rufjon aka, o'qituvchilar ro'yxati topildi:")
-                            st.dataframe(df, use_container_width=True)
-                            topildi = True
-                            break
+                # Fayllarni tekshirish va qidirish
+                fayllar = ["baza_o'qituvchilar.xlsx", "baza_o'quvchilar.xlsx"]
+                
+                for f_nomi in fayllar:
+                    if os.path.exists(f_nomi):
+                        try:
+                            df_temp = pd.read_excel(f_nomi).astype(str)
+                            # Foydalanuvchi yozgan so'z qatnashgan qatorlarni filtrlash
+                            mask = df_temp.apply(lambda row: row.str.contains(q, case=False).any(), axis=1)
+                            filtered_df = df_temp[mask]
+                            
+                            if not filtered_df.empty:
+                                baza_matni += f"\nFayl: {f_nomi}\n{filtered_df.to_string(index=False)}\n"
+                                topildi = True
+                        except Exception as e:
+                            st.error(f"Faylni o'qishda xato: {e}")
 
-                # Sinf va Ism qidiruv
-                if not topildi:
-                    for name, df in sheets_baza.items():
-                        # Sinf (regex)
-                        if re.match(r'^\d{1,2}-[a-zа-я]$', q):
-                            pattern = rf"\b{re.escape(q)}\b"
-                            mask = df.apply(lambda row: any(re.search(pattern, str(v).lower()) for v in row), axis=1)
-                        # Ism (oddi qidiruv)
-                        else:
-                            mask = df.apply(lambda row: q in str(v).lower() for v in row)
-                        
-                        res_df = df[mask]
-                        if not res_df.empty:
-                            st.success(f"Mana, aka, '{name}' varag'idan topilgan natijalar:")
-                            st.dataframe(res_df, use_container_width=True)
-                            topildi = True
-
-                if not topildi:
-                    st.warning("Aka, topolmadim. Balki ismni qisqaroq yozarmiz?")
-                    st.info(f"💡 [Google qidiruv](https://www.google.com/search?q={savol})")
-# --- 3. 📊 JURNAL MONITORINGI ---
+                if topildi:
+                    # Token tejash uchun AI-ga faqat topilgan qatorlarni yuboramiz
+                    prompt_tizim = f"Sen maktab yordamchisisan. Ma'rufjon aka '{savol}' deb so'radi. Mana bazadan topilgan ma'lumotlar:\n{baza_matni}\nUshbu ma'lumotlar asosida unga do'stona javob ber."
+                    try:
+                        res = client.chat.completions.create(
+                            messages=[{"role": "system", "content": prompt_tizim}],
+                            model="llama-3.3-70b-versatile"
+                        )
+                        st.markdown(res.choices[0].message.content)
+                    except:
+                        st.markdown("Aka, ma'lumotni topdim, lekin AI bilan bog'lanishda ozgina texnik nosozlik bo'ldi. Mana ma'lumotlar:")
+                        st.write(baza_matni)
+                else:
+                    st.warning("Aka, topolmadim. Balki ismni qisqaroq yozarmiz?")# --- 3. 📊 JURNAL MONITORINGI ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Monitoring (eMaktab Excel)")
     j_fayl = st.file_uploader("eMaktabdan olingan faylni yuklang", type=['xlsx', 'xls', 'html'])
@@ -225,6 +223,7 @@ elif menu == "📍 GPS Davomat":
                     st.balloons()
                     st.success("Davomat qayd etildi!")
         else: st.error(f"Siz maktab hududidan uzoqdasiz! ({round(masofa*1000)} m)")
+
 
 
 
