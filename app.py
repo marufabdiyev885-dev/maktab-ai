@@ -127,75 +127,7 @@ if menu == "🤖 AI Muloqot":
                 st.session_state.messages.append({"role": "assistant", "content": ans})
             except: st.error("AI band.")
 
-# --- 🤖 AI MULOQOT (TO'G'RILANGAN VARIANT) ---
-elif menu == "🤖 AI Muloqot":
-    st.title("🤖 Aqlli va Farosatli Muloqot")
-    
-    # Ma'rufjon aka uchun maxsus salomlashish
-    if "greeted" not in st.session_state:
-        with st.chat_message("assistant"):
-            st.markdown(f"**Assalomu alaykum, Ma'rufjon aka!** Bugun qaysi ma'lumotni titib chiqamiz?")
-        st.session_state.greeted = True
 
-    if savol := st.chat_input("Sinf (1-A) yoki ismni yozing..."):
-        with st.chat_message("user"): 
-            st.markdown(savol)
-        
-        q = savol.lower().strip()
-        
-        # 1. FAROSAT VA O'ZARO HURMAT (Hardcoded javoblar)
-        rahmat_gaplar = ["rahmat", "zo'r", "ajoyib", "gap yo'q", "baraka top", "ishlaringga omad"]
-        salom_gaplar = ["salom", "assalom", "qalaysan", "yaxshimisan"]
-        xayr_gaplar = ["xayr", "sog' bo'l", "mayli", "tushunarli"]
-
-        with st.chat_message("assistant"):
-            if any(x in q for x in rahmat_gaplar):
-                st.markdown(random.choice([
-                    "Arzimaydi, Ma'rufjon aka! Sizga xizmat qilish — men uchun zavq.",
-                    "Siz ham sog' bo'ling aka! Doim xizmatingizdaman.",
-                    "Harakat qilyapmiz-da aka, sizdek odamga yordam berish bizga sharaf!"
-                ]))
-            elif any(x in q for x in salom_gaplar):
-                st.markdown("Vaalaykum assalom! Ma'rufjon aka, o'zingiz charchamayapsizmi? Qaysi ma'lumot kerak?")
-            elif any(x in q for x in xayr_gaplar):
-                st.markdown("Xo'p bo'ladi aka, sog' bo'ling! Ishlaringizga omad!")
-            
-            # 2. QIDIRUV VA AI TAHLILI (GitHub fayllari bilan)
-            else:
-                topildi = False
-                baza_matni = ""
-                
-                # Fayllarni tekshirish va qidirish
-                fayllar = ["baza_o'qituvchilar.xlsx", "baza_o'quvchilar.xlsx"]
-                
-                for f_nomi in fayllar:
-                    if os.path.exists(f_nomi):
-                        try:
-                            df_temp = pd.read_excel(f_nomi).astype(str)
-                            # Foydalanuvchi yozgan so'z qatnashgan qatorlarni filtrlash
-                            mask = df_temp.apply(lambda row: row.str.contains(q, case=False).any(), axis=1)
-                            filtered_df = df_temp[mask]
-                            
-                            if not filtered_df.empty:
-                                baza_matni += f"\nFayl: {f_nomi}\n{filtered_df.to_string(index=False)}\n"
-                                topildi = True
-                        except Exception as e:
-                            st.error(f"Faylni o'qishda xato: {e}")
-
-                if topildi:
-                    # Token tejash uchun AI-ga faqat topilgan qatorlarni yuboramiz
-                    prompt_tizim = f"Sen maktab yordamchisisan. Ma'rufjon aka '{savol}' deb so'radi. Mana bazadan topilgan ma'lumotlar:\n{baza_matni}\nUshbu ma'lumotlar asosida unga do'stona javob ber."
-                    try:
-                        res = client.chat.completions.create(
-                            messages=[{"role": "system", "content": prompt_tizim}],
-                            model="llama-3.3-70b-versatile"
-                        )
-                        st.markdown(res.choices[0].message.content)
-                    except:
-                        st.markdown("Aka, ma'lumotni topdim, lekin AI bilan bog'lanishda ozgina texnik nosozlik bo'ldi. Mana ma'lumotlar:")
-                        st.write(baza_matni)
-                else:
-                    st.warning("Aka, topolmadim. Balki ismni qisqaroq yozarmiz?")
                    # --- JURNAL MONITORINGI ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
@@ -368,6 +300,7 @@ elif menu == "📍 GPS Davomat":
                 file_name=f"davomat_{hozir.strftime('%d_%m_%Y')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
 
 
 
