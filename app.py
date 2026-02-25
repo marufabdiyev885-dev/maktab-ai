@@ -42,78 +42,43 @@ except Exception as e:
     st.error(f"Secrets sozlamalarida xatolik: {e}")
     st.stop()
 
-# --- EMAKTAB HISOBOT FUNKSIYASI ---
-def kundalik_hisobot_ol(login, parol, school_id, yil):
-    session = requests.Session()
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'uz,en;q=0.9',
-    }
-    try:
-        # 1. Login sahifasini ochish — cookie olish
-        session.get("https://login.emaktab.uz", headers=headers)
+# --- EMAKTAB HISOBOT BO'LIMI ---
+elif menu == "📥 eMaktab Hisobot":
+    st.title("📥 Kundalikga Kirish — Maktab Hisoboti")
 
-        # 2. Login POST
-        res_login = session.post(
-            "https://login.emaktab.uz",
-            data={"login": login, "password": parol},
-            headers=headers,
-            allow_redirects=True
-        )
+    # Avvalgi Monitoring kodi tekshiruvi (o'zgarishsiz qoladi)
+    if "em_auth" not in st.session_state:
+        st.session_state.em_auth = False
+    # ... (monitoring kodi mantiqi) ...
 
-        if "logout" not in res_login.text.lower() and "chiqish" not in res_login.text.lower():
-            return None, "🔒 Login yoki parol xato!", None
+    # Ma'lumot kiritish maydonlari
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        e_login = st.text_input("eMaktab login:", value="marufabdiyev")
+        e_parol = st.text_input("eMaktab parol:", type="password")
+    with col2:
+        e_id = st.text_input("Maktab ID:", value="1000001352999")
+        e_yil = st.selectbox("O'quv yili:", [2025, 2026], index=0)
 
-        # 3. Cookie larni .emaktab.uz domeniga o'rnatish
-        for cookie in session.cookies:
-            session.cookies.set(cookie.name, cookie.value, domain='.emaktab.uz')
-            session.cookies.set(cookie.name, cookie.value, domain='schools.emaktab.uz')
+    # ASOSIY TUGMA
+    if st.button("🔍 Hisobotni olish", use_container_width=True):
+        if e_parol:
+            with st.spinner("⏳ Selenium brauzeri ishga tushmoqda... (bu biroz vaqt oladi)"):
+                # YANGI FUNKSIYANI CHAQIRAMIZ
+                df, msg, debug = kundalik_hisobot_ol_selenium(e_login, e_parol, e_id, e_yil)
+                
+                if df is not None:
+                    st.session_state.em_df = df
+                    st.success(f"✅ {len(df)} ta sinf ma'lumoti olindi!")
+                else:
+                    st.error(f"❌ {msg}")
+                    if debug: st.warning(f"Sarlavha: {debug}")
+        else:
+            st.error("Parolni kiriting!")
 
-        # 4. Schools asosiy sahifasiga kirish
-        schools_headers = {
-            **headers,
-            'Referer': 'https://login.emaktab.uz/',
-        }
-        session.get("https://schools.emaktab.uz", headers=schools_headers)
-
-        # 5. Hisobot sahifasini ochish
-        url = f"https://schools.emaktab.uz/v2/reports/default?school={school_id}&report=paid-access-school&year={yil}"
-        response = session.get(url, headers=schools_headers)
-
-        if response.status_code != 200:
-            return None, f"🌐 Sahifa ochilmadi (Status: {response.status_code})", None
-
-        soup = BeautifulSoup(response.content, 'html.parser')
-        title = soup.title.string if soup.title else ""
-
-        if "login" in title.lower() or "kirish" in title.lower():
-            return None, "⚠️ Session o'tmadi, qayta urinib ko'ring!", title
-
-        # 6. Jadval ma'lumotini o'qish
-        rows_data = []
-        for table in soup.find_all('table'):
-            for tr in table.find_all('tr'):
-                tds = tr.find_all(['td', 'th'])
-                if len(tds) >= 4:
-                    c1 = tds[0].get_text(strip=True)
-                    c2 = tds[1].get_text(strip=True)
-                    c3 = tds[2].get_text(strip=True)
-                    c4 = tds[3].get_text(strip=True)
-                    if re.search(r'\d+-[A-ZА-Яa-zа-я]', c1):
-                        rows_data.append([c1, c2, c3, c4])
-
-        if rows_data:
-            df = pd.DataFrame(rows_data, columns=['Sinf', "O'quvchi soni", 'Kelmagan', 'Foiz (%)'])
-            return df, "OK", None
-
-        return None, "Jadval topilmadi", f"Title: {title} | Tables: {len(soup.find_all('table'))}"
-
-    except Exception as e:
-        return None, f"Xatolik: {str(e)}", None
-
-
-# --- GOOGLE SHEETSGA SAQLASH FUNKSIYASI ---
+    # Jadvalni chiqarish va Telegramga yuborish (o'zgarishsiz qoladi)
+    if "em_df" in st.session_state:
+        # Sizning avvalgi statistikangiz va st.dataframe qismlaringiz...# --- GOOGLE SHEETSGA SAQLASH FUNKSIYASI ---
 def davomatni_gsheetsga_yoz(ism, holat):
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
@@ -431,3 +396,4 @@ elif menu == "📥 eMaktab Hisobot":
                         model="llama-3.3-70b-versatile"
                     )
                     st.info(res.choices[0].message.content)
+
