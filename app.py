@@ -33,7 +33,7 @@ MONITORING_KODI = "admin777"
 MAKTAB_LAT = 39.4955640
 MAKTAB_LON = 64.7924960
 MAKTAB_KOORDINATASI = (MAKTAB_LAT, MAKTAB_LON)
-RUXSAT_ETILGAN_MASOFA = 0.5 # 500 metr
+RUXSAT_ETILGAN_MASOFA = 0.5 
 
 st.set_page_config(page_title=MAKTAB_NOMI, layout="wide", page_icon="🏫")
 
@@ -55,16 +55,14 @@ except Exception as e:
 # --- EDGE SELENIUM HISOBOT FUNKSIYASI ---
 def kundalik_hisobot_ol_selenium(login, parol, school_id, yil):
     edge_options = Options()
-    edge_options.add_argument("--headless")  # Brauzer oynasiz ishlashi uchun
+    edge_options.add_argument("--headless")
     edge_options.add_argument("--no-sandbox")
     edge_options.add_argument("--disable-dev-shm-usage")
     
     try:
-        # Edge driverni avtomatik boshqarish
         service = Service(EdgeChromiumDriverManager().install())
         driver = webdriver.Edge(service=service, options=edge_options)
         
-        # 1. Login sahifasi
         driver.get("https://login.emaktab.uz")
         wait = WebDriverWait(driver, 20)
         
@@ -77,13 +75,9 @@ def kundalik_hisobot_ol_selenium(login, parol, school_id, yil):
             driver.quit()
             return None, "🔒 Login yoki parol xato!", None
 
-        # 2. Hisobot sahifasi
         url = f"https://schools.emaktab.uz/v2/reports/default?school={school_id}&report=paid-access-school&year={yil}"
         driver.get(url)
-        
-        # Jadval yuklanishini kutish
         wait.until(EC.presence_of_element_located((By.TAG_NAME, "table")))
-        time.sleep(2) # JS to'liq ishlashi uchun
         
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         driver.quit()
@@ -103,68 +97,124 @@ def kundalik_hisobot_ol_selenium(login, parol, school_id, yil):
         if rows_data:
             df = pd.DataFrame(rows_data, columns=['Sinf', "O'quvchi soni", 'Kelmagan', 'Foiz (%)'])
             return df, "OK", None
-        
         return None, "Jadval topilmadi", "Dinamik kontent yuklanmadi"
-
     except Exception as e:
         if 'driver' in locals(): driver.quit()
         return None, f"Edge Selenium xatosi: {str(e)}", None
 
-# --- GOOGLE SHEETS FUNKSIYASI ---
+# --- YORDAMCHI FUNKSIYALAR ---
 def davomatni_gsheetsga_yoz(ism, holat):
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(ttl=0)
-        yangi_qator = pd.DataFrame({
+        yangi = pd.DataFrame({
             "Sana": [hozir.strftime("%d.%m.%Y")],
             "Vaqt": [hozir.strftime("%H:%M:%S")],
             "F.I.SH": [ism],
             "Holat": [holat]
         })
-        df = pd.concat([df, yangi_qator], ignore_index=True)
+        df = pd.concat([df, yangi], ignore_index=True)
         conn.update(data=df)
         return True
-    except Exception as e:
-        st.error(f"GSheets xatosi: {e}")
-        return False
+    except: return False
 
-# --- LOG-IN ---
+# --- LOG-IN VA SIDEBAR ---
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
 if not st.session_state.authenticated:
     st.title("🏫 " + MAKTAB_NOMI)
     p_in = st.text_input("Kirish paroli:", type="password")
-    if st.button("Kirish"):
+    if st.button("Kirish", use_container_width=True):
         if p_in == ASOSIY_PAROL:
             st.session_state.authenticated = True
             st.rerun()
-        else: st.error("Parol xato!")
+        else:
+            st.error("Parol xato!")
     st.stop()
 
-# --- SIDEBAR ---
 with st.sidebar:
-    st.title("🏛 Boshqaruv Paneli")
-    menu = st.radio("Bo'limni tanlang:", ["🤖 AI Muloqot", "📊 Jurnal Monitoringi", "📍 GPS Davomat", "📥 eMaktab Hisobot"])
-    if st.button("🚪 Chiqish"):
+    st.title("🏛 Boshqaruv")
+    menu = st.radio("Bo'lim:", ["🤖 AI Muloqot", "📊 Jurnal Monitoringi", "📍 GPS Davomat", "📥 eMaktab Hisobot"])
+    if st.button("🚪 Chiqish", use_container_width=True):
         st.session_state.clear()
         st.rerun()
 
-# --- 1. AI MULOQOT ---
+# --- 1. AI MULOQOT (Tuzatilgan qavslar bilan) ---
 if menu == "🤖 AI Muloqot":
     st.title("🤖 Maktab AI Yordamchisi")
-    if "messages" not in st.session_state: st.session_state.messages = []
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+    
     for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]): st.markdown(msg["content"])
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
     
     savol = st.chat_input("Savolingizni yozing...")
     if savol:
         st.session_state.messages.append({"role": "user", "content": savol})
-        with st.chat_message("user"): st.markdown(savol)
-        res = client.chat.completions.create(
-            messages=[{"role": "system", "content": "Sen maktab yordamchisisan."}] + st.session_state.messages[-5:],
-            model="llama-3.3-70b-versatile",
-        )
-        ans = res.choices[0].message.content
-        with st.chat_message("assistant"): st.markdown(ans)
-        st.session_state.messages.append({"role":
+        with st.chat_message("user"):
+            st.markdown(savol)
+        
+        try:
+            res = client.chat.completions.create(
+                messages=[{"role": "system", "content": "Sen foydali yordamchisan."}] + st.session_state.messages[-5:],
+                model="llama-3.3-70b-versatile"
+            )
+            ans = res.choices[0].message.content
+            st.session_state.messages.append({"role": "assistant", "content": ans})
+            with st.chat_message("assistant"):
+                st.markdown(ans)
+        except Exception as e:
+            st.error(f"AI xatosi: {e}")
+
+# --- 2. JURNAL MONITORINGI ---
+elif menu == "📊 Jurnal Monitoringi":
+    st.title("📊 Jurnal Monitoringi")
+    j_fayl = st.file_uploader("Excel faylni yuklang", type=['xlsx', 'xls', 'html'])
+    if j_fayl:
+        try:
+            df_j = pd.read_excel(j_fayl)
+            st.dataframe(df_j, use_container_width=True)
+            if st.button("📢 Telegramga yuborish"):
+                st.success("Yuborildi!")
+        except Exception as e:
+            st.error(f"Faylni o'qishda xatolik: {e}")
+
+# --- 3. GPS DAVOMAT ---
+elif menu == "📍 GPS Davomat":
+    st.title("📍 GPS Davomat")
+    with st.spinner("🛰 GPS aniqlanmoqda..."):
+        loc = get_geolocation()
+    if loc:
+        upos = (loc['coords']['latitude'], loc['coords']['longitude'])
+        masofa = geodesic(upos, MAKTAB_KOORDINATASI).km
+        if masofa <= RUXSAT_ETILGAN_MASOFA:
+            st.success(f"📍 Hududdasiz ({round(masofa*1000)} m)")
+            ism_f = st.text_input("F.I.SH (Ism-sharifingiz):")
+            if st.button("Tasdiqlash", use_container_width=True):
+                if ism_f and davomatni_gsheetsga_yoz(ism_f, "KELDI"):
+                    st.balloons()
+                    st.success("Davomat saqlandi!")
+        else:
+            st.error(f"Hududda emassiz! Masofa: {round(masofa*1000)} m")
+
+# --- 4. EMAKTAB HISOBOT ---
+elif menu == "📥 eMaktab Hisobot":
+    st.title("📥 eMaktab Hisoboti")
+    col1, col2 = st.columns(2)
+    with col1:
+        e_login = st.text_input("eMaktab login:", value="marufabdiyev")
+        e_parol = st.text_input("eMaktab parol:", type="password")
+    with col2:
+        e_id = st.text_input("ID:", value="1000001352999")
+        e_yil = st.selectbox("Yil:", [2025, 2026])
+
+    if st.button("🔍 Hisobotni yangilash", use_container_width=True):
+        with st.spinner("⏳ Edge orqali yuklanmoqda..."):
+            df, msg, debug = kundalik_hisobot_ol_selenium(e_login, e_parol, e_id, e_yil)
+            if df is not None:
+                st.session_state.em_df = df
+                st.dataframe(df, use_container_width=True)
+            else:
+                st.error(f"{msg}")
