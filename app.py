@@ -106,55 +106,55 @@ if menu == "👥 Ro'yxatlar":
             st.dataframe(df, use_container_width=True)
         else: st.warning(f"{f_oqv} fayli topilmadi.")
 
-# --- 🤖 AI MULOQOT (BAZA BILAN ISHLAYDIGAN VARIANT) ---
+# --- 🤖 AI MULOQOT (TEJAMKOR VARIANT) ---
 elif menu == "🤖 AI Muloqot":
     st.title("🤖 Maktab AI Yordamchisi")
     
-    # Bazalarni AI tushunishi uchun tayyorlaymiz
-    baza_matni = ""
+    # Bazani o'qish va faqat muhim ustunlarni olish
+    baza_info = ""
     try:
         if os.path.exists("baza_o'qituvchilar.xlsx"):
-            oqt_df = pd.read_excel("baza_o'qituvchilar.xlsx")
-            baza_matni += f"\nO'qituvchilar ro'yxati: {oqt_df.to_string(index=False)}\n"
+            df_oqt = pd.read_excel("baza_o'qituvchilar.xlsx")
+            # Faqat birinchi 50 ta qatorni va kerakli ustunlarni olamiz (Token tejash uchun)
+            oqt_small = df_oqt[['F.I.SH', 'Mutaxassisligi']].head(50) 
+            baza_info += f"\nO'QITUVCHILAR (qisqa): {oqt_small.to_string(index=False)}\n"
         
         if os.path.exists("baza_o'quvchilar.xlsx"):
-            oqv_df = pd.read_excel("baza_o'quvchilar.xlsx")
-            baza_matni += f"\nO'quvchilar ro'yxati: {oqv_df.to_string(index=False)}\n"
+            df_oqv = pd.read_excel("baza_o'quvchilar.xlsx")
+            # Faqat Ism va Sinf ustunlarini olamiz
+            oqv_small = df_oqv[['F.I.SH', 'Sinfi']].head(100)
+            baza_info += f"\nO'QUVCHILAR (qisqa): {oqv_small.to_string(index=False)}\n"
     except Exception as e:
-        st.error(f"Bazani o'qishda xatolik: {e}")
+        st.error("Bazani qisqartirishda xato.")
 
-    if "messages" not in st.session_state: 
+    if "messages" not in st.session_state:
         st.session_state.messages = []
 
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]): st.markdown(msg["content"])
     
-    savol = st.chat_input("Masalan: 'Matematika o'qituvchisi kim?' yoki '9-A sinfda kimlar o'qiydi?'")
+    savol = st.chat_input("Savol bering (masalan: Matematika o'qituvchisi kim?)...")
     
     if savol:
         st.session_state.messages.append({"role": "user", "content": savol})
         with st.chat_message("user"): st.markdown(savol)
         
-        # AI ga bazani "tizim xabari" sifatida beramiz
-        prompt_tizim = f"""
-        Sen maktabning aqlli yordamchisisan. Quyidagi ma'lumotlar bazasidan foydalanib savollarga aniq javob ber. 
-        Agar ma'lumot bazada bo'lmasa, 'Kechirasiz, bazada bu haqda ma'lumot topilmadi' deb javob ber.
-        
-        MA'LUMOTLAR BAZASI:
-        {baza_matni}
-        """
+        # Tizim xabarini qisqa va londa qilamiz
+        system_prompt = f"Sen maktab yordamchisisan. Faqat ushbu ma'lumotlarga tayan: {baza_info}"
 
         try:
             res = client.chat.completions.create(
-                messages=[{"role": "system", "content": prompt_tizim}] + st.session_state.messages[-5:],
+                messages=[{"role": "system", "content": system_prompt}] + st.session_state.messages[-3:], # Oxirgi 3 ta xabarni olamiz
                 model="llama-3.3-70b-versatile"
             )
             ans = res.choices[0].message.content
             st.session_state.messages.append({"role": "assistant", "content": ans})
             with st.chat_message("assistant"): st.markdown(ans)
         except Exception as e:
-            st.error(f"AI ulanishda xato: {e}")
-# --- 3. 📊 JURNAL MONITORINGI ---
+            if "rate_limit_exceeded" in str(e):
+                st.error("⚠️ Xabar juda katta! Iltimos, bazadagi ma'lumotlarni kamaytiring yoki qisqaroq savol bering.")
+            else:
+                st.error(f"Xato: {e}")# --- 3. 📊 JURNAL MONITORINGI ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Monitoring (eMaktab Excel)")
     j_fayl = st.file_uploader("eMaktabdan olingan faylni yuklang", type=['xlsx', 'xls', 'html'])
@@ -202,4 +202,5 @@ elif menu == "📍 GPS Davomat":
                     st.balloons()
                     st.success("Davomat qayd etildi!")
         else: st.error(f"Siz maktab hududidan uzoqdasiz! ({round(masofa*1000)} m)")
+
 
