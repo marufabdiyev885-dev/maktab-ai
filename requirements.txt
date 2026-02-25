@@ -14,5 +14,7 @@ streamlit-js-eval
 geopy
 st-gsheets-connection
 beautifulsoup4
+selenium
+webdriver-manager
 
 
