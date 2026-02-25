@@ -107,26 +107,6 @@ if menu == "👥 Ro'yxatlar":
         else: st.warning(f"{f_oqv} fayli topilmadi.")
 
 # --- 🤖 AI MULOQOT (TEJAMKOR VARIANT) ---
-if menu == "🤖 AI Muloqot":
-    st.title("🤖 Maktab AI Yordamchisi")
-    if "messages" not in st.session_state: st.session_state.messages = []
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]): st.markdown(msg["content"])
-    savol = st.chat_input("Savolingizni yozing...")
-    if savol:
-        st.session_state.messages.append({"role": "user", "content": savol})
-        with st.chat_message("user"): st.markdown(savol)
-        with st.chat_message("assistant"):
-            try:
-                res = client.chat.completions.create(
-                    messages=[{"role": "system", "content": "Sen maktab yordamchisisan."}] + st.session_state.messages[-5:],
-                    model="llama-3.3-70b-versatile",
-                )
-                ans = res.choices[0].message.content
-                st.markdown(ans)
-                st.session_state.messages.append({"role": "assistant", "content": ans})
-            except: st.error("AI band.")
-
 
                    # --- JURNAL MONITORINGI ---
 elif menu == "📊 Jurnal Monitoringi":
@@ -300,6 +280,7 @@ elif menu == "📍 GPS Davomat":
                 file_name=f"davomat_{hozir.strftime('%d_%m_%Y')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
 
 
 
