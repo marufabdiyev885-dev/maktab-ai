@@ -19,3 +19,5 @@ webdriver-manager
 gtts
 streamlit-mic-recorder
 edge-tts
+streamlit-lottie
+edge-tts
