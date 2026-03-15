@@ -7,11 +7,12 @@ import re
 import io
 import datetime as dt
 import pytz
+import asyncio  # Yangi qo'shildi
+import edge_tts # Yangi qo'shildi (requirements.txt ga qo'shishni unutmang)
 from groq import Groq
 from streamlit_js_eval import get_geolocation
 from geopy.distance import geodesic
 from streamlit_gsheets import GSheetsConnection
-from gtts import gTTS
 from streamlit_mic_recorder import mic_recorder
 
 # --- ASOSIY SOZLAMALAR ---
@@ -42,6 +43,14 @@ try:
 except Exception as e:
     st.error(f"Secrets xatosi: {e}")
     st.stop()
+
+# --- OVOZ HOSIL QILISH FUNKSIYASI (O'ZBEKCHA) ---
+async def generate_uz_voice(text):
+    # O'zbekcha tabiiy ovoz (Sardor yoki Madina)
+    communicate = edge_tts.Communicate(text, "uz-UZ-SardorNeural")
+    output_path = "output.mp3"
+    await communicate.save(output_path)
+    return output_path
 
 # --- GOOGLE SHEETS FUNKSIYASI ---
 def davomatni_gsheetsga_yoz(ism, holat):
@@ -85,7 +94,6 @@ with st.sidebar:
     st.title("🏛 " + MAKTAB_NOMI)
     st.write(f"👤 **Direktor:** {DIREKTOR_FIO}")
     st.divider()
-    # YANGI BO'LIM QO'SHILDI: "👩‍🏫 AI O'qituvchi"
     menu = st.radio("Bo'limni tanlang:", ["🤖 AI Muloqot", "👩‍🏫 AI O'qituvchi", "📊 Jurnal Monitoringi", "📍 GPS Davomat"])
     st.divider()
     if st.button("🚪 Chiqish", use_container_width=True):
@@ -113,7 +121,7 @@ if menu == "🤖 AI Muloqot":
                 st.session_state.messages.append({"role": "assistant", "content": ans})
             except: st.error("AI band.")
 
-# --- 👩‍🏫 AI O'QITUVCHI (YANGI BO'LIM) ---
+# --- 👩‍🏫 AI O'QITUVCHI ---
 elif menu == "👩‍🏫 AI O'qituvchi":
     st.title("👩‍🏫 Virtual O'qituvchi (Interaktiv Dars)")
     
@@ -137,7 +145,6 @@ elif menu == "👩‍🏫 AI O'qituvchi":
                 st.session_state.lesson_history = []
                 st.rerun()
             
-            # AI Tushuntirishi (Kesh bilan)
             @st.cache_data
             def get_lesson_content(mavzu):
                 res = client.chat.completions.create(
@@ -151,10 +158,10 @@ elif menu == "👩‍🏫 AI O'qituvchi":
             st.markdown(dars_text)
             
             if st.button("🔊 Ovozli eshitish"):
-                tts = gTTS(text=dars_text[:1000], lang='tr')
-                fp = io.BytesIO()
-                tts.write_to_fp(fp)
-                st.audio(fp, format="audio/mp3", autoplay=True)
+                with st.spinner("Ovoz tayyorlanmoqda..."):
+                    # gTTS o'rniga sifatli edge-tts ishlatildi
+                    voice_file = asyncio.run(generate_uz_voice(dars_text[:1000]))
+                    st.audio(voice_file, format="audio/mp3", autoplay=True)
 
         with col2:
             st.subheader("🙋‍♂️ Savol-javob")
@@ -174,7 +181,7 @@ elif menu == "👩‍🏫 AI O'qituvchi":
                 st.session_state.lesson_history.append({"role": "assistant", "content": res_j.choices[0].message.content})
                 st.rerun()
 
-# --- 📊 JURNAL MONITORINGI ---
+# --- 📊 JURNAL MONITORINGI --- (Kodingizning qolgan qismi o'zgarmasdan qoldi)
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
     if "m_auth" not in st.session_state: st.session_state.m_auth = False
