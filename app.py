@@ -7,13 +7,14 @@ import re
 import io
 import datetime as dt
 import pytz
-import asyncio  # Yangi qo'shildi
-import edge_tts # Yangi qo'shildi (requirements.txt ga qo'shishni unutmang)
+import asyncio
+import edge_tts
 from groq import Groq
 from streamlit_js_eval import get_geolocation
 from geopy.distance import geodesic
 from streamlit_gsheets import GSheetsConnection
 from streamlit_mic_recorder import mic_recorder
+from streamlit_lottie import st_lottie # Yangi qo'shildi
 
 # --- ASOSIY SOZLAMALAR ---
 MAKTAB_NOMI = "1-sonli umumta'lim maktabi"
@@ -44,11 +45,17 @@ except Exception as e:
     st.error(f"Secrets xatosi: {e}")
     st.stop()
 
-# --- OVOZ HOSIL QILISH FUNKSIYASI (O'ZBEKCHA) ---
+# --- ANIMATSIYA VA OVOZ FUNKSIYALARI ---
+def load_lottieurl(url):
+    r = requests.get(url)
+    return r.json() if r.status_code == 200 else None
+
+# Robot animatsiyalari
+robot_anim = load_lottieurl("https://lottie.host/8659103c-83b3-4f93-9d56-7463f82637f8/S9v12T87p0.json")
+
 async def generate_uz_voice(text):
-    # O'zbekcha tabiiy ovoz (Sardor yoki Madina)
     communicate = edge_tts.Communicate(text, "uz-UZ-SardorNeural")
-    output_path = "output.mp3"
+    output_path = "output_audio.mp3"
     await communicate.save(output_path)
     return output_path
 
@@ -56,10 +63,8 @@ async def generate_uz_voice(text):
 def davomatni_gsheetsga_yoz(ism, holat):
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
-        try:
-            df = conn.read(ttl=0)
-        except:
-            df = pd.DataFrame(columns=["Sana", "Vaqt", "F.I.SH", "Holat"])
+        try: df = conn.read(ttl=0)
+        except: df = pd.DataFrame(columns=["Sana", "Vaqt", "F.I.SH", "Holat"])
         yangi_qator = pd.DataFrame({
             "Sana": [hozir.strftime("%d.%m.%Y")],
             "Vaqt": [hozir.strftime("%H:%M:%S")],
@@ -121,67 +126,72 @@ if menu == "🤖 AI Muloqot":
                 st.session_state.messages.append({"role": "assistant", "content": ans})
             except: st.error("AI band.")
 
-# --- 👩‍🏫 AI O'QITUVCHI ---
+# --- 👩‍🏫 AI O'QITUVCHI (JONLI ROBOT VERSIYASI) ---
 elif menu == "👩‍🏫 AI O'qituvchi":
-    st.title("👩‍🏫 Virtual O'qituvchi (Interaktiv Dars)")
+    st.title("👩‍🏫 Virtual Robot O'qituvchi")
     
     if "dars_active" not in st.session_state: st.session_state.dars_active = False
-    if "current_mavzu" not in st.session_state: st.session_state.current_mavzu = ""
     if "lesson_history" not in st.session_state: st.session_state.lesson_history = []
 
     if not st.session_state.dars_active:
-        mavzu_input = st.text_input("Dars mavzusini kiriting:", placeholder="Masalan: Quyosh tizimi")
+        mavzu_input = st.text_input("Dars mavzusini kiriting:", placeholder="Masalan: Fizika qonunlari")
         if st.button("🚀 Darsni boshlash"):
             if mavzu_input:
                 st.session_state.current_mavzu = mavzu_input
                 st.session_state.dars_active = True
+                # Birinchi tushuntirish
+                res = client.chat.completions.create(
+                    messages=[{"role": "system", "content": "Sen mehribon o'qituvchi robotsan. Mavzuni qisqa, qiziqarli va sodda tushuntir."},
+                              {"role": "user", "content": f"{mavzu_input} haqida darsni boshla."}],
+                    model="llama-3.3-70b-versatile"
+                )
+                st.session_state.lesson_history.append({"role": "assistant", "content": res.choices[0].message.content})
                 st.rerun()
     else:
-        col1, col2 = st.columns([1, 1])
-        with col1:
+        col_anim, col_info = st.columns([1, 2])
+        with col_anim:
+            st_lottie(robot_anim, height=300, key="robot_teacher")
+        with col_info:
             st.subheader(f"📖 Mavzu: {st.session_state.current_mavzu}")
-            if st.button("⬅️ Darsni tugatish"):
+            if st.button("❌ Darsni tugatish"):
                 st.session_state.dars_active = False
                 st.session_state.lesson_history = []
                 st.rerun()
-            
-            @st.cache_data
-            def get_lesson_content(mavzu):
-                res = client.chat.completions.create(
-                    messages=[{"role": "system", "content": "Sen mehribon o'qituvchisan. Mavzuni qiziqarli va sodda tushuntir."},
-                              {"role": "user", "content": f"{mavzu} haqida dars o't."}],
-                    model="llama-3.3-70b-versatile"
-                )
-                return res.choices[0].message.content
 
-            dars_text = get_lesson_content(st.session_state.current_mavzu)
-            st.markdown(dars_text)
-            
-            if st.button("🔊 Ovozli eshitish"):
-                with st.spinner("Ovoz tayyorlanmoqda..."):
-                    # gTTS o'rniga sifatli edge-tts ishlatildi
-                    voice_file = asyncio.run(generate_uz_voice(dars_text[:1000]))
-                    st.audio(voice_file, format="audio/mp3", autoplay=True)
+        st.divider()
+        
+        # Chat interfeysi
+        for m in st.session_state.lesson_history:
+            with st.chat_message(m["role"]): st.write(m["content"])
 
-        with col2:
-            st.subheader("🙋‍♂️ Savol-javob")
-            for m in st.session_state.lesson_history:
-                with st.chat_message(m["role"]): st.write(m["content"])
+        # Eng oxirgi javobni AVTOMATIK o'qish
+        if st.session_state.lesson_history and st.session_state.lesson_history[-1]["role"] == "assistant":
+            with st.spinner("AI gapirmoqda..."):
+                v_text = st.session_state.lesson_history[-1]["content"][:800]
+                v_file = asyncio.run(generate_uz_voice(v_text))
+                st.audio(v_file, format="audio/mp3", autoplay=True)
+
+        # Mikrofon orqali savol berish (Optimallashgan)
+        st.write("---")
+        audio_data = mic_recorder(start_prompt="🎤 Savol berish", stop_prompt="✅ Yuborish", key='robot_mic', sample_rate=16000)
+        
+        if audio_data:
+            audio_bio = io.BytesIO(audio_data['bytes'])
+            audio_bio.name = "audio.wav"
+            with st.spinner("Sizni eshityapman..."):
+                trans = client.audio.transcriptions.create(file=audio_bio, model="whisper-large-v3", language="uz")
+                user_say = trans.text
             
-            audio_data = mic_recorder(start_prompt="🎤 Savol berish", stop_prompt="🛑 To'xtatish", key='lesson_mic')
-            if audio_data:
-                trans = client.audio.transcriptions.create(file=("audio.wav", audio_data['bytes']), model="whisper-large-v3", language="uz")
-                savol = trans.text
-                st.session_state.lesson_history.append({"role": "user", "content": savol})
+            if user_say:
+                st.session_state.lesson_history.append({"role": "user", "content": user_say})
                 res_j = client.chat.completions.create(
-                    messages=[{"role": "system", "content": f"Sen {st.session_state.current_mavzu} mavzusi bo'yicha o'qituvchisan."},
-                              {"role": "user", "content": savol}],
+                    messages=[{"role": "system", "content": f"Sen {st.session_state.current_mavzu} mavzusi bo'yicha o'qituvchisan. Qisqa javob ber."}] + st.session_state.lesson_history[-4:],
                     model="llama-3.3-70b-versatile"
                 )
                 st.session_state.lesson_history.append({"role": "assistant", "content": res_j.choices[0].message.content})
                 st.rerun()
 
-# --- 📊 JURNAL MONITORINGI --- (Kodingizning qolgan qismi o'zgarmasdan qoldi)
+# --- 📊 JURNAL MONITORINGI ---
 elif menu == "📊 Jurnal Monitoringi":
     st.title("📊 Jurnal Monitoringi")
     if "m_auth" not in st.session_state: st.session_state.m_auth = False
