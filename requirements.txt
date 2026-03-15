@@ -17,4 +17,4 @@ beautifulsoup4
 selenium
 webdriver-manager
 gtts
-
+streamlit-mic-recorder
