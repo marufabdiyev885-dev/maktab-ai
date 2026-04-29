@@ -21,3 +21,4 @@ streamlit-mic-recorder
 edge-tts
 streamlit-lottie
 edge-tts
+pytz
