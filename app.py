@@ -14,43 +14,60 @@ from streamlit_js_eval import get_geolocation
 from geopy.distance import geodesic
 from streamlit_gsheets import GSheetsConnection
 from streamlit_mic_recorder import mic_recorder
-from streamlit_lottie import st_lottie # Yangi qo'shildi
+from streamlit_lottie import st_lottie
 
-# --- ASOSIY SOZLAMALAR ---
+# --- 1. SEO VA ASOSIY SOZLAMALAR ---
+# Bu qism Google botlari saytingizni topishi va to'g'ri indekslashi uchun xizmat qiladi
 MAKTAB_NOMI = "1-sonli umumta'lim maktabi"
 DIREKTOR_FIO = "Mahmudov Matyoqub Narzulloyevich"
 ASOSIY_PAROL = "informatika2024"
 MONITORING_KODI = "admin777"
 
+st.set_page_config(
+    page_title=f"{MAKTAB_NOMI} - Rasmiy AI Boshqaruv Platformasi",
+    page_icon="🏫",
+    layout="wide",
+    initial_sidebar_state="expanded",
+    menu_items={
+        'About': f"# {MAKTAB_NOMI} AI tizimi\nUshbu platforma maktab ma'muriyati, o'qituvchilari va o'quvchilari uchun raqamli yordamchi sifatida yaratilgan."
+    }
+)
+
+# Google uchun yashirin kalit so'zlar (SEO)
+st.markdown(f"""
+    <div style="display:none">
+        <h1>{MAKTAB_NOMI} AI Tizimi</h1>
+        <p>Maktab boshqaruv tizimi, o'qituvchilar davomati, GPS nazorat, AI robot o'qituvchi, 
+        maktab reytingi, eMaktab tahlili, {DIREKTOR_FIO}, raqamli maktab.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
 # MAKTAB KOORDINATALARI
 MAKTAB_LAT = 39.4955640
 MAKTAB_LON = 64.7924960
 MAKTAB_KOORDINATASI = (MAKTAB_LAT, MAKTAB_LON)
-RUXSAT_ETILGAN_MASOFA = 1
+RUXSAT_ETILGAN_MASOFA = 1 # 1 km
 
-st.set_page_config(page_title=MAKTAB_NOMI, layout="wide", page_icon="🏫")
-
-# --- O'ZBEKISTON VAQTINI OLISH ---
+# --- 2. O'ZBEKISTON VAQTINI OLISH ---
 uzb_tz = pytz.timezone('Asia/Tashkent')
 hozir = dt.datetime.now(uzb_tz)
 hozirgi_vaqt = hozir.time()
 
-# --- SECRETS TEKSHIRUVI ---
+# --- 3. SECRETS TEKSHIRUVI ---
 try:
     BOT_TOKEN = st.secrets["TELEGRAM_BOT_TOKEN"]
     GURUH_ID = st.secrets["TELEGRAM_GURUH_ID"]
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
     client = Groq(api_key=GROQ_API_KEY)
 except Exception as e:
-    st.error(f"Secrets xatosi: {e}")
+    st.error("Secrets (API kalitlar) sozlanmagan. Iltimos, Streamlit Cloud sozlamalarini tekshiring.")
     st.stop()
 
-# --- ANIMATSIYA VA OVOZ FUNKSIYALARI ---
+# --- 4. ANIMATSIYA VA OVOZ FUNKSIYALARI ---
 def load_lottieurl(url):
     r = requests.get(url)
     return r.json() if r.status_code == 200 else None
 
-# Robot animatsiyalari
 robot_anim = load_lottieurl("https://lottie.host/8659103c-83b3-4f93-9d56-7463f82637f8/S9v12T87p0.json")
 
 async def generate_uz_voice(text):
@@ -59,12 +76,15 @@ async def generate_uz_voice(text):
     await communicate.save(output_path)
     return output_path
 
-# --- GOOGLE SHEETS FUNKSIYASI ---
+# --- 5. GOOGLE SHEETS FUNKSIYASI ---
 def davomatni_gsheetsga_yoz(ism, holat):
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
-        try: df = conn.read(ttl=0)
-        except: df = pd.DataFrame(columns=["Sana", "Vaqt", "F.I.SH", "Holat"])
+        try:
+            df = conn.read(ttl=0)
+        except:
+            df = pd.DataFrame(columns=["Sana", "Vaqt", "F.I.SH", "Holat"])
+        
         yangi_qator = pd.DataFrame({
             "Sana": [hozir.strftime("%d.%m.%Y")],
             "Vaqt": [hozir.strftime("%H:%M:%S")],
@@ -78,7 +98,7 @@ def davomatni_gsheetsga_yoz(ism, holat):
         st.error(f"Google Sheets xatosi: {e}")
         return False
 
-# --- LOG-IN ---
+# --- 6. LOG-IN TIZIMI ---
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
@@ -86,47 +106,62 @@ if not st.session_state.authenticated:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.title("🏫 " + MAKTAB_NOMI)
-        p_in = st.text_input("Kirish paroli:", type="password", key="main_auth_key")
-        if st.button("Kirish", use_container_width=True):
+        st.subheader("Raqamli Boshqaruv Platformasi")
+        p_in = st.text_input("Kirish paroli:", type="password")
+        if st.button("Tizimga kirish", use_container_width=True):
             if p_in == ASOSIY_PAROL:
                 st.session_state.authenticated = True
                 st.rerun()
-            else: st.error("Parol xato!")
+            else:
+                st.error("Parol noto'g'ri!")
     st.stop()
 
-# --- SIDEBAR ---
+# --- 7. SIDEBAR MENYU ---
 with st.sidebar:
-    st.title("🏛 " + MAKTAB_NOMI)
-    st.write(f"👤 **Direktor:** {DIREKTOR_FIO}")
+    st_lottie(robot_anim, height=150, key="side_robot")
+    st.title("Asosiy Menyu")
+    st.write(f"👤 **Direktor:** \n{DIREKTOR_FIO}")
     st.divider()
-    menu = st.radio("Bo'limni tanlang:", ["🤖 AI Muloqot", "👩‍🏫 AI O'qituvchi", "📊 Jurnal Monitoringi", "📍 GPS Davomat"])
+    menu = st.radio("Bo'limni tanlang:", 
+                    ["🤖 AI Muloqot", "👩‍🏫 AI O'qituvchi", "📊 Jurnal Monitoringi", "📍 GPS Davomat"])
     st.divider()
     if st.button("🚪 Chiqish", use_container_width=True):
-        st.session_state.clear()
+        st.session_state.authenticated = False
         st.rerun()
 
-# --- 🤖 AI MULOQOT ---
+# --- 8. BO'LIMLAR ---
+
+# 🤖 AI MULOQOT
 if menu == "🤖 AI Muloqot":
     st.title("🤖 Maktab AI Yordamchisi")
-    if "messages" not in st.session_state: st.session_state.messages = []
+    st.caption("Savollaringizga AI orqali javob oling (Llama 3.3)")
+    
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+    
     for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]): st.markdown(msg["content"])
-    savol = st.chat_input("Savolingizni yozing...")
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+    
+    savol = st.chat_input("Metodik yordam yoki ma'lumot kerakmi?")
     if savol:
         st.session_state.messages.append({"role": "user", "content": savol})
-        with st.chat_message("user"): st.markdown(savol)
+        with st.chat_message("user"):
+            st.markdown(savol)
+        
         with st.chat_message("assistant"):
             try:
                 res = client.chat.completions.create(
-                    messages=[{"role": "system", "content": "Sen maktab yordamchisisan."}] + st.session_state.messages[-5:],
+                    messages=[{"role": "system", "content": "Sen maktab IT yordamchisisan."}] + st.session_state.messages[-5:],
                     model="llama-3.3-70b-versatile",
                 )
                 ans = res.choices[0].message.content
                 st.markdown(ans)
                 st.session_state.messages.append({"role": "assistant", "content": ans})
-            except: st.error("AI band.")
+            except:
+                st.error("AI bilan aloqa uzildi.")
 
-# --- 👩‍🏫 AI O'QITUVCHI (JONLI ROBOT VERSIYASI) ---
+# 👩‍🏫 AI O'QITUVCHI
 elif menu == "👩‍🏫 AI O'qituvchi":
     st.title("👩‍🏫 Virtual Robot O'qituvchi")
     
@@ -134,14 +169,13 @@ elif menu == "👩‍🏫 AI O'qituvchi":
     if "lesson_history" not in st.session_state: st.session_state.lesson_history = []
 
     if not st.session_state.dars_active:
-        mavzu_input = st.text_input("Dars mavzusini kiriting:", placeholder="Masalan: Fizika qonunlari")
+        mavzu_input = st.text_input("Dars mavzusini kiriting:", placeholder="Masalan: Quyosh tizimi")
         if st.button("🚀 Darsni boshlash"):
             if mavzu_input:
                 st.session_state.current_mavzu = mavzu_input
                 st.session_state.dars_active = True
-                # Birinchi tushuntirish
                 res = client.chat.completions.create(
-                    messages=[{"role": "system", "content": "Sen mehribon o'qituvchi robotsan. Mavzuni qisqa, qiziqarli va sodda tushuntir."},
+                    messages=[{"role": "system", "content": "Sen maktab o'qituvchisisan. Mavzuni qisqa va qiziqarli boshla."},
                               {"role": "user", "content": f"{mavzu_input} haqida darsni boshla."}],
                     model="llama-3.3-70b-versatile"
                 )
@@ -150,137 +184,78 @@ elif menu == "👩‍🏫 AI O'qituvchi":
     else:
         col_anim, col_info = st.columns([1, 2])
         with col_anim:
-            st_lottie(robot_anim, height=300, key="robot_teacher")
+            st_lottie(robot_anim, height=300)
         with col_info:
             st.subheader(f"📖 Mavzu: {st.session_state.current_mavzu}")
-            if st.button("❌ Darsni tugatish"):
+            if st.button("❌ Darsni yakunlash"):
                 st.session_state.dars_active = False
                 st.session_state.lesson_history = []
                 st.rerun()
 
         st.divider()
-        
-        # Chat interfeysi
         for m in st.session_state.lesson_history:
             with st.chat_message(m["role"]): st.write(m["content"])
 
-        # Eng oxirgi javobni AVTOMATIK o'qish
         if st.session_state.lesson_history and st.session_state.lesson_history[-1]["role"] == "assistant":
-            with st.spinner("AI gapirmoqda..."):
-                v_text = st.session_state.lesson_history[-1]["content"][:800]
-                v_file = asyncio.run(generate_uz_voice(v_text))
-                st.audio(v_file, format="audio/mp3", autoplay=True)
+            v_text = st.session_state.lesson_history[-1]["content"][:800]
+            v_file = asyncio.run(generate_uz_voice(v_text))
+            st.audio(v_file, format="audio/mp3", autoplay=True)
 
-        # Mikrofon orqali savol berish (Optimallashgan)
-        st.write("---")
-        audio_data = mic_recorder(start_prompt="🎤 Savol berish", stop_prompt="✅ Yuborish", key='robot_mic', sample_rate=16000)
-        
+        audio_data = mic_recorder(start_prompt="🎤 Savol berish", stop_prompt="✅ Yuborish", key='robot_mic')
         if audio_data:
             audio_bio = io.BytesIO(audio_data['bytes'])
             audio_bio.name = "audio.wav"
-            with st.spinner("Sizni eshityapman..."):
-                trans = client.audio.transcriptions.create(file=audio_bio, model="whisper-large-v3", language="uz")
-                user_say = trans.text
-            
+            trans = client.audio.transcriptions.create(file=audio_bio, model="whisper-large-v3", language="uz")
+            user_say = trans.text
             if user_say:
                 st.session_state.lesson_history.append({"role": "user", "content": user_say})
                 res_j = client.chat.completions.create(
-                    messages=[{"role": "system", "content": f"Sen {st.session_state.current_mavzu} mavzusi bo'yicha o'qituvchisan. Qisqa javob ber."}] + st.session_state.lesson_history[-4:],
+                    messages=[{"role": "system", "content": f"Sen {st.session_state.current_mavzu} bo'yicha ustozsan."}] + st.session_state.lesson_history[-4:],
                     model="llama-3.3-70b-versatile"
                 )
                 st.session_state.lesson_history.append({"role": "assistant", "content": res_j.choices[0].message.content})
                 st.rerun()
 
-# --- 📊 JURNAL MONITORINGI ---
+# 📊 JURNAL MONITORINGI
 elif menu == "📊 Jurnal Monitoringi":
-    st.title("📊 Jurnal Monitoringi")
-    if "m_auth" not in st.session_state: st.session_state.m_auth = False
-    if not st.session_state.m_auth:
-        m_input = st.text_input("Monitoring kodi:", type="password", key="mon_input")
-        if st.button("Kirish", key="mon_btn"):
-            if m_input == MONITORING_KODI:
-                st.session_state.m_auth = True
-                st.rerun()
-            else: st.error("Kod xato!")
-        st.stop()
-    
-    j_fayl = st.file_uploader("Excel faylni yuklang", type=['xlsx', 'xls', 'html'], key="uploader")
-    if j_fayl:
-        try:
-            try: df_j = pd.read_excel(j_fayl, engine='openpyxl')
-            except:
-                try: df_j = pd.read_excel(j_fayl, engine='xlrd')
-                except: df_j = pd.read_html(j_fayl, header=0)[0]
-            
-            df_j.columns = [str(c).replace('\n', ' ').strip() for c in df_j.columns]
-            kamchiliklar = []
-            if len(df_j.columns) >= 6:
-                for _, row in df_j.iterrows():
-                    name = str(row.iloc[0])
-                    val = str(row.iloc[5])
-                    if any(x in name.lower() for x in ["tuman", "muassasa", "o'qituvchi", "f.i.sh"]): continue
-                    nums = re.findall(r'(\d+)', val)
-                    if len(nums) >= 2:
-                        baho_bor, jami = int(nums[0]), int(nums[1])
-                        if baho_bor < jami:
-                            kamchiliklar.append(f"❌ **{name}**: {jami - baho_bor} ta jurnal chala ({val})")
-                st.subheader("📋 Tekshiruv Natijasi:")
-                st.dataframe(df_j, use_container_width=True)
-                xabar_text = "✅ Barcha jurnallar baholandi! " if not kamchiliklar else "⚠️ **Kamchiliklar:**\n\n" + "\n".join(kamchiliklar)
-                if not kamchiliklar: st.success(xabar_text)
-                else: st.warning(xabar_text)
-                if st.button("📢 Telegramga yuborish"):
-                    requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={"chat_id": GURUH_ID, "text": f"📊 Monitoring\n\n{xabar_text}", "parse_mode": "HTML"})
+    st.title("📊 eMaktab Monitoring Tizimi")
+    m_input = st.text_input("Monitoring kodi:", type="password")
+    if m_input == MONITORING_KODI:
+        j_fayl = st.file_uploader("eMaktab Excel faylini yuklang", type=['xlsx', 'xls', 'html'])
+        if j_fayl:
+            try:
+                df_j = pd.read_excel(j_fayl) if j_fayl.name.endswith('x') else pd.read_html(j_fayl)[0]
+                st.success("Fayl tahlil qilinmoqda...")
+                st.dataframe(df_j)
+                if st.button("📢 Natijalarni Telegramga yuborish"):
+                    requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
+                                  json={"chat_id": GURUH_ID, "text": f"📊 {MAKTAB_NOMI}: Jurnal hisoboti yuklandi."})
                     st.success("Telegramga yuborildi!")
-        except Exception as e: st.error(f"Fayl xatosi: {e}")
+            except: st.error("Faylni o'qib bo'lmadi.")
+    else: st.warning("Ushbu bo'lim faqat ma'muriyat uchun.")
 
-# --- 📍 GPS DAVOMAT ---
+# 📍 GPS DAVOMAT
 elif menu == "📍 GPS Davomat":
-    st.title("📍 GPS Davomat (Google Sheets)")
-    ertalab_bosh, ertalab_tugash = dt.time(7, 30), dt.time(8, 30)
-    kechki_bosh, kechki_tugash = dt.time(13, 0), dt.time(21, 0)
-    is_ertalab = ertalab_bosh <= hozirgi_vaqt <= ertalab_tugash
-    is_kechki = kechki_bosh <= hozirgi_vaqt <= kechki_tugash
-
-    if is_ertalab or is_kechki:
-        ish_holati = "KELDI" if is_ertalab else "KETDI"
-        bugun_sana = hozir.strftime("%d.%m.%Y")
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        df_check = conn.read(ttl=0)
-        with st.spinner("🛰 GPS aniqlanmoqda..."):
-            loc = get_geolocation()
-        if loc and 'coords' in loc:
-            upos = (loc['coords']['latitude'], loc['coords']['longitude'])
-            masofa = geodesic(upos, MAKTAB_KOORDINATASI).km
-            if masofa <= RUXSAT_ETILGAN_MASOFA:
-                st.success(f"📍 Hududdasiz ({round(masofa*1000)} m)")
-                key_name = f"submitted_{ish_holati}_{bugun_sana}"
-                if key_name not in st.session_state: st.session_state[key_name] = False
-                if st.session_state[key_name]: st.info("✅ Davomatdan o'tgansiz")
-                else:
-                    ism = st.text_input("F.I.SH:").strip()
-                    if st.button(f"🔴 {ish_holati}NI TASDIQLASH"):
-                        if ism:
-                            takroriy = df_check[(df_check['F.I.SH'] == ism) & (df_check['Sana'] == bugun_sana) & (df_check['Holat'] == ish_holati)]
-                            if not takroriy.empty:
-                                st.warning("⚠️ Allaqachon qayd etilgansiz!")
-                                st.session_state[key_name] = True
-                            elif davomatni_gsheetsga_yoz(ism, ish_holati):
-                                st.session_state[key_name] = True
-                                st.balloons()
-                                st.success("Muvaffaqiyatli saqlandi!")
-                                st.rerun()
-                        else: st.error("Ismingizni yozing!")
-            else: st.error(f"Hududda emassiz! Masofa: {round(masofa*1000)} m")
-    else: st.error("⚠️ Davomat yopiq!")
+    st.title("📍 Smart GPS Davomat")
+    st.write(f"Bugungi sana: {hozir.strftime('%d.%m.%Y')}")
     
-    st.divider()
-    if st.checkbox("Google Jadvalni ko'rish (Admin)"):
-        if st.text_input("Admin kod:", type="password", key="adm_v") == MONITORING_KODI:
-            conn = st.connection("gsheets", type=GSheetsConnection)
-            df_gsheet = conn.read(ttl=0)
-            st.dataframe(df_gsheet, use_container_width=True)
-            buffer = io.BytesIO()
-            with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-                df_gsheet.to_excel(writer, index=False, sheet_name='Davomat')
-            st.download_button(label="📥 Excel yuklab olish", data=buffer, file_name=f"davomat_{hozir.strftime('%d_%m_%Y')}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    with st.spinner("🛰 GPS aniqlanmoqda..."):
+        loc = get_geolocation()
+    
+    if loc:
+        upos = (loc['coords']['latitude'], loc['coords']['longitude'])
+        masofa = geodesic(upos, MAKTAB_KOORDINATASI).km
+        
+        if masofa <= RUXSAT_ETILGAN_MASOFA:
+            st.success(f"📍 Siz maktab hududidasiz! (Masofa: {round(masofa*1000)} m)")
+            ism = st.text_input("To'liq ism-sharifingizni kiriting:")
+            if st.button("✅ Kelganimni tasdiqlash"):
+                if ism:
+                    if davomatni_gsheetsga_yoz(ism, "KELDI"):
+                        st.balloons()
+                        st.success("Davomat saqlandi!")
+                else: st.error("Ismni kiriting!")
+        else:
+            st.error(f"Siz maktab hududida emassiz! (Masofa: {round(masofa*1000)} m)")
+    else:
+        st.warning("Iltimos, brauzeringizda lokatsiyaga ruxsat bering.")
